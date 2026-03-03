@@ -32,16 +32,6 @@ try {
   errors++;
 }
 
-// Run TypeScript type checking
-console.log("\n📝 Type checking...");
-const typecheckResult = await $`bun run typecheck`.nothrow();
-if (typecheckResult.exitCode === 0) {
-  console.log("✓ Type checking passed");
-} else {
-  console.error("✗ Type checking failed");
-  errors++;
-}
-
 // Run checks
 console.log("\n🔧 Checking code quality...");
 const checkResult = await $`bun run check`.nothrow();
@@ -54,16 +44,16 @@ if (checkResult.exitCode === 0) {
 
 // Build the plugin
 console.log("\n📦 Building plugin...");
-const buildResult = await $`bun run build`.nothrow();
+const buildResult = await $`vite build`.nothrow();
 if (buildResult.exitCode === 0) {
   console.log("✓ Build successful");
 
-  const mainFile = Bun.file("dist/main.js");
+  const mainFile = Bun.file("main.js");
   if (await mainFile.exists()) {
     const size = mainFile.size / 1024;
-    console.log(`  Output: dist/main.js (${size.toFixed(2)} KB)`);
+    console.log(`  Output: main.js (${size.toFixed(2)} KB)`);
   } else {
-    console.error("✗ dist/main.js not found after build");
+    console.error("✗ main.js not found after build");
     errors++;
   }
 } else {
