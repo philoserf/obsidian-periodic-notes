@@ -3,6 +3,7 @@ import {
   type App,
   type CachedMetadata,
   Component,
+  Notice,
   parseFrontMatterEntry,
   type TAbstractFile,
   TFile,
@@ -209,7 +210,12 @@ export class PeriodicNotesCache extends Component {
         this.set(file.path, metadata);
 
         if (reason === "create" && file.stat.size === 0) {
-          applyPeriodicTemplateToFile(this.app, file, settings, metadata);
+          applyPeriodicTemplateToFile(this.app, file, settings, metadata).catch(
+            (err) => {
+              console.error("[Periodic Notes] failed to apply template", err);
+              new Notice("Periodic Notes: failed to apply template to note");
+            },
+          );
         }
 
         this.app.workspace.trigger("periodic-notes:resolve", granularity, file);
