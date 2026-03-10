@@ -1,5 +1,3 @@
-import memoize from "lodash/memoize";
-import sortBy from "lodash/sortBy";
 import type { Moment } from "moment";
 import {
   type App,
@@ -89,18 +87,21 @@ export class PeriodicNotesCache extends Component {
 
   public initialize(): void {
     const settings = get(this.plugin.settings);
-    const memoizedRecurseChildren = memoize(
-      (rootFolder: TFolder, cb: (file: TAbstractFile) => void) => {
-        if (!rootFolder) return;
-        for (const c of rootFolder.children) {
-          if (c instanceof TFile) {
-            cb(c);
-          } else if (c instanceof TFolder) {
-            memoizedRecurseChildren(c, cb);
-          }
+    const visited = new Set<TFolder>();
+    const recurseChildren = (
+      folder: TFolder,
+      cb: (file: TAbstractFile) => void,
+    ) => {
+      if (visited.has(folder)) return;
+      visited.add(folder);
+      for (const c of folder.children) {
+        if (c instanceof TFile) {
+          cb(c);
+        } else if (c instanceof TFolder) {
+          recurseChildren(c, cb);
         }
-      },
-    );
+      }
+    };
 
     const activeGranularities = granularities.filter(
       (g) => settings[g]?.enabled,
@@ -111,7 +112,7 @@ export class PeriodicNotesCache extends Component {
         config.folder || "/",
       ) as TFolder;
 
-      memoizedRecurseChildren(rootFolder, (file: TAbstractFile) => {
+      recurseChildren(rootFolder, (file: TAbstractFile) => {
         if (file instanceof TFile) {
           this.resolve(file, "initialize");
           const metadata = this.app.metadataCache.getFileCache(file);
@@ -298,12 +299,9 @@ export class PeriodicNotesCache extends Component {
     if (!currMetadata) return null;
 
     const granularity = currMetadata.granularity;
-    const sortedCache = sortBy(
-      Array.from(this.cachedFiles.values()).filter(
-        (m) => m.granularity === granularity,
-      ),
-      ["canonicalDateStr"],
-    );
+    const sortedCache = Array.from(this.cachedFiles.values())
+      .filter((m) => m.granularity === granularity)
+      .sort((a, b) => a.canonicalDateStr.localeCompare(b.canonicalDateStr));
     const activeNoteIndex = sortedCache.findIndex(
       (m) => m.filePath === filePath,
     );

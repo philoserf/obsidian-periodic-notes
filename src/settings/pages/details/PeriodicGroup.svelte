@@ -1,8 +1,6 @@
 <script lang="ts">
   import type { App } from "obsidian";
   import { slide } from "svelte/transition";
-  import capitalize from "lodash/capitalize";
-
   import { displayConfigs } from "src/commands";
   import NoteFormatSetting from "src/settings/components/NoteFormatSetting.svelte";
   import NoteTemplateSetting from "src/settings/components/NoteTemplateSetting.svelte";
@@ -50,7 +48,7 @@
     <div class="setting-item-info">
       <h3 class="setting-item-name periodic-group-title">
         <Arrow {isExpanded} />
-        {capitalize(displayConfig.periodicity)} Notes
+        {displayConfig.periodicity.charAt(0).toUpperCase() + displayConfig.periodicity.slice(1)} Notes
         {#if $config.openAtStartup}
           <span class="badge">Opens at startup</span>
         {/if}
