@@ -346,3 +346,7 @@ export function isIsoFormat(format: string): boolean {
   const cleanFormat = removeEscapedCharacters(format);
   return /w{1,2}/.test(cleanFormat);
 }
+
+export function capitalize(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
