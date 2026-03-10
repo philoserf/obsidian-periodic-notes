@@ -1,7 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import moment from "moment";
 
-import { DEFAULT_FORMAT, DEFAULT_PERIODIC_CONFIG } from "./constants";
+import {
+  DEFAULT_FORMAT,
+  DEFAULT_PERIODIC_CONFIG,
+  HUMANIZE_FORMAT,
+} from "./constants";
 import type { Granularity, PeriodicConfig } from "./types";
 
 // Inline to avoid importing obsidian via settings/validation.ts
@@ -184,7 +188,7 @@ describe("getPossibleFormats", () => {
     expect(result).toEqual(["YYYY/YYYY-MM-DD", "YYYY-MM-DD"]);
   });
 
-  test("returns just the format for flat paths", () => {
+  test("returns full and partial (identical) format for flat paths", () => {
     const settings: Settings = {
       ...emptySettings,
       day: { ...DEFAULT_PERIODIC_CONFIG, format: "YYYY-MM-DD" },
@@ -547,5 +551,143 @@ describe("getLooselyMatchedDate", () => {
   test("does not match invalid day", () => {
     const match = FULL_DATE_PATTERN.exec("2026-01-32");
     expect(match).toBeNull();
+  });
+});
+
+// Re-implement additional pure functions for testing
+
+function getRelativeDate(granularity: Granularity, date: moment.Moment) {
+  if (granularity === "week") {
+    const thisWeek = window.moment().startOf(granularity);
+    const fromNow = window.moment(date).diff(thisWeek, "week");
+    if (fromNow === 0) return "This week";
+    if (fromNow === -1) return "Last week";
+    if (fromNow === 1) return "Next week";
+    return window.moment.duration(fromNow, granularity).humanize(true);
+  }
+  if (granularity === "day") {
+    const today = window.moment().startOf("day");
+    const fromNow = window.moment(date).from(today);
+    return window.moment(date).calendar(null, {
+      lastWeek: "[Last] dddd",
+      lastDay: "[Yesterday]",
+      sameDay: "[Today]",
+      nextDay: "[Tomorrow]",
+      nextWeek: "dddd",
+      sameElse: () => `[${fromNow}]`,
+    });
+  }
+  return date.format(
+    HUMANIZE_FORMAT[granularity as keyof typeof HUMANIZE_FORMAT],
+  );
+}
+
+function capitalize(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+function getConfig(
+  settings: Settings,
+  granularity: Granularity,
+): PeriodicConfig {
+  return settings[granularity] ?? DEFAULT_PERIODIC_CONFIG;
+}
+
+describe("capitalize", () => {
+  test("capitalizes first letter", () => {
+    expect(capitalize("hello")).toBe("Hello");
+  });
+
+  test("handles single character", () => {
+    expect(capitalize("a")).toBe("A");
+  });
+
+  test("handles empty string", () => {
+    expect(capitalize("")).toBe("");
+  });
+
+  test("leaves already capitalized string unchanged", () => {
+    expect(capitalize("Hello")).toBe("Hello");
+  });
+
+  test("handles all caps", () => {
+    expect(capitalize("HELLO")).toBe("HELLO");
+  });
+});
+
+describe("getRelativeDate", () => {
+  test("returns 'Today' for current day", () => {
+    const today = moment().startOf("day");
+    expect(getRelativeDate("day", today)).toBe("Today");
+  });
+
+  test("returns 'Yesterday' for previous day", () => {
+    const yesterday = moment().subtract(1, "day").startOf("day");
+    expect(getRelativeDate("day", yesterday)).toBe("Yesterday");
+  });
+
+  test("returns 'Tomorrow' for next day", () => {
+    const tomorrow = moment().add(1, "day").startOf("day");
+    expect(getRelativeDate("day", tomorrow)).toBe("Tomorrow");
+  });
+
+  test("returns 'This week' for current week", () => {
+    const thisWeek = moment().startOf("week");
+    expect(getRelativeDate("week", thisWeek)).toBe("This week");
+  });
+
+  test("returns 'Last week' for previous week", () => {
+    const lastWeek = moment().subtract(1, "week").startOf("week");
+    expect(getRelativeDate("week", lastWeek)).toBe("Last week");
+  });
+
+  test("returns 'Next week' for next week", () => {
+    const nextWeek = moment().add(1, "week").startOf("week");
+    expect(getRelativeDate("week", nextWeek)).toBe("Next week");
+  });
+
+  test("returns formatted month for month granularity", () => {
+    const date = moment("2026-03-01");
+    expect(getRelativeDate("month", date)).toBe("March 2026");
+  });
+
+  test("returns formatted quarter for quarter granularity", () => {
+    const date = moment("2026-01-01");
+    expect(getRelativeDate("quarter", date)).toBe("2026 1Q");
+  });
+
+  test("returns formatted year for year granularity", () => {
+    const date = moment("2026-01-01");
+    expect(getRelativeDate("year", date)).toBe("2026");
+  });
+});
+
+describe("getConfig", () => {
+  const emptySettings: Settings = {
+    day: undefined,
+    week: undefined,
+    month: undefined,
+    quarter: undefined,
+    year: undefined,
+  };
+
+  test("returns default config when no setting", () => {
+    const config = getConfig(emptySettings, "day");
+    expect(config.enabled).toBe(false);
+    expect(config.format).toBe("");
+  });
+
+  test("returns custom config when set", () => {
+    const settings: Settings = {
+      ...emptySettings,
+      day: {
+        ...DEFAULT_PERIODIC_CONFIG,
+        enabled: true,
+        format: "DD-MM-YYYY",
+      },
+    };
+    const config = getConfig(settings, "day");
+    expect(config.enabled).toBe(true);
+    expect(config.format).toBe("DD-MM-YYYY");
   });
 });
