@@ -232,9 +232,11 @@ describe("findAdjacent", () => {
   });
 
   test("only considers same granularity", () => {
-    // weekly note should not appear when navigating daily
-    const result = findAdjacent(cache, "daily/2026-03-16.md", "forwards");
-    expect(result).toBeNull(); // no more daily notes after 03-16
+    // weekly note navigates within weekly entries only, not daily
+    const result = findAdjacent(cache, "weekly/2026-W12.md", "forwards");
+    expect(result).toBeNull(); // only one weekly entry in cache
+    const backwards = findAdjacent(cache, "weekly/2026-W12.md", "backwards");
+    expect(backwards).toBeNull(); // confirms daily entries are excluded
   });
 
   test("sorts by canonical date string", () => {
@@ -286,10 +288,11 @@ describe("getPeriodicNotes", () => {
       moment("2026-03-15"),
       true,
     );
-    // Should include day, week, and month entries for March 2026
-    expect(matches.length).toBeGreaterThan(1);
+    // Should include 2 day + 1 week + 1 month entries for March 2026
+    expect(matches).toHaveLength(4);
     const granularitiesFound = [...new Set(matches.map((m) => m.granularity))];
     expect(granularitiesFound).toContain("day");
+    expect(granularitiesFound).toContain("week");
     expect(granularitiesFound).toContain("month");
   });
 
