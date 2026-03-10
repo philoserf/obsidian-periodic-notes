@@ -42,8 +42,11 @@ export class NLDNavigator extends SuggestModal<DateNavigationItem> {
       try {
         // @ts-expect-error this.chooser exists but is not exposed
         this.chooser.useSelectedItem(evt);
-      } catch {
-        // chooser is a private API; degrade gracefully if unavailable
+      } catch (e) {
+        console.debug(
+          "[Periodic Notes] chooser.useSelectedItem() unavailable",
+          e,
+        );
       }
     });
 
@@ -65,7 +68,8 @@ export class NLDNavigator extends SuggestModal<DateNavigationItem> {
     try {
       // biome-ignore lint/suspicious/noExplicitAny: Obsidian API lacks type
       return (this as any).chooser.values[(this as any).chooser.selectedItem];
-    } catch {
+    } catch (e) {
+      console.debug("[Periodic Notes] chooser selection unavailable", e);
       return undefined;
     }
   }
