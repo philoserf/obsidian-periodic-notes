@@ -1,8 +1,6 @@
 <script lang="ts">
   import type { App } from "obsidian";
   import type { Readable } from "svelte/store";
-  import capitalize from "lodash/capitalize";
-
   import type { Granularity, PeriodicConfig } from "src/types";
   import { FileSuggest } from "src/ui/fileSuggest";
   import { displayConfigs } from "src/commands";
@@ -33,7 +31,7 @@
 <div class="setting-item">
   <div class="setting-item-info">
     <div class="setting-item-name">
-      {capitalize(displayConfigs[granularity].periodicity)} Note Template
+      {displayConfigs[granularity].periodicity.charAt(0).toUpperCase() + displayConfigs[granularity].periodicity.slice(1)} Note Template
     </div>
     <div class="setting-item-description">
       Choose the file to use as a template
