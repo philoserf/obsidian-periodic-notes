@@ -109,7 +109,8 @@ export class PeriodicNotesCache extends Component {
       const config = settings[granularity] as PeriodicConfig;
       const rootFolder = this.app.vault.getAbstractFileByPath(
         config.folder || "/",
-      ) as TFolder;
+      );
+      if (!(rootFolder instanceof TFolder)) continue;
 
       memoizedRecurseChildren(rootFolder, (file: TAbstractFile) => {
         if (file instanceof TFile) {
@@ -249,7 +250,9 @@ export class PeriodicNotesCache extends Component {
         cacheData.matchData.exact === true &&
         cacheData.date.isSame(targetDate, granularity)
       ) {
-        return this.app.vault.getAbstractFileByPath(filePath) as TFile;
+        const file = this.app.vault.getAbstractFileByPath(filePath);
+        if (file instanceof TFile) return file;
+        return null;
       }
     }
     return null;
