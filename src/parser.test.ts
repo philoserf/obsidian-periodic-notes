@@ -1,61 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import moment from "moment";
 
-import type { Granularity } from "./types";
+import { getLooselyMatchedDate } from "./parser";
 
 // @ts-expect-error global mock
 globalThis.window = { moment };
-
-interface ParseData {
-  granularity: Granularity;
-  date: moment.Moment;
-}
-
-// Re-implement to avoid obsidian imports
-const FULL_DATE_PATTERN =
-  /(\d{4})[-.]?(0[1-9]|1[0-2])[-.]?(0[1-9]|[12][0-9]|3[01])/;
-const MONTH_PATTERN = /(\d{4})[-.]?(0[1-9]|1[0-2])/;
-const YEAR_PATTERN = /(\d{4})/;
-
-function getLooselyMatchedDate(inputStr: string): ParseData | null {
-  const fullDateExp = FULL_DATE_PATTERN.exec(inputStr);
-  if (fullDateExp) {
-    return {
-      date: window.moment({
-        day: Number(fullDateExp[3]),
-        month: Number(fullDateExp[2]) - 1,
-        year: Number(fullDateExp[1]),
-      }),
-      granularity: "day",
-    };
-  }
-
-  const monthDateExp = MONTH_PATTERN.exec(inputStr);
-  if (monthDateExp) {
-    return {
-      date: window.moment({
-        day: 1,
-        month: Number(monthDateExp[2]) - 1,
-        year: Number(monthDateExp[1]),
-      }),
-      granularity: "month",
-    };
-  }
-
-  const yearExp = YEAR_PATTERN.exec(inputStr);
-  if (yearExp) {
-    return {
-      date: window.moment({
-        day: 1,
-        month: 0,
-        year: Number(yearExp[1]),
-      }),
-      granularity: "year",
-    };
-  }
-
-  return null;
-}
 
 describe("getLooselyMatchedDate", () => {
   test("matches YYYY-MM-DD format", () => {
