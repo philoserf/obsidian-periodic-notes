@@ -213,7 +213,9 @@ export class PeriodicNotesCache extends Component {
           applyPeriodicTemplateToFile(this.app, file, settings, metadata).catch(
             (err) => {
               console.error("[Periodic Notes] failed to apply template", err);
-              new Notice("Periodic Notes: failed to apply template to note");
+              new Notice(
+                `Periodic Notes: failed to apply template to "${file.path}". See console for details.`,
+              );
             },
           );
         }
