@@ -327,6 +327,30 @@ function applyTemplateTransformations(
     );
   }
 
+  if (granularity === "week") {
+    const daysOfWeek = [
+      "sunday",
+      "monday",
+      "tuesday",
+      "wednesday",
+      "thursday",
+      "friday",
+      "saturday",
+    ];
+    const weekStart = window.moment.localeData().firstDayOfWeek();
+    for (let i = 0; i < weekStart; i++) {
+      const day = daysOfWeek.shift();
+      if (day) daysOfWeek.push(day);
+    }
+    templateContents = templateContents.replace(
+      /{{\s*(sunday|monday|tuesday|wednesday|thursday|friday|saturday)\s*:(.*?)}}/gi,
+      (_, dayOfWeek, momentFormat) => {
+        const day = daysOfWeek.indexOf(dayOfWeek.toLowerCase());
+        return date.weekday(day).format(momentFormat.trim());
+      },
+    );
+  }
+
   if (
     granularity === "month" ||
     granularity === "quarter" ||
@@ -349,7 +373,7 @@ describe("applyTemplateTransformations", () => {
   const dayFormat = "YYYY-MM-DD";
   const monthFormat = "YYYY-MM";
 
-  test("replaces title, date, and time tokens", () => {
+  test("replaces title and date tokens", () => {
     const result = applyTemplateTransformations(
       "2026-03-15",
       "day",
@@ -358,6 +382,17 @@ describe("applyTemplateTransformations", () => {
       "# {{title}}\nDate: {{date}}",
     );
     expect(result).toBe("# 2026-03-15\nDate: 2026-03-15");
+  });
+
+  test("replaces time token with current HH:mm", () => {
+    const result = applyTemplateTransformations(
+      "2026-03-15",
+      "day",
+      date,
+      dayFormat,
+      "{{time}}",
+    );
+    expect(result).toMatch(/^\d{2}:\d{2}$/);
   });
 
   test("replaces yesterday and tomorrow for day granularity", () => {
@@ -457,6 +492,18 @@ describe("applyTemplateTransformations", () => {
       "{{year-1y:YYYY}}",
     );
     expect(result).toBe("2025");
+  });
+
+  test("replaces week day-of-week tokens", () => {
+    const weekDate = moment("2026-03-16"); // Monday
+    const result = applyTemplateTransformations(
+      "2026-W12",
+      "week",
+      weekDate,
+      "gggg-[W]ww",
+      "{{monday:YYYY-MM-DD}} to {{friday:YYYY-MM-DD}}",
+    );
+    expect(result).toBe("2026-03-16 to 2026-03-20");
   });
 
   test("does not replace month tokens for day granularity", () => {
