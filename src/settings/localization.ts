@@ -139,7 +139,11 @@ export function getLocalizationSettings(app: App): LocalizationSettings {
       app.vault.getConfig("localeOverride") ?? "system-default";
     const weekStart = app.vault.getConfig("weekStart") ?? "locale";
     return { localeOverride, weekStart };
-  } catch {
+  } catch (e) {
+    console.debug(
+      "[Periodic Notes] vault.getConfig() unavailable, using defaults",
+      e,
+    );
     return { localeOverride: "system-default", weekStart: "locale" };
   }
 }
