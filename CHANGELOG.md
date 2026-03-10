@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.1.0
+
+### Bug Fixes
+
+- Clamp invalid `weekStart` index to 0 instead of passing -1 to moment
+- Catch rejected promises from async template application (#20)
+- Include file path in template failure notice for easier debugging
+
+### Refactoring
+
+- Add fallbacks for private API usage (`vault.getConfig`, `moment.localeData()._week`) (#15, #16, #23)
+- Add `console.debug` logging to private API fallback paths
+- Extract shared `replaceGranularityTokens` helper to consolidate token replacement
+- Rename `monthStart` to `periodStart` in quarter/year transforms for clarity
+
+### Tests
+
+- Expand test coverage for cache, parser, validation, settings, and localization modules (#22)
+- Add week branch and time token coverage for template transforms
+- Fix and strengthen test assertions for granularity filtering
+
 ## 1.0.1
 
 ### Bug Fixes
