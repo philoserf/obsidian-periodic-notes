@@ -81,7 +81,7 @@ function overrideGlobalMomentWeekStart(weekStart: WeekStartOption): void {
   } else {
     moment.updateLocale(currentLocale, {
       week: {
-        dow: weekdays.indexOf(weekStart) || 0,
+        dow: Math.max(0, weekdays.indexOf(weekStart)),
       },
     });
   }
