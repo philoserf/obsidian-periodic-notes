@@ -128,7 +128,7 @@ export function applyTemplateTransformations(
       /{{\s*(quarter)\s*(([+-]\d+)([yqmwdhs]))?\s*(:.+?)?}}/gi,
       (_, _timeOrDate, calc, timeDelta, unit, momentFormat) => {
         const now = window.moment();
-        const monthStart = date
+        const periodStart = date
           .clone()
           .startOf("quarter")
           .set({
@@ -137,13 +137,13 @@ export function applyTemplateTransformations(
             second: now.get("second"),
           });
         if (calc) {
-          monthStart.add(parseInt(timeDelta, 10), unit);
+          periodStart.add(parseInt(timeDelta, 10), unit);
         }
 
         if (momentFormat) {
-          return monthStart.format(momentFormat.substring(1).trim());
+          return periodStart.format(momentFormat.substring(1).trim());
         }
-        return monthStart.format(format);
+        return periodStart.format(format);
       },
     );
   }
@@ -153,7 +153,7 @@ export function applyTemplateTransformations(
       /{{\s*(year)\s*(([+-]\d+)([yqmwdhs]))?\s*(:.+?)?}}/gi,
       (_, _timeOrDate, calc, timeDelta, unit, momentFormat) => {
         const now = window.moment();
-        const monthStart = date
+        const periodStart = date
           .clone()
           .startOf("year")
           .set({
@@ -162,13 +162,13 @@ export function applyTemplateTransformations(
             second: now.get("second"),
           });
         if (calc) {
-          monthStart.add(parseInt(timeDelta, 10), unit);
+          periodStart.add(parseInt(timeDelta, 10), unit);
         }
 
         if (momentFormat) {
-          return monthStart.format(momentFormat.substring(1).trim());
+          return periodStart.format(momentFormat.substring(1).trim());
         }
-        return monthStart.format(format);
+        return periodStart.format(format);
       },
     );
   }
