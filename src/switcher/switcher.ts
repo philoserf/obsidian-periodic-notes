@@ -39,25 +39,35 @@ export class NLDNavigator extends SuggestModal<DateNavigationItem> {
     ) as NLDatesPlugin;
 
     this.scope.register(["Meta"], "Enter", (evt: KeyboardEvent) => {
-      // @ts-expect-error this.chooser exists but is not exposed
-      this.chooser.useSelectedItem(evt);
+      try {
+        // @ts-expect-error this.chooser exists but is not exposed
+        this.chooser.useSelectedItem(evt);
+      } catch {
+        // chooser is a private API; degrade gracefully if unavailable
+      }
     });
 
     this.scope.register([], "Tab", (evt: KeyboardEvent) => {
+      const selected = this.getSelectedItem();
+      if (!selected) return;
       evt.preventDefault();
       this.close();
       new RelatedFilesSwitcher(
         this.app,
         this.plugin,
-        this.getSelectedItem(),
+        selected,
         this.inputEl.value,
       ).open();
     });
   }
 
-  private getSelectedItem(): DateNavigationItem {
-    // biome-ignore lint/suspicious/noExplicitAny: Obsidian API lacks type
-    return (this as any).chooser.values[(this as any).chooser.selectedItem];
+  private getSelectedItem(): DateNavigationItem | undefined {
+    try {
+      // biome-ignore lint/suspicious/noExplicitAny: Obsidian API lacks type
+      return (this as any).chooser.values[(this as any).chooser.selectedItem];
+    } catch {
+      return undefined;
+    }
   }
 
   /** XXX: this is pretty messy currently. Not sure if I like the format yet */

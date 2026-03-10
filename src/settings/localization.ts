@@ -67,8 +67,11 @@ function overrideGlobalMomentWeekStart(weekStart: WeekStartOption): void {
   // Save the initial locale weekspec so that we can restore
   // it when toggling between the different options in settings.
   if (!window._bundledLocaleWeekSpec) {
-    // biome-ignore lint/suspicious/noExplicitAny: Obsidian API lacks type
-    window._bundledLocaleWeekSpec = (<any>moment.localeData())._week;
+    const localeData = moment.localeData();
+    window._bundledLocaleWeekSpec = {
+      dow: localeData.firstDayOfWeek(),
+      doy: localeData.firstDayOfYear(),
+    };
   }
 
   if (weekStart === "locale") {
@@ -130,9 +133,13 @@ export function initializeLocaleConfigOnce(app: App) {
 }
 
 export function getLocalizationSettings(app: App): LocalizationSettings {
-  // private API: vault.getConfig is undocumented
-  const localeOverride =
-    app.vault.getConfig("localeOverride") ?? "system-default";
-  const weekStart = app.vault.getConfig("weekStart") ?? "locale";
-  return { localeOverride, weekStart };
+  try {
+    // private API: vault.getConfig is undocumented
+    const localeOverride =
+      app.vault.getConfig("localeOverride") ?? "system-default";
+    const weekStart = app.vault.getConfig("weekStart") ?? "locale";
+    return { localeOverride, weekStart };
+  } catch {
+    return { localeOverride: "system-default", weekStart: "locale" };
+  }
 }
