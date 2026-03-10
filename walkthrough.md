@@ -1,32 +1,87 @@
-# obsidian-periodic-notes Code Walkthrough
+# Periodic Notes — Code Walkthrough
 
-*2026-03-10T17:01:58Z by Showboat 0.6.1*
-<!-- showboat-id: 8aae5267-99ae-4b03-b76b-f625220577f0 -->
+*2026-03-10T23:07:41Z by Showboat 0.6.1*
+<!-- showboat-id: 479694c2-70e6-409a-8694-56a3396d1a8f -->
 
 ## Overview
 
-This plugin creates and manages periodic notes — daily, weekly, monthly, quarterly, and yearly — inside an Obsidian vault. Users configure a date format, folder, and template for each granularity. The plugin indexes existing notes by parsing filenames and frontmatter, then lets users open, create, and navigate between periodic notes via commands, a ribbon icon, or a natural-language date switcher.
+Periodic Notes is an Obsidian plugin for creating and managing daily, weekly, monthly, quarterly, and yearly notes. It replaces Obsidian's built-in daily notes with a more flexible system supporting five granularity levels, configurable date formats, folder organization, and template-driven note creation.
 
-**Stack:** TypeScript + Svelte 5 for settings UI, Vite bundling to CommonJS, Moment.js for dates, Obsidian Plugin API.
+The plugin is built with TypeScript, Svelte 5, and Vite. It uses Moment.js (bundled with Obsidian) for all date operations and Obsidian's Component lifecycle for resource management.
 
-**Key data flow:**
-1. Plugin loads → registers icons, commands, settings tab, cache
-2. Cache scans vault files, matching filenames/frontmatter to date formats
-3. User triggers "open periodic note" → cache lookup → create if missing → open file
-4. New files get template content applied via regex-based variable interpolation
+### Architecture at a glance
 
-The walkthrough follows this flow linearly, starting from types and constants through to the UI layer.
+- **Entry point** (`main.ts`) — Plugin lifecycle, public API, ribbon/commands
+- **Cache** (`cache.ts`) — File resolution engine mapping vault files to periodic notes
+- **Utilities** (`utils.ts`) — Template transforms, date helpers, path utilities
+- **Parser** (`parser.ts`) — Loose date extraction from filenames
+- **Settings** (`settings/`) — Svelte-powered settings UI, validation, localization
+- **Switcher** (`switcher/`) — Modal for navigating periodic notes by date
+- **Commands** (`commands.ts`) — Command palette integration
 
----
-
-## 1. Foundation: Types and Constants
-
-### Types (`src/types.ts`)
-
-The type system is minimal. `Granularity` is a string union of the five supported periods. The `granularities` array provides iteration order (finest to coarsest), which matters for the cache's "finer granularities" queries. `PeriodicConfig` holds per-granularity user settings.
+## 1. Project Structure
 
 ```bash
-sed -n "1,29p" src/types.ts
+find src -type f | sort | sed "s|^|  |"
+```
+
+```output
+  src/cache.test.ts
+  src/cache.ts
+  src/commands.ts
+  src/constants.ts
+  src/icons.ts
+  src/main.ts
+  src/modal.ts
+  src/obsidian.d.ts
+  src/parser.test.ts
+  src/parser.ts
+  src/settings/components/Arrow.svelte
+  src/settings/components/Dropdown.svelte
+  src/settings/components/Footer.svelte
+  src/settings/components/NoteFolderSetting.svelte
+  src/settings/components/NoteFormatSetting.svelte
+  src/settings/components/NoteTemplateSetting.svelte
+  src/settings/components/OpenAtStartupSetting.svelte
+  src/settings/components/SettingItem.svelte
+  src/settings/components/Toggle.svelte
+  src/settings/index.ts
+  src/settings/localization.test.ts
+  src/settings/localization.ts
+  src/settings/pages/dashboard/GettingStartedBanner.svelte
+  src/settings/pages/details/PeriodicGroup.svelte
+  src/settings/pages/SettingsPage.svelte
+  src/settings/utils.test.ts
+  src/settings/utils.ts
+  src/settings/validation.test.ts
+  src/settings/validation.ts
+  src/styles.css
+  src/switcher/relatedFilesSwitcher.ts
+  src/switcher/switcher.ts
+  src/types.ts
+  src/ui/fileSuggest.ts
+  src/utils.test.ts
+  src/utils.ts
+```
+
+The source breaks into five layers:
+
+| Layer | Files | Purpose |
+|-------|-------|---------|
+| Core types | `types.ts`, `constants.ts`, `obsidian.d.ts` | Shared types, defaults, Obsidian API augmentations |
+| Data | `cache.ts`, `parser.ts` | File-to-date resolution and caching |
+| Logic | `utils.ts`, `commands.ts`, `modal.ts` | Template transforms, command registration, UI actions |
+| Settings | `settings/` (14 files) | Configuration UI, validation, localization |
+| Navigation | `switcher/` (2 files) | Date-based file switching modals |
+
+Test files (`.test.ts`) sit alongside their source files.
+
+## 2. Types and Constants
+
+The type system is small and centered on `Granularity` — the five time periods the plugin supports.
+
+```bash
+sed -n "1,35p" src/types.ts
 ```
 
 ```output
@@ -60,11 +115,11 @@ export interface DateNavigationItem {
 }
 ```
 
-`DateNavigationItem` is the data structure passed through the switcher UI — it carries a date, its granularity, a display label, and optional match metadata indicating whether it was an exact filename match or a loose/frontmatter match.
+`granularities` is ordered finest-to-coarsest. This ordering matters in the cache when comparing granularities or filtering finer ones.
 
-### Constants (`src/constants.ts`)
+`PeriodicConfig` holds per-granularity settings: whether it's enabled, its date format string, folder path, and optional template. Each of the five granularities gets its own `PeriodicConfig`.
 
-Default date formats follow Moment.js syntax. Note `gggg-[W]ww` for ISO weeks (locale-aware year + week number) versus `YYYY` for calendar year.
+Default formats and configs live in `constants.ts`:
 
 ```bash
 cat src/constants.ts
@@ -100,116 +155,66 @@ export const HUMANIZE_FORMAT = Object.freeze({
 });
 ```
 
-`DEFAULT_PERIODIC_CONFIG` is the zero-value for a granularity config: disabled, no format (falls back to `DEFAULT_FORMAT`), no template, root folder. `Object.freeze()` prevents accidental mutation of these shared defaults.
+Note the weekly format uses `gggg-[W]ww` — lowercase `gg` for locale-aware week-year (as opposed to ISO `GGGG`). Square brackets escape literal text in Moment.js format strings.
 
----
+`HUMANIZE_FORMAT` provides human-readable date labels for month, quarter, and year granularities (used by `getRelativeDate()` in utils).
 
-## 2. Type Augmentation (`src/obsidian.d.ts`)
+## 3. Plugin Entry Point
 
-The plugin extends the Obsidian module's type declarations to type private/undocumented APIs it depends on.
+`main.ts` is where Obsidian loads the plugin. It extends `Plugin` and orchestrates all subsystems.
 
 ```bash
-cat src/obsidian.d.ts
+sed -n "1,30p" src/main.ts
 ```
 
 ```output
-import "obsidian";
-import type { LocaleOverride, WeekStartOption } from "./settings/localization";
+import type { Moment } from "moment";
+import { addIcon, Plugin, type TFile } from "obsidian";
+import { get, type Writable, writable } from "svelte/store";
 
-declare module "obsidian" {
-  export interface Workspace extends Events {
-    on(
-      name: "periodic-notes:settings-updated",
-      callback: () => void,
-      // biome-ignore lint/suspicious/noExplicitAny: Obsidian API lacks type
-      ctx?: any,
-    ): EventRef;
-    on(
-      name: "periodic-notes:resolve",
-      callback: () => void,
-      // biome-ignore lint/suspicious/noExplicitAny: Obsidian API lacks type
-      ctx?: any,
-    ): EventRef;
-  }
+import { type PeriodicNoteCachedMetadata, PeriodicNotesCache } from "./cache";
+import { displayConfigs, getCommands } from "./commands";
+import { DEFAULT_PERIODIC_CONFIG } from "./constants";
+import {
+  calendarDayIcon,
+  calendarMonthIcon,
+  calendarQuarterIcon,
+  calendarWeekIcon,
+  calendarYearIcon,
+} from "./icons";
+import { showFileMenu } from "./modal";
+import {
+  DEFAULT_SETTINGS,
+  PeriodicNotesSettingsTab,
+  type Settings,
+} from "./settings";
+import { initializeLocaleConfigOnce } from "./settings/localization";
+import {
+  findStartupNoteConfig,
+  getEnabledGranularities,
+} from "./settings/utils";
+import { NLDNavigator } from "./switcher/switcher";
+import { type Granularity, granularities } from "./types";
+import {
+  applyTemplateTransformations,
+  getConfig,
+```
 
-  interface VaultSettings {
-    localeOverride: LocaleOverride;
-    weekStart: WeekStartOption;
-  }
+```bash
+sed -n "31,75p" src/main.ts
+```
 
-  interface Vault {
-    config: Record<string, unknown>;
-    getConfig<T extends keyof VaultSettings>(setting: T): VaultSettings[T];
-    // biome-ignore lint/suspicious/noExplicitAny: Obsidian API lacks type
-    setConfig<T extends keyof VaultSettings>(setting: T, value: any): void;
-  }
+```output
+  getFormat,
+  getNoteCreationPath,
+  getTemplateContents,
+  isMetaPressed,
+} from "./utils";
 
-  export interface PluginInstance {
-    id: string;
-  }
-
-  export interface DailyNotesSettings {
-    autorun?: boolean;
-    format?: string;
-    folder?: string;
-    template?: string;
-  }
-
-  class DailyNotesPlugin implements PluginInstance {
-    options?: DailyNotesSettings;
-  }
-
-  export interface App {
-    internalPlugins: InternalPlugins;
-    plugins: CommunityPluginManager;
-  }
-
-  export interface CommunityPluginManager {
-    getPlugin(id: string): Plugin;
-  }
-
-  export interface InstalledPlugin {
-    disable: (onUserDisable: boolean) => void;
-    enabled: boolean;
-    instance: PluginInstance;
-  }
-
-  export interface InternalPlugins {
-    plugins: Record<string, InstalledPlugin>;
-    getPluginById(id: string): InstalledPlugin;
-  }
-
-  interface NLDResult {
-    formattedString: string;
-    date: Date;
-    moment: Moment;
-  }
-
-  interface NLDatesPlugin extends Plugin {
-    parseDate(dateStr: string): NLDResult;
-  }
+interface OpenOpts {
+  inNewSplit?: boolean;
 }
-```
 
-**Private API surface.** This file types several undocumented APIs:
-- `Vault.getConfig()` / `Vault.setConfig()` — used for locale and week-start settings
-- `App.internalPlugins` — used to detect/disable the built-in Daily Notes plugin
-- `App.plugins.getPlugin()` — used to integrate with the nldates-obsidian community plugin
-- `NLDatesPlugin.parseDate()` — typed here but owned by a third-party plugin
-
-The custom workspace events (`periodic-notes:settings-updated` and `periodic-notes:resolve`) are properly typed via module augmentation — this is the correct Obsidian pattern for plugin-to-plugin communication.
-
----
-
-## 3. Plugin Entry Point (`src/main.ts`)
-
-This is where Obsidian loads the plugin. The class extends `Plugin` and wires everything together in `onload()`.
-
-```bash
-sed -n "41,90p" src/main.ts
-```
-
-```output
 export default class PeriodicNotesPlugin extends Plugin {
   public settings!: Writable<Settings>;
   private ribbonEl!: HTMLElement | null;
@@ -245,110 +250,35 @@ export default class PeriodicNotesPlugin extends Plugin {
         if (!this.app.plugins.getPlugin("nldates-obsidian")) {
           return false;
         }
-        if (checking) {
-          return !!this.app.workspace.getMostRecentLeaf();
-        }
-        new NLDNavigator(this.app, this).open();
-      },
-      hotkeys: [],
-    });
-
-    this.app.workspace.onLayoutReady(() => {
-      const startupGranularity = findStartupNoteConfig(this.settings);
-      if (startupGranularity) {
-        this.openPeriodicNote(startupGranularity, window.moment());
-      }
-    });
-  }
 ```
 
-The initialization sequence:
+Key points about `onload()`:
 
-1. **Register icons** — Custom SVG calendar icons (from `icons.ts`) for each granularity. These show up in the ribbon and command palette.
-2. **Load settings** — Reads persisted data, merges with defaults. Settings live in a Svelte `writable` store so the UI reacts to changes.
-3. **Subscribe to settings changes** — `this.register()` ensures the subscription is cleaned up on unload. Every settings change triggers `onUpdateSettings`, which persists to disk and fires a workspace event.
-4. **Initialize locale** — Configures Moment.js locale/week-start globally (once per vault session).
-5. **Create cache** — The `PeriodicNotesCache` starts indexing vault files.
-6. **Register settings tab, ribbon, and commands.**
-7. **Date switcher command** — Only available when `nldates-obsidian` is installed (checked via `checkCallback`).
-8. **Startup note** — After workspace layout is ready, opens a periodic note if configured.
+1. **Icons registered first** — five custom calendar SVGs (one per granularity)
+2. **Settings are a Svelte writable store** — changes propagate reactively to the settings UI
+3. **Locale configured once** — `initializeLocaleConfigOnce()` sets Moment.js locale from Obsidian's language setting and week-start preference
+4. **Cache initialized** — `PeriodicNotesCache` begins watching vault events immediately
+5. **Date switcher** requires the `nldates-obsidian` plugin; the command is hidden when that plugin isn't installed
 
-### Settings persistence and the ribbon
+The plugin exposes a public API used by other plugins and the switcher:
 
 ```bash
-sed -n "92,149p" src/main.ts
+grep -n "^\s*\(public\|async\) \w" src/main.ts | grep -v "onload\|settings\|ribbonEl\|cache"
 ```
 
 ```output
-  private configureRibbonIcons() {
-    this.ribbonEl?.detach();
-
-    const configuredGranularities = getEnabledGranularities(get(this.settings));
-    if (configuredGranularities.length) {
-      const granularity = configuredGranularities[0];
-      const config = displayConfigs[granularity];
-      this.ribbonEl = this.addRibbonIcon(
-        `calendar-${granularity}`,
-        config.labelOpenPresent,
-        (e: MouseEvent) => {
-          if (e.type !== "auxclick") {
-            this.openPeriodicNote(granularity, window.moment(), {
-              inNewSplit: isMetaPressed(e),
-            });
-          }
-        },
-      );
-      this.ribbonEl.addEventListener("contextmenu", (e: MouseEvent) => {
-        e.preventDefault();
-        showFileMenu(this.app, this, {
-          x: e.pageX,
-          y: e.pageY,
-        });
-      });
-    }
-  }
-
-  private configureCommands() {
-    for (const granularity of granularities) {
-      getCommands(this.app, this, granularity).forEach(
-        this.addCommand.bind(this),
-      );
-    }
-  }
-
-  async loadSettings(): Promise<void> {
-    const savedSettings = await this.loadData();
-    const settings = Object.assign({}, DEFAULT_SETTINGS, savedSettings || {});
-
-    if (
-      !settings.day &&
-      !settings.week &&
-      !settings.month &&
-      !settings.quarter &&
-      !settings.year
-    ) {
-      settings.day = { ...DEFAULT_PERIODIC_CONFIG, enabled: true };
-    }
-
-    this.settings.set(settings);
-  }
-
-  private async onUpdateSettings(newSettings: Settings): Promise<void> {
-    await this.saveData(newSettings);
-    this.configureRibbonIcons();
-    this.app.workspace.trigger("periodic-notes:settings-updated");
-  }
+128:  async loadSettings(): Promise<void> {
+151:  public async createPeriodicNote(
+174:  public getPeriodicNote(granularity: Granularity, date: Moment): TFile | null {
+178:  public getPeriodicNotes(
+190:  public isPeriodic(filePath: string, granularity?: Granularity): boolean {
+194:  public findAdjacent(
+201:  public findInCache(filePath: string): PeriodicNoteCachedMetadata | null {
+205:  public async openPeriodicNote(
 ```
 
-Key details:
-- **Ribbon shows the first enabled granularity.** If daily notes are enabled, the icon is `calendar-day`. Right-click shows a context menu with all enabled granularities.
-- **First-run default:** If no granularity is configured, daily notes are auto-enabled. This is the only place where settings are mutated outside the settings UI.
-- **Settings update cascade:** `onUpdateSettings` → save to disk → reconfigure ribbon → fire `periodic-notes:settings-updated` → cache resets.
-
-### Creating and opening notes
-
 ```bash
-sed -n "151,221p" src/main.ts
+sed -n "151,240p" src/main.ts
 ```
 
 ```output
@@ -424,27 +354,43 @@ sed -n "151,221p" src/main.ts
 }
 ```
 
-`createPeriodicNote` is the core creation path:
-1. Format the date into a filename using the configured Moment format
-2. Read template file contents from the vault
-3. Apply template transformations (variable interpolation)
-4. Ensure the destination folder exists, then create the file
+The flow for opening a periodic note:
 
-`openPeriodicNote` is the primary user-facing entry point: check the cache for an existing note, create one if missing, then open it in the current or a split leaf.
+1. Look up existing file in cache by granularity + date
+2. If not found, create it: format date → read template → apply transforms → write file
+3. Open the file in a workspace leaf (optionally in a split pane)
 
-The public API methods (`getPeriodicNote`, `getPeriodicNotes`, `isPeriodic`, `findAdjacent`, `findInCache`) are thin wrappers around the cache — they exist so other plugins or commands can query periodic note data without touching the cache directly.
+`createPeriodicNote()` is the only place notes are created. The template pipeline is: `getTemplateContents()` → `applyTemplateTransformations()` → `vault.create()`. The cache auto-detects the new file via its vault event listeners.
 
----
+## 4. Cache System
 
-## 4. The Cache (`src/cache.ts`)
-
-The cache is the most complex module. It maintains a `Map<filePath, PeriodicNoteCachedMetadata>` that indexes every file in the vault that matches a periodic note pattern.
+The cache is the most complex module. It maps vault files to periodic note metadata, handling three match strategies with different confidence levels.
 
 ```bash
-sed -n "20,80p" src/cache.ts
+sed -n "1,50p" src/cache.ts
 ```
 
 ```output
+import type { Moment } from "moment";
+import {
+  type App,
+  type CachedMetadata,
+  Component,
+  Notice,
+  parseFrontMatterEntry,
+  type TAbstractFile,
+  TFile,
+  TFolder,
+} from "obsidian";
+import { get } from "svelte/store";
+
+import { DEFAULT_FORMAT } from "./constants";
+import type PeriodicNotesPlugin from "./main";
+import { getLooselyMatchedDate } from "./parser";
+import { getDateInput } from "./settings/validation";
+import { type Granularity, granularities, type PeriodicConfig } from "./types";
+import { applyPeriodicTemplateToFile, getPossibleFormats } from "./utils";
+
 export type MatchType = "filename" | "frontmatter" | "date-prefixed";
 
 interface PeriodicNoteMatchData {
@@ -475,7 +421,24 @@ function getCanonicalDateString(
   return date.toISOString();
 }
 
-export class PeriodicNotesCache extends Component {
+```
+
+`compareGranularity` uses the array index ordering from `granularities` — day (0) is "finer" than year (4). This is used when `getPeriodicNotes()` needs to include finer granularities.
+
+`PeriodicNoteCachedMetadata` stores:
+- **filePath** — vault-relative path
+- **date** — parsed Moment.js date
+- **granularity** — which period this note represents
+- **canonicalDateStr** — ISO string for sorting
+- **matchData** — how the file was matched (and whether the match is exact)
+
+The cache extends Obsidian's `Component` to participate in the plugin lifecycle:
+
+```bash
+sed -n "52,110p" src/cache.ts
+```
+
+```output
   public cachedFiles: Map<string, PeriodicNoteCachedMetadata>;
 
   constructor(
@@ -506,23 +469,7 @@ export class PeriodicNotesCache extends Component {
       );
     });
   }
-```
 
-The cache extends `Component` (not `Plugin`) — this gives it `registerEvent` for automatic event cleanup without being a full plugin. It waits for `onLayoutReady` before scanning, which ensures the vault's file index is populated.
-
-**Event listeners:**
-- `vault.on("create")` — resolve new files against configured formats
-- `vault.on("rename")` — delete old path, re-resolve under new path
-- `metadataCache.on("changed")` — check frontmatter for date keys
-- `periodic-notes:settings-updated` — full cache reset when settings change
-
-### Cache initialization
-
-```bash
-sed -n "82,126p" src/cache.ts
-```
-
-```output
   public reset(): void {
     console.info("[Periodic Notes] resetting cache");
     this.cachedFiles.clear();
@@ -551,6 +498,14 @@ sed -n "82,126p" src/cache.ts
       (g) => settings[g]?.enabled,
     );
     for (const granularity of activeGranularities) {
+```
+
+```bash
+sed -n "110,170p" src/cache.ts
+```
+
+```output
+    for (const granularity of activeGranularities) {
       const config = settings[granularity] as PeriodicConfig;
       const rootFolder = this.app.vault.getAbstractFileByPath(
         config.folder || "/",
@@ -568,21 +523,60 @@ sed -n "82,126p" src/cache.ts
       });
     }
   }
+
+  private resolveChangedMetadata(
+    file: TFile,
+    _data: string,
+    cache: CachedMetadata,
+  ): void {
+    const settings = get(this.plugin.settings);
+    const activeGranularities = granularities.filter(
+      (g) => settings[g]?.enabled,
+    );
+    if (activeGranularities.length === 0) return;
+
+    for (const granularity of activeGranularities) {
+      const folder = settings[granularity]?.folder || "";
+      if (!file.path.startsWith(folder)) continue;
+      const frontmatterEntry = parseFrontMatterEntry(
+        cache.frontmatter,
+        granularity,
+      );
+      if (!frontmatterEntry) continue;
+
+      const format = DEFAULT_FORMAT[granularity];
+      if (typeof frontmatterEntry === "string") {
+        const date = window.moment(frontmatterEntry, format, true);
+        if (date.isValid()) {
+          this.set(file.path, {
+            filePath: file.path,
+            date,
+            granularity,
+            canonicalDateStr: getCanonicalDateString(granularity, date),
+            matchData: {
+              exact: true,
+              matchType: "frontmatter",
+            },
+          });
+        }
+        return;
+      }
+    }
+  }
+
+  private resolveRename(file: TAbstractFile, oldPath: string): void {
+    if (file instanceof TFile) {
 ```
 
-Initialization walks each enabled granularity's configured folder, recursing into subfolders. For each file, it:
-1. Calls `resolve()` to try filename-based matching
-2. Checks the metadata cache for frontmatter-based matching
-
-The `visited` Set prevents re-traversing the same folder if multiple granularities share a root. The `instanceof TFolder` guard on the root folder safely skips misconfigured paths (null or non-folder results from `getAbstractFileByPath`).
-
-### File resolution — the heart of the cache
-
 ```bash
-sed -n "173,242p" src/cache.ts
+sed -n "170,260p" src/cache.ts
 ```
 
 ```output
+    if (file instanceof TFile) {
+      this.cachedFiles.delete(oldPath);
+      this.resolve(file, "rename");
+    }
   }
 
   private resolve(
@@ -622,7 +616,14 @@ sed -n "173,242p" src/cache.ts
         this.set(file.path, metadata);
 
         if (reason === "create" && file.stat.size === 0) {
-          applyPeriodicTemplateToFile(this.app, file, settings, metadata);
+          applyPeriodicTemplateToFile(this.app, file, settings, metadata).catch(
+            (err) => {
+              console.error("[Periodic Notes] failed to apply template", err);
+              new Notice(
+                `Periodic Notes: failed to apply template to "${file.path}". See console for details.`,
+              );
+            },
+          );
         }
 
         this.app.workspace.trigger("periodic-notes:resolve", granularity, file);
@@ -653,25 +654,7 @@ sed -n "173,242p" src/cache.ts
       );
     }
   }
-```
 
-Resolution strategy (in priority order):
-
-1. **Frontmatter match** — If a file already has a frontmatter-based cache entry, skip filename resolution. Frontmatter is authoritative.
-2. **Strict filename match** — Try to parse the file's name (or path segments for nested formats) using each enabled granularity's configured format. Uses `moment(input, formats, true)` — the `true` enables strict parsing.
-3. **Loose filename match** — Falls back to `getLooselyMatchedDate()` which uses regex patterns to extract dates from filenames that don't match any configured format.
-
-**Concern (issue #20):** On line 213, when a newly created file is empty, `applyPeriodicTemplateToFile()` is called **without `await`**. This async function reads the template and writes to the file, but if it fails (template not found, vault error), the error is silently lost.
-
-**Note:** The first granularity that matches wins (due to `return`). If a filename like `2025-01` could match both monthly (`YYYY-MM`) and be part of a daily format, the iteration order (`day → week → month → quarter → year`) determines the match. This is generally correct since finer granularities are more specific.
-
-### Cache queries and navigation
-
-```bash
-sed -n "244,316p" src/cache.ts
-```
-
-```output
   public getPeriodicNote(
     granularity: Granularity,
     targetDate: Moment,
@@ -680,6 +663,14 @@ sed -n "244,316p" src/cache.ts
       if (
         cacheData.granularity === granularity &&
         cacheData.matchData.exact === true &&
+        cacheData.date.isSame(targetDate, granularity)
+```
+
+```bash
+sed -n "260,330p" src/cache.ts
+```
+
+```output
         cacheData.date.isSame(targetDate, granularity)
       ) {
         const file = this.app.vault.getAbstractFileByPath(filePath);
@@ -746,17 +737,29 @@ sed -n "244,316p" src/cache.ts
 }
 ```
 
-- `getPeriodicNote()` finds a single exact-match note for a date and granularity. Uses `date.isSame(targetDate, granularity)` — Moment's unit-aware comparison (e.g., two dates in the same week are "same" at `week` granularity). If the cached path no longer resolves to a TFile (file was deleted), the stale entry is evicted and the loop continues looking for other matches.
+### Cache resolution priority
 
-- `getPeriodicNotes()` returns all cached notes within a period, optionally including finer granularities (e.g., all daily notes within a given month). The `compareGranularity` function uses the `granularities` array index order.
+The `resolve()` method tries three strategies in order:
 
-- `findAdjacent()` enables forward/backward navigation. It sorts all notes of the same granularity by `canonicalDateStr` (ISO 8601), finds the current note's index, then returns the next or previous entry. The sort runs on every call — not cached, but the cache is typically small enough that this doesn't matter.
+1. **Frontmatter** — If a file has a frontmatter field matching a granularity name (e.g., `day: 2026-03-15`), it's an exact match. Frontmatter entries supersede filename matches and are never overwritten.
+2. **Filename (strict)** — Parse the file's basename (or nested path) against the configured format string using `moment(input, format, true)` with strict mode. This is also an exact match.
+3. **Filename (loose)** — Fall back to `getLooselyMatchedDate()` from the parser module. This uses regex patterns to extract dates from arbitrary filenames. These matches are marked `exact: false`.
 
----
+### Auto-template application
 
-## 5. Date Parsing (`src/parser.ts`)
+When a file is created (`reason === "create"`) and its size is 0, the cache automatically applies the configured template. The `applyPeriodicTemplateToFile()` call is fire-and-forget with a `.catch()` that logs the error and shows a Notice. This prevents template failures from blocking cache resolution.
 
-The loose date parser provides a fallback when filenames don't match any configured format. It uses three progressively less specific regex patterns.
+### Stale entry eviction
+
+In `getPeriodicNote()`, if a cached file path no longer resolves to a `TFile` (e.g., the file was deleted), the stale entry is evicted and the loop continues checking remaining matches. This is an intentional design — not an early return.
+
+### Adjacent navigation
+
+`findAdjacent()` filters the cache to same-granularity entries, sorts by canonical date string (ISO format ensures chronological order), finds the current file's index, and returns the entry at `index ± 1`.
+
+## 5. Parser
+
+The parser provides regex-based loose date matching for filenames that don't follow the configured format.
 
 ```bash
 cat src/parser.ts
@@ -818,23 +821,95 @@ export function getLooselyMatchedDate(inputStr: string): ParseData | null {
 }
 ```
 
-The patterns try most-specific first: `YYYY-MM-DD` → `YYYY-MM` → `YYYY`. The separators are optional or can be dots. This matches filenames like `Meeting notes 2025-03-08` or `202503` — any filename containing a recognizable date substring.
+The patterns are tried most-specific-first: full date → month → year. Each regex restricts to valid ranges (months 01-12, days 01-31). The optional `[-.]?` delimiter matches dashes, dots, or no separator, so `2026-03-15`, `2026.03.15`, and `20260315` all match.
 
-Note that `week` and `quarter` granularities are not handled by loose matching. Only `day`, `month`, and `year` have regex patterns. Loose-matched entries are marked `exact: false` and are used by the Related Files Switcher to find notes associated with a period.
+**Concern:** There is no week-level pattern. Files like `2026-W12` won't be loosely matched — they require exact format matching through the cache's filename strategy. This is probably acceptable since ISO week formats are uncommon in freeform filenames, but it does mean week notes won't appear in the related files switcher if their format doesn't match.
 
----
+## 6. Utilities
 
-## 6. Utilities (`src/utils.ts`)
-
-This is the largest source file. It handles template processing, path manipulation, and config helpers.
+`utils.ts` contains the template transformation engine, path helpers, and date formatting utilities. It's the largest module.
 
 ### Template transformations
 
 ```bash
-sed -n "49,177p" src/utils.ts
+sed -n "1,30p" src/utils.ts
 ```
 
 ```output
+import type { Moment } from "moment";
+import {
+  type App,
+  Notice,
+  normalizePath,
+  Platform,
+  type TFile,
+} from "obsidian";
+
+import type { PeriodicNoteCachedMetadata } from "./cache";
+import {
+  DEFAULT_FORMAT,
+  DEFAULT_PERIODIC_CONFIG,
+  HUMANIZE_FORMAT,
+} from "./constants";
+import type { Settings } from "./settings";
+import { removeEscapedCharacters } from "./settings/validation";
+import type { Granularity, PeriodicConfig } from "./types";
+
+export function isMetaPressed(e: MouseEvent | KeyboardEvent): boolean {
+  return Platform.isMacOS ? e.metaKey : e.ctrlKey;
+}
+
+function getDaysOfWeek(): string[] {
+  const { moment } = window;
+  let weekStart = moment.localeData().firstDayOfWeek();
+  const daysOfWeek = [
+    "sunday",
+    "monday",
+    "tuesday",
+```
+
+```bash
+sed -n "47,130p" src/utils.ts
+```
+
+```output
+}
+
+function replaceGranularityTokens(
+  contents: string,
+  date: Moment,
+  tokenPattern: string,
+  format: string,
+  startOfUnit?: Granularity,
+): string {
+  const pattern = new RegExp(
+    `{{\\s*(${tokenPattern})\\s*(([-+]\\d+)([yqmwdhs]))?\\s*(:.+?)?}}`,
+    "gi",
+  );
+  const now = window.moment();
+  return contents.replace(
+    pattern,
+    (_, _token, calc, timeDelta, unit, momentFormat) => {
+      const periodStart = date.clone();
+      if (startOfUnit) {
+        periodStart.startOf(startOfUnit);
+      }
+      periodStart.set({
+        hour: now.get("hour"),
+        minute: now.get("minute"),
+        second: now.get("second"),
+      });
+      if (calc) {
+        periodStart.add(parseInt(timeDelta, 10), unit);
+      }
+      if (momentFormat) {
+        return periodStart.format(momentFormat.substring(1).trim());
+      }
+      return periodStart.format(format);
+    },
+  );
+}
+
 export function applyTemplateTransformations(
   filename: string,
   granularity: Granularity,
@@ -842,9 +917,7 @@ export function applyTemplateTransformations(
   format: string,
   rawTemplateContents: string,
 ): string {
-  let templateContents = rawTemplateContents;
-
-  templateContents = rawTemplateContents
+  let templateContents = rawTemplateContents
     .replace(/{{\s*date\s*}}/gi, filename)
     .replace(/{{\s*time\s*}}/gi, window.moment().format("HH:mm"))
     .replace(/{{\s*title\s*}}/gi, filename);
@@ -855,26 +928,13 @@ export function applyTemplateTransformations(
         /{{\s*yesterday\s*}}/gi,
         date.clone().subtract(1, "day").format(format),
       )
-      .replace(/{{\s*tomorrow\s*}}/gi, date.clone().add(1, "d").format(format))
-      .replace(
-        /{{\s*(date|time)\s*(([+-]\d+)([yqmwdhs]))?\s*(:.+?)?}}/gi,
-        (_, _timeOrDate, calc, timeDelta, unit, momentFormat) => {
-          const now = window.moment();
-          const currentDate = date.clone().set({
-            hour: now.get("hour"),
-            minute: now.get("minute"),
-            second: now.get("second"),
-          });
-          if (calc) {
-            currentDate.add(parseInt(timeDelta, 10), unit);
-          }
-
-          if (momentFormat) {
-            return currentDate.format(momentFormat.substring(1).trim());
-          }
-          return currentDate.format(format);
-        },
-      );
+      .replace(/{{\s*tomorrow\s*}}/gi, date.clone().add(1, "d").format(format));
+    templateContents = replaceGranularityTokens(
+      templateContents,
+      date,
+      "date|time",
+      format,
+    );
   }
 
   if (granularity === "week") {
@@ -887,111 +947,106 @@ export function applyTemplateTransformations(
     );
   }
 
-  if (granularity === "month") {
-    templateContents = templateContents.replace(
-      /{{\s*(month)\s*(([+-]\d+)([yqmwdhs]))?\s*(:.+?)?}}/gi,
-      (_, _timeOrDate, calc, timeDelta, unit, momentFormat) => {
-        const now = window.moment();
-        const monthStart = date
-          .clone()
-          .startOf("month")
-          .set({
-            hour: now.get("hour"),
-            minute: now.get("minute"),
-            second: now.get("second"),
-          });
-        if (calc) {
-          monthStart.add(parseInt(timeDelta, 10), unit);
-        }
+  if (
+    granularity === "month" ||
+    granularity === "quarter" ||
+    granularity === "year"
+  ) {
+    templateContents = replaceGranularityTokens(
+      templateContents,
+      date,
+      granularity,
+      format,
+```
 
-        if (momentFormat) {
-          return monthStart.format(momentFormat.substring(1).trim());
-        }
-        return monthStart.format(format);
-      },
-    );
-  }
+```bash
+sed -n "130,145p" src/utils.ts
+```
 
-  if (granularity === "quarter") {
-    templateContents = templateContents.replace(
-      /{{\s*(quarter)\s*(([+-]\d+)([yqmwdhs]))?\s*(:.+?)?}}/gi,
-      (_, _timeOrDate, calc, timeDelta, unit, momentFormat) => {
-        const now = window.moment();
-        const monthStart = date
-          .clone()
-          .startOf("quarter")
-          .set({
-            hour: now.get("hour"),
-            minute: now.get("minute"),
-            second: now.get("second"),
-          });
-        if (calc) {
-          monthStart.add(parseInt(timeDelta, 10), unit);
-        }
-
-        if (momentFormat) {
-          return monthStart.format(momentFormat.substring(1).trim());
-        }
-        return monthStart.format(format);
-      },
-    );
-  }
-
-  if (granularity === "year") {
-    templateContents = templateContents.replace(
-      /{{\s*(year)\s*(([+-]\d+)([yqmwdhs]))?\s*(:.+?)?}}/gi,
-      (_, _timeOrDate, calc, timeDelta, unit, momentFormat) => {
-        const now = window.moment();
-        const monthStart = date
-          .clone()
-          .startOf("year")
-          .set({
-            hour: now.get("hour"),
-            minute: now.get("minute"),
-            second: now.get("second"),
-          });
-        if (calc) {
-          monthStart.add(parseInt(timeDelta, 10), unit);
-        }
-
-        if (momentFormat) {
-          return monthStart.format(momentFormat.substring(1).trim());
-        }
-        return monthStart.format(format);
-      },
+```output
+      format,
+      granularity,
     );
   }
 
   return templateContents;
 }
+
+export function getFormat(
+  settings: Settings,
+  granularity: Granularity,
+): string {
+  return settings[granularity]?.format || DEFAULT_FORMAT[granularity];
+}
+
+/**
 ```
 
-**Universal variables** (all granularities):
-- `{{date}}` / `{{title}}` → formatted filename
-- `{{time}}` → current time as `HH:mm`
+### Token replacement engine
 
-**Daily-specific:**
-- `{{yesterday}}` / `{{tomorrow}}` → adjacent dates in the configured format
-- `{{date +Nd}}` or `{{time -1w:YYYY-MM-DD}}` → offset dates with optional custom format
+`replaceGranularityTokens()` is the shared engine for template variable substitution. It handles tokens like:
 
-**Weekly-specific:**
-- `{{monday:YYYY-MM-DD}}` → specific weekday within the week, with a format
+- `{{date}}` — current date in the note's format
+- `{{month+1m:YYYY-MM-DD}}` — a month-granularity token with a +1 month offset, formatted with the given Moment format
+- `{{quarter-1q:YYYY}}` — a quarter token, one quarter back
 
-**Monthly/Quarterly/Yearly:**
-- `{{month}}`, `{{quarter}}`, `{{year}}` → period start date, with optional offset and format
-- Example: `{{month +1:MMMM YYYY}}` → next month's name and year
+The regex pattern `{{\\s*(token)\\s*(([-+]\\d+)([yqmwdhs]))?\\s*(:.+?)?}}` captures:
+1. The token name (e.g., "date", "month", "quarter")
+2. Optional time delta (e.g., "+1")
+3. Delta unit (y/q/m/w/d/h/s)
+4. Optional Moment format after a colon
 
-**Concern (issue #13): Duplicated pattern.** The month, quarter, and year handlers are structurally identical — same regex shape, same callback body, differing only in the `startOf()` argument and the regex keyword. This is ~70 lines of duplication that could be a parameterized helper.
+**Important casing detail:** The regex uses the `gi` flag. Moment.js unit casing matters — `m` means minutes, `M` means months. The regex captures the unit character as-is from the template, preserving the author's casing. Template authors must use correct Moment.js units.
 
-**Concern (issue #12): Misleading variable name.** The local variable `monthStart` is used in the quarter and year handlers, even though it represents the start of a quarter or year.
+### Granularity-specific transforms
 
-### File creation helpers
+- **Day**: `{{yesterday}}`, `{{tomorrow}}`, plus `{{date|time}}` tokens
+- **Week**: `{{sunday:format}}` through `{{saturday:format}}` — expands to the date of that weekday within the note's week
+- **Month/Quarter/Year**: Uses `replaceGranularityTokens` with `startOfUnit` set to the granularity, so offsets are relative to the period start
+
+### Path and config helpers
 
 ```bash
-sed -n "222,319p" src/utils.ts
+sed -n "145,210p" src/utils.ts
 ```
 
 ```output
+/**
+ * When matching file formats, users can specify `YYYY/YYYY-MM-DD`. We should look for
+ * paths that match either `YYYY/YYYY-MM-DD` exactly, or just `YYYY-MM-DD` in case
+ * users move the file later.
+ */
+export function getPossibleFormats(
+  settings: Settings,
+  granularity: Granularity,
+): string[] {
+  const format = settings[granularity]?.format;
+  if (!format) return [DEFAULT_FORMAT[granularity]];
+
+  const partialFormatExp = /[^/]*$/.exec(format);
+  if (partialFormatExp) {
+    const partialFormat = partialFormatExp[0];
+    return [format, partialFormat];
+  }
+  return [format];
+}
+
+export function getFolder(
+  settings: Settings,
+  granularity: Granularity,
+): string {
+  return settings[granularity]?.folder || "/";
+}
+
+export function getConfig(
+  settings: Settings,
+  granularity: Granularity,
+): PeriodicConfig {
+  return settings[granularity] ?? DEFAULT_PERIODIC_CONFIG;
+}
+
+export async function applyPeriodicTemplateToFile(
+  app: App,
   file: TFile,
   settings: Settings,
   metadata: PeriodicNoteCachedMetadata,
@@ -1021,6 +1076,14 @@ export async function getTemplateContents(
     return Promise.resolve("");
   }
 
+  try {
+```
+
+```bash
+sed -n "210,290p" src/utils.ts
+```
+
+```output
   try {
     const templateFile = metadataCache.getFirstLinkpathDest(
       normalizedTemplatePath,
@@ -1090,20 +1153,139 @@ async function ensureFolderExists(app: App, path: string): Promise<void> {
 export function getRelativeDate(granularity: Granularity, date: Moment) {
   if (granularity === "week") {
     const thisWeek = window.moment().startOf(granularity);
+    const fromNow = window.moment(date).diff(thisWeek, "week");
+    if (fromNow === 0) {
+      return "This week";
+    } else if (fromNow === -1) {
+      return "Last week";
+    } else if (fromNow === 1) {
+      return "Next week";
+    }
+    return window.moment.duration(fromNow, granularity).humanize(true);
+  } else if (granularity === "day") {
+    const today = window.moment().startOf("day");
+    const fromNow = window.moment(date).from(today);
 ```
 
-- `applyPeriodicTemplateToFile()` — the function called (without await) from the cache on file creation. Reads template, transforms it, writes to file.
-- `getTemplateContents()` — resolves the template path via Obsidian's link resolution, reads it with `cachedRead`. Returns empty string if no template is configured.
-- `getNoteCreationPath()` — combines folder + filename + `.md` extension, creates intermediate folders if needed.
-- `join()` — a custom path joiner (credited to `@creationix/path.js`). Handles slash normalization without Node's `path` module (which is external in the Obsidian environment).
-- `ensureFolderExists()` — extracts the directory portion from a path and creates it if missing. Only handles a single level of nesting.
-- `capitalize()` — simple string capitalization helper used by the settings UI.
+```bash
+sed -n "290,325p" src/utils.ts
+```
 
----
+```output
+    const fromNow = window.moment(date).from(today);
+    return window.moment(date).calendar(null, {
+      lastWeek: "[Last] dddd",
+      lastDay: "[Yesterday]",
+      sameDay: "[Today]",
+      nextDay: "[Tomorrow]",
+      nextWeek: "dddd",
+      sameElse: () => `[${fromNow}]`,
+    });
+  } else {
+    return date.format(HUMANIZE_FORMAT[granularity]);
+  }
+}
 
-## 7. Settings Validation (`src/settings/validation.ts`)
+export function isIsoFormat(format: string): boolean {
+  const cleanFormat = removeEscapedCharacters(format);
+  return /w{1,2}/.test(cleanFormat);
+}
 
-Format strings are validated before being used to ensure they produce parseable filenames.
+export function capitalize(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+```
+
+`getPossibleFormats()` handles nested format strings like `YYYY/YYYY-MM-DD`. It returns both the full format and the basename-only partial format (`YYYY-MM-DD`), so files that were moved out of their year folder still match.
+
+`getRelativeDate()` produces human-readable labels:
+- **Week**: "This week", "Last week", "Next week", or a duration ("in 3 weeks")
+- **Day**: Uses Moment's `calendar()` for "Yesterday", "Today", "Tomorrow", "Last Monday", etc.
+- **Month/Quarter/Year**: Formatted via `HUMANIZE_FORMAT` (e.g., "March 2026", "2026 1Q")
+
+`isIsoFormat()` detects ISO week formats by checking for `w` tokens after stripping escaped characters.
+
+## 7. Settings System
+
+The settings system is the most file-heavy subsystem. It manages plugin configuration, validates user input, handles Moment.js locale configuration, and renders a Svelte 5 settings page.
+
+### Settings data model
+
+```bash
+sed -n "1,40p" src/settings/index.ts
+```
+
+```output
+import { type App, PluginSettingTab } from "obsidian";
+import type { PeriodicConfig } from "src/types";
+import { mount, unmount } from "svelte";
+
+import type PeriodicNotesPlugin from "../main";
+import SettingsPage from "./pages/SettingsPage.svelte";
+
+export interface Settings {
+  showGettingStartedBanner: boolean;
+  installedVersion: string;
+
+  day?: PeriodicConfig;
+  week?: PeriodicConfig;
+  month?: PeriodicConfig;
+  quarter?: PeriodicConfig;
+  year?: PeriodicConfig;
+}
+
+export const DEFAULT_SETTINGS: Settings = {
+  installedVersion: "1.0.0-beta3",
+  showGettingStartedBanner: true,
+};
+
+export class PeriodicNotesSettingsTab extends PluginSettingTab {
+  private view!: Record<string, unknown>;
+
+  constructor(
+    readonly app: App,
+    readonly plugin: PeriodicNotesPlugin,
+  ) {
+    super(app, plugin);
+    this.plugin = plugin;
+  }
+
+  display(): void {
+    this.containerEl.empty();
+
+    this.view = mount(SettingsPage, {
+      target: this.containerEl,
+      props: {
+```
+
+```bash
+sed -n "40,60p" src/settings/index.ts
+```
+
+```output
+      props: {
+        app: this.app,
+        settings: this.plugin.settings,
+      },
+    });
+  }
+
+  hide() {
+    super.hide();
+    if (this.view) {
+      unmount(this.view);
+    }
+  }
+}
+```
+
+The `Settings` interface is a flat object with optional `PeriodicConfig` entries per granularity. Missing entries mean that granularity is unconfigured.
+
+**Concern:** `installedVersion` is hardcoded to `"1.0.0-beta3"` and never updated. This appears to be legacy code that doesn't serve any current purpose.
+
+`PeriodicNotesSettingsTab` mounts a Svelte 5 component (`SettingsPage`) on `display()` and unmounts it on `hide()`. The settings store is passed as a prop for reactive two-way binding.
+
+### Validation
 
 ```bash
 cat src/settings/validation.ts
@@ -1239,19 +1421,17 @@ export function validateFolder(app: App, folder: string): string {
 }
 ```
 
-### Settings Validation
+Validation runs in real-time as users edit format strings in the settings UI.
 
-`validation.ts` provides three focused validators:
+**Format validation** has two levels:
+- `validateFormat()` — checks for illegal filename characters and Moment.js round-trip parsability (day only)
+- `validateFormatComplexity()` — detects two failure modes:
+  - **loose-parsing** — the format can't round-trip through Moment.js (format → parse → compare)
+  - **fragile-basename** — nested format like `YYYY/DD` where the basename alone doesn't contain all date components (m, d, y)
 
-- **`getDateInput`** — Extracts the date string from a file. For daily notes it uses the full basename; for coarser granularities it strips a leading date prefix (everything before `_`). This means weekly/monthly/quarterly/yearly notes can be named like `2024-W01_Sprint Planning` and the parser will still extract `2024-W01`.
-- **`validateFormat`** — Checks whether a moment.js format string produces a parseable date when round-tripped through `moment().format(fmt) → moment(result, fmt, true)`. Strict parsing (`true` third arg) ensures the format is unambiguous.
-- **`validateTemplate`** / **`validateFolder`** — Simple existence checks against the vault's metadata cache and file tree respectively. Both return empty string on success and an error message on failure — the standard Obsidian settings validation pattern.
+`getDateInput()` uses the complexity check to decide whether to parse just the basename or include parent path segments. For fragile formats like `YYYY/MM/DD`, it reconstructs the date from the path hierarchy.
 
-**Concern:** `getDateInput` uses `split("_")[1]` for non-daily granularities, which silently drops everything after a _second_ underscore in the filename. A basename like `2024-W01_Sprint_Planning` would yield `Sprint` instead of `Sprint_Planning`. This is unlikely to cause issues in practice (the extracted string is a date, not a title) but the split semantics are fragile.
-
-## 8. Localization
-
-The plugin configures moment.js locale settings globally, affecting date rendering across the entire vault.
+### Localization
 
 ```bash
 cat src/settings/localization.ts
@@ -1327,8 +1507,11 @@ function overrideGlobalMomentWeekStart(weekStart: WeekStartOption): void {
   // Save the initial locale weekspec so that we can restore
   // it when toggling between the different options in settings.
   if (!window._bundledLocaleWeekSpec) {
-    // biome-ignore lint/suspicious/noExplicitAny: Obsidian API lacks type
-    window._bundledLocaleWeekSpec = (<any>moment.localeData())._week;
+    const localeData = moment.localeData();
+    window._bundledLocaleWeekSpec = {
+      dow: localeData.firstDayOfWeek(),
+      doy: localeData.firstDayOfYear(),
+    };
   }
 
   if (weekStart === "locale") {
@@ -1338,7 +1521,7 @@ function overrideGlobalMomentWeekStart(weekStart: WeekStartOption): void {
   } else {
     moment.updateLocale(currentLocale, {
       week: {
-        dow: weekdays.indexOf(weekStart) || 0,
+        dow: Math.max(0, weekdays.indexOf(weekStart)),
       },
     });
   }
@@ -1390,362 +1573,129 @@ export function initializeLocaleConfigOnce(app: App) {
 }
 
 export function getLocalizationSettings(app: App): LocalizationSettings {
-  // private API: vault.getConfig is undocumented
-  const localeOverride =
-    app.vault.getConfig("localeOverride") ?? "system-default";
-  const weekStart = app.vault.getConfig("weekStart") ?? "locale";
-  return { localeOverride, weekStart };
+  try {
+    // private API: vault.getConfig is undocumented
+    const localeOverride =
+      app.vault.getConfig("localeOverride") ?? "system-default";
+    const weekStart = app.vault.getConfig("weekStart") ?? "locale";
+    return { localeOverride, weekStart };
+  } catch (e) {
+    console.debug(
+      "[Periodic Notes] vault.getConfig() unavailable, using defaults",
+      e,
+    );
+    return { localeOverride: "system-default", weekStart: "locale" };
+  }
 }
 ```
 
-### How Localization Works
+The localization module bridges Obsidian's language settings with Moment.js's locale system.
 
-The locale system has three layers:
+**Private API usage:** `vault.getConfig()` is an undocumented Obsidian API. The plugin wraps it in try-catch and falls back to sensible defaults. The `langToMomentLocale` map handles Obsidian language codes that differ from Moment.js locale names (e.g., `"en"` → `"en-gb"`, `"cz"` → `"cs"`).
 
-1. **Language mapping** (`langToMomentLocale`) — Translates Obsidian's `language` localStorage key to a moment.js locale string. This handles cases where Obsidian's locale codes don't match moment's (e.g., `cz` → `cs`, `no` → `nn`).
+**Week start override:** `overrideGlobalMomentWeekStart()` mutates Moment.js's global locale data using `moment.updateLocale()`. It saves the original week spec on first call (`_bundledLocaleWeekSpec`) so it can be restored when the user switches back to "locale" default. The `Math.max(0, weekdays.indexOf(weekStart))` clamp prevents passing -1 for invalid values — an older version used `indexOf() || 0` which was a bug since -1 is truthy.
 
-2. **Locale resolution** (`configureGlobalMomentLocale`) — Determines the effective locale using a priority cascade: explicit user override > system locale (if more specific than Obsidian's) > mapped Obsidian language. This is called once during plugin init via `initializeLocaleConfigOnce`, guarded by `window._hasConfiguredLocale`.
+**Concern:** `moment.updateLocale()` mutates process-global state. Any other plugin using Moment.js will see the changed first day of week. This is by design (Obsidian expects plugins to honor the user's locale setting), but it makes testing tricky — tests need `afterEach` cleanup.
 
-3. **Week start override** (`overrideGlobalMomentWeekStart`) — Mutates moment's global locale to change the first day of the week. Saves the original `_week` spec to `window._bundledLocaleWeekSpec` so it can be restored when toggling back to "locale" in settings.
-
-**Concerns:**
-- **Private API (Issue #16):** `getLocalizationSettings` uses `app.vault.getConfig()`, which is undocumented. This is the only way to read Obsidian's locale/week-start preferences, so there's no public alternative. The code acknowledges this with a comment.
-- **Global mutation:** `moment.updateLocale` mutates the global moment instance, which can affect other plugins. The code documents this trade-off in the settings UI.
-- **`_week` access:** Reading `moment.localeData()._week` accesses a private moment.js internal. It's stable across moment versions but technically undocumented.
-
-## 9. Settings UI Layer
-
-The settings UI is a Svelte 5 component tree mounted into Obsidian's `PluginSettingTab`.
+### Settings utilities
 
 ```bash
-cat src/settings/index.ts
+sed -n "1,80p" src/settings/utils.ts
 ```
 
 ```output
-import { type App, PluginSettingTab } from "obsidian";
-import type { PeriodicConfig } from "src/types";
-import { mount, unmount } from "svelte";
+import type { App, DailyNotesPlugin } from "obsidian";
+import { type Granularity, granularities } from "src/types";
+import { get, type Updater, type Writable } from "svelte/store";
+import type { Settings } from ".";
 
-import type PeriodicNotesPlugin from "../main";
-import SettingsPage from "./pages/SettingsPage.svelte";
-
-export interface Settings {
-  showGettingStartedBanner: boolean;
-  installedVersion: string;
-
-  day?: PeriodicConfig;
-  week?: PeriodicConfig;
-  month?: PeriodicConfig;
-  quarter?: PeriodicConfig;
-  year?: PeriodicConfig;
-}
-
-export const DEFAULT_SETTINGS: Settings = {
-  installedVersion: "1.0.0-beta3",
-  showGettingStartedBanner: true,
+export const clearStartupNote: Updater<Settings> = (settings: Settings) => {
+  for (const granularity of granularities) {
+    const config = settings[granularity];
+    if (config?.openAtStartup) {
+      config.openAtStartup = false;
+    }
+  }
+  return settings;
 };
 
-export class PeriodicNotesSettingsTab extends PluginSettingTab {
-  private view!: Record<string, unknown>;
-
-  constructor(
-    readonly app: App,
-    readonly plugin: PeriodicNotesPlugin,
-  ) {
-    super(app, plugin);
-    this.plugin = plugin;
-  }
-
-  display(): void {
-    this.containerEl.empty();
-
-    this.view = mount(SettingsPage, {
-      target: this.containerEl,
-      props: {
-        app: this.app,
-        settings: this.plugin.settings,
-      },
-    });
-  }
-
-  hide() {
-    super.hide();
-    if (this.view) {
-      unmount(this.view);
+export function findStartupNoteConfig(
+  settings: Writable<Settings>,
+): Granularity | null {
+  const s = get(settings);
+  for (const granularity of granularities) {
+    if (s[granularity]?.openAtStartup) {
+      return granularity;
     }
   }
+  return null;
 }
+
+export function getEnabledGranularities(settings: Settings): Granularity[] {
+  return granularities.filter((g) => settings[g]?.enabled);
+}
+
+export function isDailyNotesPluginEnabled(app: App): boolean {
+  return app.internalPlugins.getPluginById("daily-notes").enabled;
+}
+
+function getDailyNotesPlugin(app: App): DailyNotesPlugin | null {
+  const installedPlugin = app.internalPlugins.getPluginById("daily-notes");
+  if (installedPlugin) {
+    return installedPlugin.instance as DailyNotesPlugin;
+  }
+  return null;
+}
+
+export function hasLegacyDailyNoteSettings(app: App): boolean {
+  const options = getDailyNotesPlugin(app)?.options || {};
+  return !!(options.format || options.folder || options.template);
+}
+
+export function disableDailyNotesPlugin(app: App): void {
+  app.internalPlugins.getPluginById("daily-notes").disable(true);
+}
+
+export function getLocaleOptions() {
+  const sysLocale = navigator.language?.toLowerCase();
+  return [
+    { label: `Same as system (${sysLocale})`, value: "system-default" },
+    ...window.moment.locales().map((locale) => ({
+      label: locale,
+      value: locale,
+    })),
+  ];
+}
+
+export function getWeekStartOptions() {
+  const weekdays = [
+    "sunday",
+    "monday",
+    "tuesday",
+    "wednesday",
+    "thursday",
+    "friday",
+    "saturday",
+  ];
+  const localizedWeekdays = window.moment.weekdays();
+  const localeWeekStartNum = window._bundledLocaleWeekSpec.dow;
+  const localeWeekStart = localizedWeekdays[localeWeekStartNum];
+  return [
+    { label: `Locale default (${localeWeekStart})`, value: "locale" },
+    ...localizedWeekdays.map((day, i) => ({ value: weekdays[i], label: day })),
+  ];
 ```
 
-### Settings Tab Architecture
+Key utilities:
 
-`PeriodicNotesSettingsTab` extends Obsidian's `PluginSettingTab` and bridges Obsidian's imperative UI model with Svelte's reactive rendering:
+- `clearStartupNote()` is a Svelte store updater that disables `openAtStartup` on all granularities — used to ensure only one granularity opens at startup
+- `findStartupNoteConfig()` returns the first granularity with `openAtStartup: true`
+- `getEnabledGranularities()` filters the five granularities to those the user has enabled
+- Legacy daily notes detection (`isDailyNotesPluginEnabled`, `hasLegacyDailyNoteSettings`, `disableDailyNotesPlugin`) helps users migrate from Obsidian's built-in daily notes
 
-- **`display()`** — Called when the user opens settings. Clears the container and mounts the Svelte `SettingsPage` component, passing the app instance and the reactive settings store.
-- **`hide()`** — Called when settings close. Unmounts the Svelte component tree to prevent memory leaks.
+## 8. Commands
 
-The `Settings` interface uses optional `PeriodicConfig` properties keyed by granularity (`day?`, `week?`, etc.). This means a fresh install has no granularity configs until the user enables one — the `DEFAULT_PERIODIC_CONFIG` from constants fills in defaults at the component level.
-
-**Note:** `installedVersion` is hardcoded to `"1.0.0-beta3"` in `DEFAULT_SETTINGS`. This string appears to be a leftover from development and isn't updated during the build or release process.
-
-```bash
-cat src/settings/pages/SettingsPage.svelte
-```
-
-```output
-<script lang="ts">
-  import type { App } from "obsidian";
-  import type { Writable } from "svelte/store";
-
-  import type { Settings } from "src/settings";
-  import SettingItem from "src/settings/components/SettingItem.svelte";
-  import Dropdown from "src/settings/components/Dropdown.svelte";
-  import Footer from "src/settings/components/Footer.svelte";
-  import {
-    getLocaleOptions,
-    getWeekStartOptions,
-  } from "src/settings/utils";
-  import {
-    getLocalizationSettings,
-    type WeekStartOption,
-  } from "src/settings/localization";
-  import { granularities } from "src/types";
-
-  import GettingStartedBanner from "./dashboard/GettingStartedBanner.svelte";
-  import PeriodicGroup from "./details/PeriodicGroup.svelte";
-
-  let { app, settings }: {
-    app: App;
-    settings: Writable<Settings>;
-  } = $props();
-
-  // svelte-ignore state_referenced_locally
-  let localization = $state(getLocalizationSettings(app));
-</script>
-
-{#if $settings.showGettingStartedBanner}
-  <GettingStartedBanner
-    {app}
-    handleTeardown={() => {
-      $settings.showGettingStartedBanner = false;
-    }}
-  />
-{/if}
-
-<h3>Periodic Notes</h3>
-<div class="periodic-groups">
-  {#each granularities as granularity}
-    <PeriodicGroup {app} {granularity} {settings} />
-  {/each}
-</div>
-
-<h3>Localization</h3>
-<div class="setting-item-description">
-  These settings are applied to your entire vault, meaning the values you
-  specify here may impact other plugins as well.
-</div>
-<SettingItem
-  name="Start week on"
-  description="Choose what day of the week to start. Select 'locale default' to use the default specified by moment.js"
-  type="dropdown"
-  isHeading={false}
->
-  {#snippet control()}
-    <Dropdown
-      options={getWeekStartOptions()}
-      value={localization.weekStart}
-      onChange={(e) => {
-        const val = (e.target as HTMLSelectElement).value as WeekStartOption;
-        localization.weekStart = val;
-        app.vault.setConfig("weekStart", val);
-      }}
-    />
-  {/snippet}
-</SettingItem>
-
-<SettingItem
-  name="Locale"
-  description="Override the locale used by the calendar and other plugins"
-  type="dropdown"
-  isHeading={false}
->
-  {#snippet control()}
-    <Dropdown
-      options={getLocaleOptions()}
-      value={localization.localeOverride}
-      onChange={(e) => {
-        const val = (e.target as HTMLSelectElement).value;
-        localization.localeOverride = val;
-        app.vault.setConfig("localeOverride", val);
-      }}
-    />
-  {/snippet}
-</SettingItem>
-
-<Footer />
-
-<style>
-  .periodic-groups {
-    margin-top: 1em;
-  }
-</style>
-```
-
-### SettingsPage Component
-
-The root settings component has two major sections:
-
-1. **Periodic Notes groups** — Iterates `granularities` (day, week, month, quarter, year) and renders a `PeriodicGroup` for each. Each group is an expandable accordion with format, folder, template, and startup settings.
-
-2. **Localization** — Week-start and locale dropdowns that write directly to Obsidian's vault config via `app.vault.setConfig()` — another private API usage (Issue #16). Changes here affect all plugins that use moment.js.
-
-The component uses Svelte 5's `$props()` rune for typed prop destructuring and `$state()` for local localization settings. The `{#snippet control()}` blocks are Svelte 5's replacement for named slots, used here with generic `SettingItem` and `Dropdown` components.
-
-```bash
-cat src/settings/pages/details/PeriodicGroup.svelte
-```
-
-```output
-<script lang="ts">
-  import type { App } from "obsidian";
-  import { slide } from "svelte/transition";
-  import { displayConfigs } from "src/commands";
-  import { capitalize } from "src/utils";
-  import NoteFormatSetting from "src/settings/components/NoteFormatSetting.svelte";
-  import NoteTemplateSetting from "src/settings/components/NoteTemplateSetting.svelte";
-  import NoteFolderSetting from "src/settings/components/NoteFolderSetting.svelte";
-  import type { Granularity } from "src/types";
-  import Arrow from "src/settings/components/Arrow.svelte";
-  import { DEFAULT_PERIODIC_CONFIG } from "src/constants";
-  import type { Settings } from "src/settings";
-  import type { Writable } from "svelte/store";
-  import writableDerived from "svelte-writable-derived";
-  import OpenAtStartupSetting from "src/settings/components/OpenAtStartupSetting.svelte";
-
-  let { app, granularity, settings }: {
-    app: App;
-    granularity: Granularity;
-    settings: Writable<Settings>;
-  } = $props();
-
-  let displayConfig = $derived(displayConfigs[granularity]);
-  let isExpanded = $state(false);
-
-  // svelte-ignore state_referenced_locally
-  let config = writableDerived(
-    settings,
-    ($settings) => $settings[granularity] ?? { ...DEFAULT_PERIODIC_CONFIG },
-    (reflecting, $settings) => {
-      $settings[granularity] = reflecting;
-      return $settings;
-    },
-  );
-
-  function toggleExpand() {
-    isExpanded = !isExpanded;
-  }
-</script>
-
-<div class="periodic-group">
-  <div
-    class="setting-item setting-item-heading periodic-group-heading"
-    role="button"
-    tabindex="0"
-    onclick={toggleExpand}
-    onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') toggleExpand(); }}
-  >
-    <div class="setting-item-info">
-      <h3 class="setting-item-name periodic-group-title">
-        <Arrow {isExpanded} />
-        {capitalize(displayConfig.periodicity)} Notes
-        {#if $config.openAtStartup}
-          <span class="badge">Opens at startup</span>
-        {/if}
-      </h3>
-    </div>
-    <div class="setting-item-control">
-      <label
-        class="checkbox-container"
-        class:is-enabled={$config.enabled}
-      >
-        <input
-          type="checkbox"
-          bind:checked={$config.enabled}
-          style="display: none;"
-        />
-      </label>
-    </div>
-  </div>
-  {#if isExpanded}
-    <div
-      class="periodic-group-content"
-      in:slide={{ duration: 300 }}
-      out:slide={{ duration: 300 }}
-    >
-      <NoteFormatSetting {config} {granularity} />
-      <NoteFolderSetting {app} {config} {granularity} />
-      <NoteTemplateSetting {app} {config} {granularity} />
-      <OpenAtStartupSetting {config} {settings} {granularity} />
-    </div>
-  {/if}
-</div>
-
-<style lang="scss">
-  .periodic-group-title {
-    display: flex;
-  }
-
-  .badge {
-    font-style: italic;
-    margin-left: 1em;
-    color: var(--text-muted);
-    font-weight: 500;
-    font-size: 70%;
-  }
-
-  .periodic-group {
-    background: var(--background-primary-alt);
-    border: 1px solid var(--background-modifier-border);
-    border-radius: 16px;
-
-    &:not(:last-of-type) {
-      margin-bottom: 24px;
-    }
-  }
-
-  .periodic-group-heading {
-    cursor: pointer;
-    padding: 24px;
-
-    h3 {
-      font-size: 1.1em;
-      margin: 0;
-    }
-  }
-
-  .periodic-group-content {
-    padding: 24px;
-  }
-</style>
-```
-
-### PeriodicGroup — The Accordion Widget
-
-Each granularity gets its own expandable group. Key patterns:
-
-- **`writableDerived`** — A third-party store adapter that creates a two-way derived store. It reads `$settings[granularity]` (falling back to `DEFAULT_PERIODIC_CONFIG`) and writes changes back into the parent settings store. This avoids prop-drilling individual config fields through four child components.
-
-- **Expand/collapse** — Uses `$state(false)` for `isExpanded` and Svelte's `slide` transition for animation. The heading div has proper ARIA attributes (`role="button"`, `tabindex="0"`, keyboard handlers).
-
-- **Enable toggle** — The checkbox in the heading controls `$config.enabled`. The hidden `<input>` with `bind:checked` drives the visual `.checkbox-container` styling via Obsidian's CSS classes.
-
-The four child settings components (`NoteFormatSetting`, `NoteFolderSetting`, `NoteTemplateSetting`, `OpenAtStartupSetting`) each receive the derived `config` store and validate their input against the vault.
-
-Each settings component that uses `bind:this={inputEl}` includes a null guard (`if (!inputEl) return`) in its `$effect` block. This is necessary because Svelte 5 effects run before the DOM is mounted — `bind:this` assigns the element reference during rendering, but the effect may fire in the same microtask before that assignment completes.
-
-## 10. Commands
-
-The command palette integration registers five commands per enabled granularity.
+The command system generates five commands per granularity dynamically.
 
 ```bash
 cat src/commands.ts
@@ -1922,66 +1872,21 @@ export function getCommands(
 }
 ```
 
-### Command Architecture
+Two navigation paradigms:
 
-Each granularity gets five commands registered via `getCommands()`:
+- **Jump** (`jumpToAdjacentNote`) — Navigate to the *nearest existing* note in the cache (forwards or backwards). Shows a Notice if there's no note in that direction.
+- **Open** (`openAdjacentNote`) — Navigate to the *next/previous calendar period*, creating the note if it doesn't exist. Always succeeds.
 
-| Command | Behavior |
-|---------|----------|
-| **Open [period]'s note** | Opens or creates the note for the current period (today, this week, etc.) |
-| **Jump forwards/backwards** | Navigates to the _nearest existing_ note in that direction using `findAdjacent` from the cache |
-| **Open next/previous** | Creates or opens the note for the _next/previous calendar period_ (tomorrow, next week, etc.) |
+All commands use `checkCallback` — they only appear in the command palette when the current granularity is enabled and (for jump/open adjacent) the active file is a periodic note of that granularity.
 
-The distinction between "jump" and "open" is important: jumping finds an existing note with `findAdjacent` (cache-based sorted lookup), while opening calculates the adjacent date arithmetically with `moment.add()` and calls `openPeriodicNote` (which creates the note if it doesn't exist).
+This generates 25 commands total (5 granularities × 5 commands each), plus the "Show date switcher" command registered in `main.ts`.
 
-All commands use Obsidian's `checkCallback` pattern: when `checking` is `true`, the command returns whether it should appear in the palette. When `false`, it executes. Commands for jump/open-adjacent additionally check that the active file is a periodic note of the matching granularity.
+## 9. Date Switcher
 
-The `displayConfigs` record is also exported and reused by the context menu, settings UI, and switcher components for consistent labeling.
-
-## 11. Context Menu
+The switcher is a modal dialog for navigating to periodic notes by typing natural language dates. It requires the `nldates-obsidian` plugin.
 
 ```bash
-cat src/modal.ts
-```
-
-```output
-import { type App, Menu, type Point } from "obsidian";
-import { get } from "svelte/store";
-import { displayConfigs } from "./commands";
-import type PeriodicNotesPlugin from "./main";
-import { getEnabledGranularities } from "./settings/utils";
-
-export function showFileMenu(
-  _app: App,
-  plugin: PeriodicNotesPlugin,
-  position: Point,
-): void {
-  const contextMenu = new Menu();
-
-  getEnabledGranularities(get(plugin.settings)).forEach((granularity) => {
-    const config = displayConfigs[granularity];
-    contextMenu.addItem((item) =>
-      item
-        .setTitle(config.labelOpenPresent)
-        .setIcon(`calendar-${granularity}`)
-        .onClick(() => {
-          plugin.openPeriodicNote(granularity, window.moment());
-        }),
-    );
-  });
-
-  contextMenu.showAtPosition(position);
-}
-```
-
-### Context Menu
-
-`showFileMenu` creates a simple Obsidian `Menu` at the ribbon icon's click position. It adds one item per enabled granularity, each opening/creating the current period's note. This reuses `displayConfigs` for labels and `getEnabledGranularities` to filter to only active granularities. The ribbon click handler in `main.ts` calls this function.
-
-## 12. Date Switcher
-
-```bash
-cat src/switcher/switcher.ts
+sed -n "1,60p" src/switcher/switcher.ts
 ```
 
 ```output
@@ -2026,25 +1931,47 @@ export class NLDNavigator extends SuggestModal<DateNavigationItem> {
     ) as NLDatesPlugin;
 
     this.scope.register(["Meta"], "Enter", (evt: KeyboardEvent) => {
-      // @ts-expect-error this.chooser exists but is not exposed
-      this.chooser.useSelectedItem(evt);
+      try {
+        // @ts-expect-error this.chooser exists but is not exposed
+        this.chooser.useSelectedItem(evt);
+      } catch (e) {
+        console.debug(
+          "[Periodic Notes] chooser.useSelectedItem() unavailable",
+          e,
+        );
+      }
     });
 
     this.scope.register([], "Tab", (evt: KeyboardEvent) => {
+      const selected = this.getSelectedItem();
+      if (!selected) return;
       evt.preventDefault();
       this.close();
       new RelatedFilesSwitcher(
         this.app,
         this.plugin,
-        this.getSelectedItem(),
+```
+
+```bash
+sed -n "60,180p" src/switcher/switcher.ts
+```
+
+```output
+        this.plugin,
+        selected,
         this.inputEl.value,
       ).open();
     });
   }
 
-  private getSelectedItem(): DateNavigationItem {
-    // biome-ignore lint/suspicious/noExplicitAny: Obsidian API lacks type
-    return (this as any).chooser.values[(this as any).chooser.selectedItem];
+  private getSelectedItem(): DateNavigationItem | undefined {
+    try {
+      // biome-ignore lint/suspicious/noExplicitAny: Obsidian API lacks type
+      return (this as any).chooser.values[(this as any).chooser.selectedItem];
+    } catch (e) {
+      console.debug("[Periodic Notes] chooser selection unavailable", e);
+      return undefined;
+    }
   }
 
   /** XXX: this is pretty messy currently. Not sure if I like the format yet */
@@ -2151,6 +2078,14 @@ export class NLDNavigator extends SuggestModal<DateNavigationItem> {
         getSuggestion(`${timeDelta} years ago`, "day"),
         getSuggestion(`${timeDelta} years ago`, "year"),
       ]
+```
+
+```bash
+sed -n "180,250p" src/switcher/switcher.ts
+```
+
+```output
+      ]
         .filter((items) => activeGranularities.includes(items.granularity))
         .filter((item) => item.label.toLowerCase().startsWith(query));
     }
@@ -2221,6 +2156,14 @@ export class NLDNavigator extends SuggestModal<DateNavigationItem> {
       setIcon(el, `calendar-${value.granularity}`);
     });
     if (numRelatedNotes > 0) {
+```
+
+```bash
+sed -n "250,280p" src/switcher/switcher.ts
+```
+
+```output
+    if (numRelatedNotes > 0) {
       el.createEl("span", {
         cls: "suggestion-badge",
         text: `+${numRelatedNotes}`,
@@ -2239,32 +2182,19 @@ export class NLDNavigator extends SuggestModal<DateNavigationItem> {
 }
 ```
 
-### NLDNavigator — Natural Language Date Switcher
+The switcher provides three input modes:
 
-This is the most complex UI component in the plugin. It extends Obsidian's `SuggestModal` to provide a fuzzy-finder that understands natural language dates via the `nldates-obsidian` plugin dependency.
+1. **Relative keywords** ("next", "last", "this") — generates suggestions for all enabled granularities (e.g., "next Monday", "next week", "next month")
+2. **Numeric offsets** ("3", "+3", "in 3") — generates forward and backward suggestions ("in 3 days", "3 days ago", "in 3 weeks", etc.)
+3. **Freeform text** — delegates to the NLDates plugin for natural language parsing
 
-**Suggestion pipeline:**
+Each suggestion is rendered with icons indicating whether the note exists (calendar icon) or would be created (file-plus icon). A `+N` badge shows how many loosely-matched related files exist for that period.
 
-1. `getSuggestions(query)` first tries `getDateSuggestions` for common patterns (relative dates, named periods). If no quick suggestions match, it falls back to the NLDates plugin's `parseDate` for freeform natural language.
+**Private API concern:** The switcher accesses `SuggestModal.chooser` which is not part of Obsidian's public API. This is wrapped in `@ts-expect-error` and try-catch with a debug log fallback.
 
-2. `getDateSuggestions` handles three input shapes:
-   - **Relative keywords** (`next/last/this` + day/week/month/year) — generates all combinations and filters by enabled granularities and query prefix
-   - **Numeric offsets** (`in 3 days`, `+2 weeks`, `5 months ago`) — generates forward and backward suggestions for each unit
-   - **Default** (empty/partial query) — shows today/yesterday/tomorrow plus this/last/next for each enabled period
+**TODO noted in code:** Quarter suggestions are commented out, awaiting NLDates plugin support for quarter parsing.
 
-3. `renderSuggestion` differentiates between existing and new notes. Existing notes show a calendar icon and the vault-relative link path. New notes show a `file-plus` icon and the projected file path. Both show a `+N` badge counting related (non-exact-match) notes in that period.
-
-**Keyboard navigation:**
-- **Tab** — Switches to the `RelatedFilesSwitcher` for the selected item
-- **Cmd/Ctrl+Enter** — Opens the note in a new pane (accesses the private `this.chooser` API)
-- **Enter** — Opens/creates the note in the current pane
-
-**Concerns:**
-- **Hard dependency on nldates plugin** — `this.nlDatesPlugin` is cast from `getPlugin()` without a null check. If nldates isn't installed, the switcher will throw on first use (Issue #23 — private API usage).
-- **`this.chooser` access** — Used twice with `@ts-expect-error` and `any` casts. This is Obsidian's internal `SuggestModal` implementation detail.
-- **Quarter support** — Commented out (`TODO`) because NLDates doesn't support quarter parsing. This means the quarterly granularity has no switcher support.
-
-## 13. Related Files Switcher
+Tab opens the `RelatedFilesSwitcher`, which shows all loosely-matched files for the selected period:
 
 ```bash
 cat src/switcher/relatedFilesSwitcher.ts
@@ -2385,73 +2315,216 @@ export class RelatedFilesSwitcher extends SuggestModal<DateNavigationItem> {
 }
 ```
 
-### RelatedFilesSwitcher
+The related files switcher shows non-exact matches — files whose names contain a date matching the selected period but don't follow the configured format. Pressing `*` (Shift+8) toggles `includeFinerGranularities`, expanding the view to show daily notes within a selected month, etc.
 
-This secondary modal shows files that are _date-prefixed_ but not exact matches for a periodic note. For example, if you have a weekly note `2024-W01` and files like `2024-W01_Meeting Notes` and `2024-W01_Sprint Retro`, this switcher lists those related files.
+Tab navigates back to the main date switcher, preserving the original query.
 
-**Key behaviors:**
+## 10. Svelte Settings UI
 
-- **Tab** — Switches back to the `NLDNavigator`, restoring the original query text. The two switchers form a bidirectional navigation pair.
-- **Shift+8 (asterisk)** — Toggles `includeFinerGranularities`. When viewing a monthly note's related files, this expands to include daily and weekly notes within that month. An "Expanded" label appears in the input container.
-- **`instanceof TFile` guard** — `onChooseSuggestion` properly checks the result of `getAbstractFileByPath` before opening.
-- **Filtering** — Only non-exact matches are shown (`matchData.exact === false`), filtered by case-insensitive substring search on the file path.
-
-## 14. File Suggest UI
+The settings page uses Svelte 5 runes (`$state`, `$props`, `$derived`) for reactivity. The main page renders a card per granularity, each with format, folder, template, and startup settings.
 
 ```bash
-cat src/ui/fileSuggest.ts
+cat src/settings/pages/SettingsPage.svelte
 ```
 
 ```output
-import { AbstractInputSuggest, type TFile, type TFolder } from "obsidian";
+<script lang="ts">
+  import type { App } from "obsidian";
+  import type { Writable } from "svelte/store";
 
-export class FileSuggest extends AbstractInputSuggest<TFile> {
-  getSuggestions(query: string): TFile[] {
-    const lowerQuery = query.toLowerCase();
-    return this.app.vault
-      .getMarkdownFiles()
-      .filter((file) => file.path.toLowerCase().contains(lowerQuery));
+  import type { Settings } from "src/settings";
+  import SettingItem from "src/settings/components/SettingItem.svelte";
+  import Dropdown from "src/settings/components/Dropdown.svelte";
+  import Footer from "src/settings/components/Footer.svelte";
+  import {
+    getLocaleOptions,
+    getWeekStartOptions,
+  } from "src/settings/utils";
+  import {
+    getLocalizationSettings,
+    type WeekStartOption,
+  } from "src/settings/localization";
+  import { granularities } from "src/types";
+
+  import GettingStartedBanner from "./dashboard/GettingStartedBanner.svelte";
+  import PeriodicGroup from "./details/PeriodicGroup.svelte";
+
+  let { app, settings }: {
+    app: App;
+    settings: Writable<Settings>;
+  } = $props();
+
+  // svelte-ignore state_referenced_locally
+  let localization = $state(getLocalizationSettings(app));
+</script>
+
+{#if $settings.showGettingStartedBanner}
+  <GettingStartedBanner
+    {app}
+    handleTeardown={() => {
+      $settings.showGettingStartedBanner = false;
+    }}
+  />
+{/if}
+
+<h3>Periodic Notes</h3>
+<div class="periodic-groups">
+  {#each granularities as granularity}
+    <PeriodicGroup {app} {granularity} {settings} />
+  {/each}
+</div>
+
+<h3>Localization</h3>
+<div class="setting-item-description">
+  These settings are applied to your entire vault, meaning the values you
+  specify here may impact other plugins as well.
+</div>
+<SettingItem
+  name="Start week on"
+  description="Choose what day of the week to start. Select 'locale default' to use the default specified by moment.js"
+  type="dropdown"
+  isHeading={false}
+>
+  {#snippet control()}
+    <Dropdown
+      options={getWeekStartOptions()}
+      value={localization.weekStart}
+      onChange={(e) => {
+        const val = (e.target as HTMLSelectElement).value as WeekStartOption;
+        localization.weekStart = val;
+        app.vault.setConfig("weekStart", val);
+      }}
+    />
+  {/snippet}
+</SettingItem>
+
+<SettingItem
+  name="Locale"
+  description="Override the locale used by the calendar and other plugins"
+  type="dropdown"
+  isHeading={false}
+>
+  {#snippet control()}
+    <Dropdown
+      options={getLocaleOptions()}
+      value={localization.localeOverride}
+      onChange={(e) => {
+        const val = (e.target as HTMLSelectElement).value;
+        localization.localeOverride = val;
+        app.vault.setConfig("localeOverride", val);
+      }}
+    />
+  {/snippet}
+</SettingItem>
+
+<Footer />
+
+<style>
+  .periodic-groups {
+    margin-top: 1em;
+  }
+</style>
+```
+
+The settings page iterates over all five granularities, rendering a `PeriodicGroup` card for each. Localization settings (week start and locale) are vault-wide — they use `app.vault.setConfig()` to persist, affecting all plugins that use Moment.js.
+
+**Private API concern:** `vault.setConfig()` is undocumented. This is the write counterpart to the `vault.getConfig()` calls in localization.ts.
+
+## 11. Obsidian API Augmentations
+
+The project extends Obsidian's type definitions to access undocumented APIs safely:
+
+```bash
+cat src/obsidian.d.ts
+```
+
+```output
+import "obsidian";
+import type { LocaleOverride, WeekStartOption } from "./settings/localization";
+
+declare module "obsidian" {
+  export interface Workspace extends Events {
+    on(
+      name: "periodic-notes:settings-updated",
+      callback: () => void,
+      // biome-ignore lint/suspicious/noExplicitAny: Obsidian API lacks type
+      ctx?: any,
+    ): EventRef;
+    on(
+      name: "periodic-notes:resolve",
+      callback: () => void,
+      // biome-ignore lint/suspicious/noExplicitAny: Obsidian API lacks type
+      ctx?: any,
+    ): EventRef;
   }
 
-  renderSuggestion(file: TFile, el: HTMLElement): void {
-    el.setText(file.path);
+  interface VaultSettings {
+    localeOverride: LocaleOverride;
+    weekStart: WeekStartOption;
   }
 
-  selectSuggestion(file: TFile): void {
-    this.setValue(file.path);
-    this.close();
-  }
-}
-
-export class FolderSuggest extends AbstractInputSuggest<TFolder> {
-  getSuggestions(query: string): TFolder[] {
-    const lowerQuery = query.toLowerCase();
-    return this.app.vault
-      .getAllFolders()
-      .filter((folder) => folder.path.toLowerCase().contains(lowerQuery));
+  interface Vault {
+    config: Record<string, unknown>;
+    getConfig<T extends keyof VaultSettings>(setting: T): VaultSettings[T];
+    // biome-ignore lint/suspicious/noExplicitAny: Obsidian API lacks type
+    setConfig<T extends keyof VaultSettings>(setting: T, value: any): void;
   }
 
-  renderSuggestion(folder: TFolder, el: HTMLElement): void {
-    el.setText(folder.path);
+  export interface PluginInstance {
+    id: string;
   }
 
-  selectSuggestion(folder: TFolder): void {
-    this.setValue(folder.path);
-    this.close();
+  export interface DailyNotesSettings {
+    autorun?: boolean;
+    format?: string;
+    folder?: string;
+    template?: string;
+  }
+
+  class DailyNotesPlugin implements PluginInstance {
+    options?: DailyNotesSettings;
+  }
+
+  export interface App {
+    internalPlugins: InternalPlugins;
+    plugins: CommunityPluginManager;
+  }
+
+  export interface CommunityPluginManager {
+    getPlugin(id: string): Plugin;
+  }
+
+  export interface InstalledPlugin {
+    disable: (onUserDisable: boolean) => void;
+    enabled: boolean;
+    instance: PluginInstance;
+  }
+
+  export interface InternalPlugins {
+    plugins: Record<string, InstalledPlugin>;
+    getPluginById(id: string): InstalledPlugin;
+  }
+
+  interface NLDResult {
+    formattedString: string;
+    date: Date;
+    moment: Moment;
+  }
+
+  interface NLDatesPlugin extends Plugin {
+    parseDate(dateStr: string): NLDResult;
   }
 }
 ```
 
-### File and Folder Suggest
+This declaration file merges additional types into the `obsidian` module. Key augmentations:
 
-Two small classes extending Obsidian's `AbstractInputSuggest` to provide autocomplete dropdowns for input fields in the settings UI:
+- **Custom workspace events** — `periodic-notes:settings-updated` and `periodic-notes:resolve` enable communication between the settings UI and cache
+- **Vault config methods** — Type-safe wrappers for the undocumented `getConfig`/`setConfig` API
+- **Internal plugins** — Access to Obsidian's built-in daily notes plugin for migration detection
+- **NLDates plugin** — Types for the natural language dates plugin's `parseDate()` method
 
-- **`FileSuggest`** — Used by `NoteTemplateSetting` to suggest template file paths. Searches all markdown files by substring match.
-- **`FolderSuggest`** — Used by `NoteFolderSetting` to suggest folder paths. Searches all folders by substring match.
-
-Both are instantiated inside `$effect` blocks in their respective Svelte components and cleaned up via the effect's return destructor (`() => suggest.close()`).
-
-## 15. Build System
+## 12. Build Configuration
 
 ```bash
 cat vite.config.ts
@@ -2493,47 +2566,86 @@ export default defineConfig({
 });
 ```
 
-### Vite Configuration
+Notable build decisions:
 
-The build is configured for Obsidian's plugin format:
+- **Output to project root** (`outDir: "."` with `emptyOutDir: false`) — Obsidian expects `main.js`, `styles.css`, and `manifest.json` in the plugin's root directory. Never change `emptyOutDir` to `true` or it will delete source files.
+- **CommonJS format** — Obsidian's plugin loader requires CJS
+- **External modules** — `obsidian`, `electron`, and Node builtins are provided by the Obsidian runtime
+- **Svelte CSS** — `emitCss: false` prevents Svelte from generating separate CSS files; a custom plugin copies the hand-written `styles.css` instead
+- **Source maps** — inline maps in dev mode, none in production
 
-- **Output** — CommonJS (`cjs`) with `default` export, written as `main.js` in the project root (`outDir: "."`). Obsidian expects a single `main.js` file.
-- **`emptyOutDir: false`** — Critical because the output directory is the project root. Without this, Vite would delete all project files during build.
-- **Externals** — `obsidian`, `electron`, `fs`, `os`, `path` are provided by Obsidian's runtime and must not be bundled.
-- **Svelte** — `emitCss: false` injects component styles via JavaScript rather than generating separate CSS files. This keeps the plugin as a single JS file.
-- **`copy-styles` plugin** — A custom Vite plugin that copies `src/styles.css` to the project root after each build. Obsidian loads `styles.css` from the plugin directory automatically.
-- **Source maps** — Only generated in dev mode (`NODE_ENV === "DEV"`), as inline maps to avoid extra files.
-- **Path alias** — `src` resolves to the `src/` directory, enabling clean imports like `import { capitalize } from "src/utils"` throughout the codebase.
+## 13. Test Architecture
 
-## 16. Summary of Concerns
+```bash
+grep -c "test(" src/*.test.ts src/**/*.test.ts 2>/dev/null | sed "s|src/||"
+```
 
-### Private API Usage (Issues #16, #23)
+```output
+cache.test.ts:25
+parser.test.ts:11
+utils.test.ts:63
+settings/localization.test.ts:12
+settings/utils.test.ts:11
+settings/validation.test.ts:27
+```
 
-The plugin relies on several undocumented Obsidian APIs:
+149 tests across 6 files. Tests use Bun's built-in test runner.
 
-| API | Location | Purpose | Risk |
-|-----|----------|---------|------|
-| `vault.getConfig()` / `vault.setConfig()` | `localization.ts`, `SettingsPage.svelte` | Read/write locale and week-start preferences | Could break on Obsidian update |
-| `moment.localeData()._week` | `localization.ts` | Save/restore original week spec | Stable but undocumented moment.js internal |
-| `this.chooser` on `SuggestModal` | `switcher.ts` | Access selected item and trigger selection | Private Obsidian internal |
-| `app.internalPlugins.getPluginById()` | `settings/utils.ts` | Check and disable built-in Daily Notes plugin | Private Obsidian internal |
-| `app.plugins.getPlugin("nldates-obsidian")` | `switcher.ts` | Access NLDates plugin for date parsing | No null check; throws if plugin missing |
+### The import isolation pattern
 
-None of these have public alternatives. The code documents most of them with comments or `@ts-expect-error` / `biome-ignore` annotations.
+The project faces a testing challenge: most source modules import from `obsidian`, which isn't available at test time (Bun can't load the Obsidian runtime). Two strategies are used:
 
-### Test Coverage (Issue #22)
+1. **Direct import** — Modules with no runtime `obsidian` imports (only `import type`) can be imported directly. This applies to `parser.ts`, `localization.ts`, `types.ts`, and `constants.ts`.
 
-Test coverage sits around 5%. The cache, parser, and utilities have some coverage, but the command system, switcher, settings UI, and localization modules are untested. The Svelte components are particularly hard to test without a DOM environment and Obsidian API mocks.
+2. **Re-implementation** — Modules with runtime `obsidian` imports (`cache.ts`, `validation.ts`, `settings/utils.ts`) have their pure functions re-implemented in the test file. This is more fragile (implementations can drift) but avoids the import problem entirely.
 
-### Uncaught Async (Issue #20)
+All test files set up a global `window.moment` mock before importing:
 
-`applyPeriodicTemplateToFile` in `cache.ts` is called without `await` during the `resolve` method (which is synchronous). If the template application fails, the error is silently swallowed. This should either be awaited (requiring `resolve` to become async) or have an explicit `.catch()` handler.
+```bash
+sed -n "1,8p" src/parser.test.ts
+```
 
-### Architecture Strengths
+```output
+import { describe, expect, test } from "bun:test";
+import moment from "moment";
 
-- **Clean separation of concerns** — Cache, commands, settings, and UI are well-isolated modules
-- **Svelte 5 adoption** — Uses modern runes (`$state`, `$derived`, `$effect`, `$props`) and snippets throughout
-- **Type safety** — `instanceof` guards on all `getAbstractFileByPath` calls, typed granularity system, explicit config interfaces
-- **Cache design** — Event-driven updates (create, rename, metadata change) with proper stale-entry eviction
-- **Accessibility** — Settings accordion has ARIA roles, keyboard handlers, and proper tab ordering
+import { getLooselyMatchedDate } from "./parser";
+
+// @ts-expect-error global mock
+globalThis.window = { moment };
+
+```
+
+The `@ts-expect-error` comment suppresses TypeScript's complaint about assigning to `window` — the test environment doesn't have Obsidian's full Window type.
+
+## 14. Concerns and Observations
+
+### Community standards adherence
+
+**Good practices:**
+- TypeScript strict mode with comprehensive type augmentations
+- Biome for consistent formatting and import organization
+- Svelte 5 runes (modern API, not legacy `$:` reactivity)
+- Graceful degradation for private APIs (try-catch + fallback)
+- Plugin follows Obsidian's plugin lifecycle conventions (`onload`, `onunload`, `Component`)
+- Conventional commits and CI pipeline
+
+**Areas of concern:**
+
+1. **`installedVersion` hardcoded to `"1.0.0-beta3"`** — Dead code that doesn't track the actual version. Should be removed or wired to the real version.
+
+2. **Private API surface** — Three undocumented APIs are used:
+   - `vault.getConfig()` / `vault.setConfig()` — for locale settings
+   - `SuggestModal.chooser` — for modal keyboard handling
+   - `moment.localeData()._week` — for week spec access (now replaced with public API)
+   
+   All are wrapped in try-catch, which is the recommended pattern for Obsidian plugins using private APIs.
+
+3. **Test re-implementation drift risk** — Functions re-implemented in test files could diverge from source. The walkthrough verification (`uvx showboat verify`) catches code block drift but doesn't catch logic drift in test re-implementations.
+
+4. **No quarter support in NLDates** — Quarter navigation in the date switcher is commented out, awaiting upstream plugin support. Quarter notes can still be created and navigated via commands, just not via the switcher's natural language input.
+
+5. **Global Moment.js mutation** — `moment.updateLocale()` affects all plugins. This is standard practice for Obsidian but worth noting for anyone debugging cross-plugin locale issues.
+
+6. **Template error message** — `getTemplateContents()` logs "Failed to read the **daily** note template" regardless of which granularity failed. Minor copy issue.
 
