@@ -17,6 +17,7 @@
   let value = $derived($config.format || "");
 
   $effect(() => {
+    if (!inputEl) return;
     error = validateFormat(inputEl.value, granularity);
     warning = validateFormatComplexity(inputEl.value, granularity);
   });

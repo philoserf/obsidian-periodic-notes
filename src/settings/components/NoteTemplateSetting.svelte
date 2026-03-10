@@ -23,6 +23,7 @@
   }
 
   $effect(() => {
+    if (!inputEl) return;
     error = validateTemplate(app, inputEl.value);
     const suggest = new FileSuggest(app, inputEl);
     return () => suggest.close();
