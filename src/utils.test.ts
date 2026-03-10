@@ -270,30 +270,25 @@ function replaceGranularityTokens(
   date: moment.Moment,
   tokenPattern: string,
   format: string,
-  startOfUnit?: string,
+  startOfUnit?: Granularity,
 ): string {
   const pattern = new RegExp(
     `{{\\s*(${tokenPattern})\\s*(([-+]\\d+)([yqmwdhs]))?\\s*(:.+?)?}}`,
     "gi",
   );
+  const now = window.moment();
   return contents.replace(
     pattern,
     (_, _token, calc, timeDelta, unit, momentFormat) => {
-      const now = window.moment();
-      const periodStart = startOfUnit
-        ? date
-            .clone()
-            .startOf(startOfUnit as moment.unitOfTime.StartOf)
-            .set({
-              hour: now.get("hour"),
-              minute: now.get("minute"),
-              second: now.get("second"),
-            })
-        : date.clone().set({
-            hour: now.get("hour"),
-            minute: now.get("minute"),
-            second: now.get("second"),
-          });
+      const periodStart = date.clone();
+      if (startOfUnit) {
+        periodStart.startOf(startOfUnit);
+      }
+      periodStart.set({
+        hour: now.get("hour"),
+        minute: now.get("minute"),
+        second: now.get("second"),
+      });
       if (calc) {
         periodStart.add(parseInt(timeDelta, 10), unit);
       }
@@ -332,33 +327,17 @@ function applyTemplateTransformations(
     );
   }
 
-  if (granularity === "month") {
+  if (
+    granularity === "month" ||
+    granularity === "quarter" ||
+    granularity === "year"
+  ) {
     templateContents = replaceGranularityTokens(
       templateContents,
       date,
-      "month",
+      granularity,
       format,
-      "month",
-    );
-  }
-
-  if (granularity === "quarter") {
-    templateContents = replaceGranularityTokens(
-      templateContents,
-      date,
-      "quarter",
-      format,
-      "quarter",
-    );
-  }
-
-  if (granularity === "year") {
-    templateContents = replaceGranularityTokens(
-      templateContents,
-      date,
-      "year",
-      format,
-      "year",
+      granularity,
     );
   }
 
