@@ -110,7 +110,8 @@ export class PeriodicNotesCache extends Component {
       const config = settings[granularity] as PeriodicConfig;
       const rootFolder = this.app.vault.getAbstractFileByPath(
         config.folder || "/",
-      ) as TFolder;
+      );
+      if (!(rootFolder instanceof TFolder)) continue;
 
       recurseChildren(rootFolder, (file: TAbstractFile) => {
         if (file instanceof TFile) {
