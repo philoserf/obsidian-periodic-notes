@@ -252,6 +252,7 @@ export class PeriodicNotesCache extends Component {
       ) {
         const file = this.app.vault.getAbstractFileByPath(filePath);
         if (file instanceof TFile) return file;
+        this.cachedFiles.delete(filePath);
         return null;
       }
     }
