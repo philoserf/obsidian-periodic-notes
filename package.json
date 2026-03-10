@@ -18,6 +18,7 @@
     "validate": "bun run scripts/validate-plugin.ts",
     "deploy": "cp main.js manifest.json styles.css ~/source/philoserf/notes/.obsidian/plugins/periodic-notes/",
     "test": "bun test",
+    "test:coverage": "bun test --coverage",
     "version": "bun run version-bump.ts"
   },
   "dependencies": {
