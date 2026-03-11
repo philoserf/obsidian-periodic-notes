@@ -44,7 +44,7 @@ function getDaysOfWeek(): string[] {
 
 function getDayOfWeekNumericalValue(dayOfWeekName: string): number {
   const index = getDaysOfWeek().indexOf(dayOfWeekName.toLowerCase());
-  return index === -1 ? NaN : index;
+  return Math.max(0, index);
 }
 
 function replaceGranularityTokens(

@@ -333,7 +333,8 @@ function applyTemplateTransformations(
     templateContents = templateContents.replace(
       /{{\s*(sunday|monday|tuesday|wednesday|thursday|friday|saturday)\s*:(.*?)}}/gi,
       (_, dayOfWeek, momentFormat) => {
-        const day = daysOfWeek.indexOf(dayOfWeek.toLowerCase());
+        const index = daysOfWeek.indexOf(dayOfWeek.toLowerCase());
+        const day = Math.max(0, index);
         return date.weekday(day).format(momentFormat.trim());
       },
     );
