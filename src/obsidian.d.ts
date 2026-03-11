@@ -25,8 +25,10 @@ declare module "obsidian" {
   interface Vault {
     config: Record<string, unknown>;
     getConfig<T extends keyof VaultSettings>(setting: T): VaultSettings[T];
-    // biome-ignore lint/suspicious/noExplicitAny: Obsidian API lacks type
-    setConfig<T extends keyof VaultSettings>(setting: T, value: any): void;
+    setConfig<T extends keyof VaultSettings>(
+      setting: T,
+      value: VaultSettings[T],
+    ): void;
   }
 
   export interface PluginInstance {
