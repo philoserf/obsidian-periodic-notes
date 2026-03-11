@@ -187,6 +187,7 @@ export async function applyPeriodicTemplateToFile(
   const templateContents = await getTemplateContents(
     app,
     settings[metadata.granularity]?.templatePath,
+    metadata.granularity,
   );
   const renderedContents = applyTemplateTransformations(
     file.basename,
@@ -201,6 +202,7 @@ export async function applyPeriodicTemplateToFile(
 export async function getTemplateContents(
   app: App,
   templatePath: string | undefined,
+  granularity: Granularity,
 ): Promise<string> {
   const { metadataCache, vault } = app;
   const normalizedTemplatePath = normalizePath(templatePath ?? "");
@@ -216,10 +218,10 @@ export async function getTemplateContents(
     return templateFile ? vault.cachedRead(templateFile) : "";
   } catch (err) {
     console.error(
-      `Failed to read the daily note template '${normalizedTemplatePath}'`,
+      `Failed to read the ${granularity} note template '${normalizedTemplatePath}'`,
       err,
     );
-    new Notice("Failed to read the daily note template");
+    new Notice(`Failed to read the ${granularity} note template`);
     return "";
   }
 }
