@@ -218,7 +218,7 @@ export async function getTemplateContents(
     return templateFile ? vault.cachedRead(templateFile) : "";
   } catch (err) {
     console.error(
-      `Failed to read the ${granularity} note template '${normalizedTemplatePath}'`,
+      `[Periodic Notes] Failed to read the ${granularity} note template '${normalizedTemplatePath}'`,
       err,
     );
     new Notice(`Failed to read the ${granularity} note template`);
