@@ -1,7 +1,7 @@
 # Periodic Notes Plugin Walkthrough
 
-*2026-03-11T20:09:00Z by Showboat 0.6.1*
-<!-- showboat-id: 5b52e4f8-28a3-4565-80e0-fe2f4806ef33 -->
+*2026-03-11T23:06:50Z by Showboat 0.6.1*
+<!-- showboat-id: 0709ca99-0cd4-479f-ab32-7144d0f0aecd -->
 
 An Obsidian plugin that creates and manages daily, weekly, monthly, quarterly, and yearly notes. Built with Svelte 5, Vite, and Moment.js. This walkthrough traces the code from boot to template rendering.
 
@@ -44,7 +44,7 @@ src/settings/validation.ts
 src/styles.css
 src/switcher/relatedFilesSwitcher.ts
 src/switcher/switcher.ts
-src/test-setup.ts
+src/test-preload.ts
 src/types.ts
 src/ui/fileSuggest.ts
 src/utils.test.ts
@@ -2116,16 +2116,7 @@ cat src/test-setup.ts && echo '---' && cat bunfig.toml
 ```
 
 ```output
-import moment from "moment";
-
-// @ts-expect-error partial window mock for test environment
-globalThis.window = {
-  moment,
-  _bundledLocaleWeekSpec: { dow: 0, doy: 6 },
-};
----
-[test]
-preload = ["./src/test-setup.ts"]
+cat: src/test-setup.ts: No such file or directory
 ```
 
 ```bash
@@ -2160,4 +2151,3 @@ Test files cannot import modules that depend on `obsidian` or Svelte at runtime.
 - **No week/quarter loose matching** — the parser only handles day, month, and year patterns. Week and quarter notes require exact format matching or frontmatter.
 - **Quarter switcher support blocked** — depends on the NLDates fork (`philoserf/obsidian-nldates#18`) adding quarter parsing.
 - **`DEFAULT_SETTINGS.installedVersion`** was removed as dead code; no version tracking mechanism replaced it.
-
