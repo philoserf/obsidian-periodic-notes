@@ -38,6 +38,9 @@ export class NLDNavigator extends SuggestModal<DateNavigationItem> {
       "nldates-obsidian",
     ) as NLDatesPlugin;
 
+    // SuggestModal.chooser is a private Obsidian API — not in the type
+    // definitions but available at runtime. Wrapped in try-catch so the
+    // plugin degrades gracefully if Obsidian removes or renames it.
     this.scope.register(["Meta"], "Enter", (evt: KeyboardEvent) => {
       try {
         // @ts-expect-error this.chooser exists but is not exposed
@@ -64,6 +67,7 @@ export class NLDNavigator extends SuggestModal<DateNavigationItem> {
     });
   }
 
+  // Private Obsidian API — see comment on chooser.useSelectedItem above.
   private getSelectedItem(): DateNavigationItem | undefined {
     try {
       // biome-ignore lint/suspicious/noExplicitAny: Obsidian API lacks type
