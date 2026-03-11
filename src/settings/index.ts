@@ -7,7 +7,6 @@ import SettingsPage from "./pages/SettingsPage.svelte";
 
 export interface Settings {
   showGettingStartedBanner: boolean;
-  installedVersion: string;
 
   day?: PeriodicConfig;
   week?: PeriodicConfig;
@@ -17,7 +16,6 @@ export interface Settings {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  installedVersion: "1.0.0-beta3",
   showGettingStartedBanner: true,
 };
 
