@@ -43,7 +43,8 @@ function getDaysOfWeek(): string[] {
 }
 
 function getDayOfWeekNumericalValue(dayOfWeekName: string): number {
-  return getDaysOfWeek().indexOf(dayOfWeekName.toLowerCase());
+  const index = getDaysOfWeek().indexOf(dayOfWeekName.toLowerCase());
+  return index === -1 ? NaN : index;
 }
 
 function replaceGranularityTokens(
