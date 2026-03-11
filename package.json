@@ -1,6 +1,6 @@
 {
   "name": "periodic-notes",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Create and manage daily, weekly, monthly, quarterly, and yearly notes",
   "main": "main.js",
   "author": "Mark Ayers (originally by Liam Cain)",

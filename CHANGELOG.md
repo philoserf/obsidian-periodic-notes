@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.1.1
+
+### Bug Fixes
+
+- Add `[Periodic Notes]` prefix to template error log for consistent filtering (#52)
+- Fix day fallback suggestion using wrong granularity for relative date label (#47)
+- Return NaN for invalid day in `getDayOfWeekNumericalValue` (#44)
+- Use correct granularity in `getTemplateContents` error message (#53)
+
+### Refactoring
+
+- Narrow `setConfig` value type from `any` to `VaultSettings[T]` (#49)
+- Centralize test global mocks via Bun preload, eliminating per-file boilerplate (#51)
+- Replace switcher query-to-granularity conditionals with declarative lookup (#47)
+- Remove dead `installedVersion` setting
+- Clamp invalid day index to 0 per PR feedback
+
+### Documentation
+
+- Document private API access pattern for `SuggestModal.chooser` (#50)
+
 ## 1.1.0
 
 ### Bug Fixes
