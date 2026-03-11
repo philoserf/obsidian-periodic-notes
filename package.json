@@ -3,7 +3,6 @@
   "version": "1.1.1",
   "description": "Create and manage daily, weekly, monthly, quarterly, and yearly notes",
   "main": "main.js",
-  "type": "module",
   "author": "Mark Ayers (originally by Liam Cain)",
   "license": "MIT",
   "scripts": {
