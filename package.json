@@ -3,9 +3,9 @@
   "version": "1.1.1",
   "description": "Create and manage daily, weekly, monthly, quarterly, and yearly notes",
   "main": "main.js",
+  "type": "module",
   "author": "Mark Ayers (originally by Liam Cain)",
   "license": "MIT",
-  "type": "module",
   "scripts": {
     "audit": "bun audit --audit-level=critical",
     "dev": "vite build --watch",
@@ -17,10 +17,9 @@
     "format": "biome format --write .",
     "format:check": "biome format .",
     "validate": "bun run scripts/validate-plugin.ts",
-    "deploy": "cp main.js manifest.json styles.css ~/source/philoserf/notes/.obsidian/plugins/periodic-notes/",
+    "version": "bun run version-bump.ts",
     "test": "bun test",
-    "test:coverage": "bun test --coverage",
-    "version": "bun run version-bump.ts"
+    "deploy": "cp main.js manifest.json styles.css ~/source/philoserf/notes/.obsidian/plugins/periodic-notes/"
   },
   "dependencies": {
     "svelte": "^5.53.10"
