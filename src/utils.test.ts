@@ -14,10 +14,6 @@ function removeEscapedCharacters(format: string): string {
   return withoutBrackets.replace(/\\./g, "");
 }
 
-// Provide window.moment for code that uses it
-// @ts-expect-error global mock
-globalThis.window = { moment };
-
 // Re-implement pure functions to test without Obsidian imports
 
 function join(...partSegments: string[]): string {

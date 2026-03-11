@@ -1,15 +1,12 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import moment from "moment";
 
-// @ts-expect-error global mock
-globalThis.window = { moment };
-
-// @ts-expect-error global mock
+// @ts-expect-error partial localStorage mock for localization tests
 globalThis.localStorage = {
   getItem: () => "en",
 };
 
-// @ts-expect-error global mock
+// @ts-expect-error partial navigator mock for localization tests
 globalThis.navigator = {
   language: "en-US",
 };

@@ -1,10 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import moment from "moment";
 
 import { getLooselyMatchedDate } from "./parser";
-
-// @ts-expect-error global mock
-globalThis.window = { moment };
 
 describe("getLooselyMatchedDate", () => {
   test("matches YYYY-MM-DD format", () => {

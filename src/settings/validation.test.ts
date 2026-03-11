@@ -1,10 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import moment from "moment";
 
 import type { Granularity } from "../types";
-
-// @ts-expect-error global mock
-globalThis.window = { moment };
 
 // Re-implement pure functions to avoid obsidian imports
 

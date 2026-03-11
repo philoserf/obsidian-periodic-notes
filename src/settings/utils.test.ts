@@ -1,14 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import moment from "moment";
 
 import { DEFAULT_PERIODIC_CONFIG } from "../constants";
 import { type Granularity, granularities, type PeriodicConfig } from "../types";
-
-// @ts-expect-error global mock
-globalThis.window = {
-  moment,
-  _bundledLocaleWeekSpec: { dow: 0, doy: 6 },
-};
 
 type Settings = Record<Granularity, PeriodicConfig | undefined>;
 

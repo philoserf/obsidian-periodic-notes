@@ -3,9 +3,6 @@ import moment from "moment";
 
 import { type Granularity, granularities } from "./types";
 
-// @ts-expect-error global mock
-globalThis.window = { moment };
-
 // Re-implement cache data types and pure logic
 
 type MatchType = "filename" | "frontmatter" | "date-prefixed";
