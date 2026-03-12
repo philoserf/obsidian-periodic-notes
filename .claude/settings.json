@@ -1,0 +1,26 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if echo \"$CLAUDE_FILE_PATH\" | grep -qE '\\.(ts|js|json|svelte)$'; then bunx biome check --write \"$CLAUDE_FILE_PATH\" 2>/dev/null; fi; exit 0"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "case \"$CLAUDE_FILE_PATH\" in */bun.lock|bun.lock) echo 'BLOCK: Do not edit lock files directly. Use bun install instead.' && exit 1;; esac; exit 0"
+          }
+        ]
+      }
+    ]
+  }
+}
