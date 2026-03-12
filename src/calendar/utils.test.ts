@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import moment from "moment";
 
-import { getDaysOfWeek, getMonth, getStartOfWeek, isWeekend } from "./utils";
+import { getMonth, getStartOfWeek, getWeekdayLabels, isWeekend } from "./utils";
 
 describe("getMonth", () => {
   it("always returns exactly 6 weeks (42 days)", () => {
@@ -78,9 +78,9 @@ describe("getStartOfWeek", () => {
   });
 });
 
-describe("getDaysOfWeek", () => {
+describe("getWeekdayLabels", () => {
   it("returns 7 abbreviated day names", () => {
-    const names = getDaysOfWeek();
+    const names = getWeekdayLabels();
     expect(names).toHaveLength(7);
     for (const name of names) {
       expect(typeof name).toBe("string");

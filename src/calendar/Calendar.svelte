@@ -8,7 +8,7 @@
   import type CalendarFileStore from "./fileStore";
   import Nav from "./Nav.svelte";
   import type { IEventHandlers, IMonth } from "./types";
-  import { getDaysOfWeek, getMonth, isWeekend } from "./utils";
+  import { getMonth, getWeekdayLabels, isWeekend } from "./utils";
   import WeekNum from "./WeekNum.svelte";
 
   let {
@@ -44,14 +44,17 @@
   });
 
   let month: IMonth = $state.raw(getMonth(window.moment()));
-  const daysOfWeek: string[] = getDaysOfWeek();
+  const daysOfWeek: string[] = getWeekdayLabels();
 
   $effect(() => {
     month = getMonth($displayedMonthStore);
   });
 
   export function tick() {
-    today = window.moment();
+    const now = window.moment();
+    if (!now.isSame(today, "day")) {
+      today = now;
+    }
   }
 
   export function setActiveFilePath(path: string | null) {
