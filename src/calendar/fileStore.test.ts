@@ -9,7 +9,7 @@ describe("fileMapKey", () => {
     expect(fileMapKey("day", moment("2024-03-15"))).toBe("day:2024-03-15");
   });
 
-  it("formats week keys as week:YYYY-[W]WW", () => {
+  it("formats week keys using locale-aware week numbering", () => {
     expect(fileMapKey("week", moment("2024-03-11"))).toBe("week:2024-W11");
   });
 

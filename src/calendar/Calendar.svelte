@@ -6,7 +6,7 @@
   import { DISPLAYED_MONTH } from "./context";
   import Day from "./Day.svelte";
   import type CalendarFileStore from "./fileStore";
-  import { computeFileMap } from "./fileStore";
+  import { computeFileMap, fileMapKey } from "./fileStore";
   import Nav from "./Nav.svelte";
   import type { FileMap, IEventHandlers, IMonth } from "./types";
   import { getMonth, getWeekdayLabels, isWeekend } from "./utils";
@@ -93,7 +93,7 @@
       </tr>
     </thead>
     <tbody>
-      {#each month as week (week.days[0].format("YYYY-[W]WW"))}
+      {#each month as week (fileMapKey("week", week.days[0]))}
         <tr>
           {#if showWeekNums}
             <WeekNum
