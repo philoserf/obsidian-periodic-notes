@@ -15,12 +15,19 @@ bun run typecheck        # TypeScript type checking only
 bun run lint             # Biome lint + format check
 bun run lint:fix         # Auto-fix lint and format issues
 bun run format           # Format code with Biome
-bun run validate         # Full validation (types, checks, build, output)
+bun run validate         # Full validation: types, checks, build, verify main.js + manifest.json + styles.css exist
 bun run version          # Sync package.json version to manifest.json + versions.json
 bun test                 # Run tests
 ```
 
 ## Architecture
+
+### Source Structure
+
+- `src/calendar/` — Svelte 5 sidebar calendar (see below)
+- `src/settings/` — Settings UI with validation, localization, and page-based layout
+- `src/switcher/` — Quick switcher and related-files switcher
+- `src/ui/` — Shared UI components (file suggest)
 
 ### Build System
 
@@ -47,6 +54,8 @@ bun test                 # Run tests
 
 ### Deploy to Local Vault
 
+Copies build artifacts to the local Obsidian vault plugin directory:
+
 ```bash
 bun run build && bun run deploy
 ```
@@ -56,8 +65,8 @@ bun run build && bun run deploy
 Tag and push to trigger the GitHub Actions release workflow:
 
 ```bash
-git tag -a 1.0.0 -m "Release 1.0.0"
-git push origin 1.0.0
+git tag -a X.Y.Z -m "Release X.Y.Z"
+git push origin X.Y.Z
 ```
 
 ## Code Style
