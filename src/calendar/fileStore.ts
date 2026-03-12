@@ -18,7 +18,7 @@ export default class CalendarFileStore {
       const { vault, metadataCache, workspace } = plugin.app;
       component.registerEvent(vault.on("create", this.bump, this));
       component.registerEvent(vault.on("delete", this.bump, this));
-      component.registerEvent(vault.on("rename", this.bump, this));
+      component.registerEvent(vault.on("rename", this.onRename, this));
       component.registerEvent(metadataCache.on("changed", this.bump, this));
       component.registerEvent(
         workspace.on("periodic-notes:resolve", this.bump, this),
@@ -31,8 +31,18 @@ export default class CalendarFileStore {
     });
   }
 
-  private bump(_file?: TAbstractFile | string): void {
+  private bump(file?: TAbstractFile | string): void {
+    if (file) {
+      const path = typeof file === "string" ? file : file.path;
+      if (!this.plugin.isPeriodic(path)) return;
+    }
     this.store.update((n) => n + 1);
+  }
+
+  private onRename(file: TAbstractFile, oldPath: string): void {
+    if (this.plugin.isPeriodic(file.path) || this.plugin.isPeriodic(oldPath)) {
+      this.store.update((n) => n + 1);
+    }
   }
 
   public getFile(date: Moment, granularity: Granularity): TFile | null {
