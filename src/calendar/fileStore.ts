@@ -4,6 +4,8 @@ import type PeriodicNotesPlugin from "src/main";
 import type { Granularity } from "src/types";
 import { get, type Writable, writable } from "svelte/store";
 
+import type { FileMap, IMonth } from "./types";
+
 export default class CalendarFileStore {
   public store: Writable<number>;
   private plugin: PeriodicNotesPlugin;
@@ -41,4 +43,41 @@ export default class CalendarFileStore {
     const settings = get(this.plugin.settings);
     return settings[granularity]?.enabled ?? granularity === "day";
   }
+}
+
+export function computeFileMap(
+  month: IMonth,
+  getFile: (date: Moment, granularity: Granularity) => TFile | null,
+  enabledGranularities: Granularity[],
+): FileMap {
+  const map: FileMap = new Map();
+  const displayedMonth = month[1].days[0];
+
+  for (const week of month) {
+    for (const day of week.days) {
+      map.set(`day:${day.format("YYYY-MM-DD")}`, getFile(day, "day"));
+    }
+    if (enabledGranularities.includes("week")) {
+      const weekStart = week.days[0];
+      map.set(
+        `week:${weekStart.format("YYYY-[W]WW")}`,
+        getFile(weekStart, "week"),
+      );
+    }
+  }
+
+  if (enabledGranularities.includes("month")) {
+    map.set(
+      `month:${displayedMonth.format("YYYY-MM")}`,
+      getFile(displayedMonth, "month"),
+    );
+  }
+  if (enabledGranularities.includes("year")) {
+    map.set(
+      `year:${displayedMonth.format("YYYY")}`,
+      getFile(displayedMonth, "year"),
+    );
+  }
+
+  return map;
 }

@@ -30,3 +30,5 @@ export interface IEventHandlers {
     event: MouseEvent,
   ) => void;
 }
+
+export type FileMap = Map<string, TFile | null>;
