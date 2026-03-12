@@ -26,8 +26,30 @@ bun test                 # Run tests
 
 - **Build tool**: Vite with @sveltejs/vite-plugin-svelte
 - **Entry point**: `src/main.ts`
-- **Output**: `./main.js` (CommonJS format)
+- **Output**: `./main.js` (CommonJS format, tracked in git)
 - **Externals**: `obsidian`, `electron`, `fs`, `os`, `path` are not bundled
+- **Path alias**: `src` resolves to `src/` directory
+- Vite outputs to project root (`outDir: "."`) with `emptyOutDir: false` — never change this
+
+### Calendar View (`src/calendar/`)
+
+- Svelte 5 components mounted in an Obsidian `ItemView` sidebar panel
+- **Reactivity bridge**: `CalendarView` (TypeScript) communicates to Svelte via exported functions (`tick()`, `setActiveFilePath()`); Svelte communicates back via callback props (`onHover`, `onClick`, `onContextMenu`)
+- **FileMap pattern**: Single subscription in `Calendar.svelte` pre-computes a `Map<string, TFile | null>` via `computeFileMap()`. Child components do `$derived` lookups via `fileMapKey()` — no per-cell subscriptions
+- **Event filtering**: `fileStore.bump()` checks `isPeriodic()` before notifying subscribers; `bumpUnconditionally()` handles events that always matter (`resolve`, `settings-updated`)
+- **Store bridge**: `$derived.by()` does NOT track Svelte store auto-subscriptions — must use `$state` + `$effect` + `.subscribe()`
+
+### Testing
+
+- `bunfig.toml` preload (`src/test-preload.ts`) provides `window.moment` globally
+- Test files re-implement pure functions to avoid `obsidian` imports
+- Modules that cannot be imported in tests: `cache.ts`, `utils.ts`, `settings/validation.ts`
+
+### Deploy to Local Vault
+
+```bash
+bun run build && bun run deploy
+```
 
 ### Release Process
 

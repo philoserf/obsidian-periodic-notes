@@ -1,5 +1,28 @@
 # Changelog
 
+## 1.2.0
+
+### Features
+
+- Add calendar sidebar view ported from obsidian-calendar-plugin (#66, #67)
+- Calendar shows day cells with note indicators, week numbers, month/year headers
+- Click to open or create periodic notes; context menu to delete
+- Keyboard accessible day, week, month, and year cells
+
+### Performance
+
+- Replace 48 per-cell store subscriptions with single FileMap derivation (#68)
+- Filter non-periodic vault events in fileStore to skip irrelevant re-renders (#68)
+- Separate month grid computation from file-store subscription (#68)
+
+### Refactoring
+
+- Extract `fileMapKey()` helper to centralize map key formats (#68)
+- Use locale-aware week key format (`gggg-[W]ww`) instead of ISO (#68)
+- Replace 6 Month.svelte handlers with `makeHandlers()` factory (#68)
+- Add `getEnabledGranularities()` to batch settings reads (#68)
+- Split `bump()` into filtered and unconditional variants for correct event routing (#68)
+
 ## 1.1.1
 
 ### Bug Fixes
