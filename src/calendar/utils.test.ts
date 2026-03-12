@@ -70,10 +70,11 @@ describe("isWeekend", () => {
 });
 
 describe("getStartOfWeek", () => {
-  it("returns weekday(0) of the week containing the provided days", () => {
-    const days = [moment("2024-02-28"), moment("2024-02-29")];
+  it("returns a clone of the first day in the array", () => {
+    const days = [moment("2024-02-26"), moment("2024-02-27")];
     const start = getStartOfWeek(days);
-    expect(start.weekday()).toBe(0);
+    expect(start.isSame(days[0], "day")).toBe(true);
+    expect(start).not.toBe(days[0]);
   });
 });
 
