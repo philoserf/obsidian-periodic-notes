@@ -1,7 +1,7 @@
 import type { Moment } from "moment";
 import type { IMonth, IWeek } from "./types";
 
-export function getDaysOfWeek(): string[] {
+export function getWeekdayLabels(): string[] {
   return window.moment.weekdaysShort(true);
 }
 
@@ -14,11 +14,10 @@ export function getStartOfWeek(days: Moment[]): Moment {
 }
 
 export function getMonth(displayedMonth: Moment): IMonth {
-  const locale = window.moment().locale();
   const month: IMonth = [];
   let week!: IWeek;
 
-  const startOfMonth = displayedMonth.clone().locale(locale).date(1);
+  const startOfMonth = displayedMonth.clone().date(1);
   const startOffset = startOfMonth.weekday();
   let date: Moment = startOfMonth.clone().subtract(startOffset, "days");
 
