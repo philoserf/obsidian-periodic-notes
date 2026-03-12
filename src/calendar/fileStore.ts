@@ -21,21 +21,26 @@ export default class CalendarFileStore {
       component.registerEvent(vault.on("rename", this.onRename, this));
       component.registerEvent(metadataCache.on("changed", this.bump, this));
       component.registerEvent(
-        workspace.on("periodic-notes:resolve", this.bump, this),
+        workspace.on("periodic-notes:resolve", this.bumpUnconditionally, this),
       );
       component.registerEvent(
-        workspace.on("periodic-notes:settings-updated", this.bump, this),
+        workspace.on(
+          "periodic-notes:settings-updated",
+          this.bumpUnconditionally,
+          this,
+        ),
       );
       // Re-read cache after layout is ready (cache populates in its own onLayoutReady)
       this.bump();
     });
   }
 
-  private bump(file?: TAbstractFile | string): void {
-    if (file) {
-      const path = typeof file === "string" ? file : file.path;
-      if (!this.plugin.isPeriodic(path)) return;
-    }
+  private bump(file?: TAbstractFile): void {
+    if (file && !this.plugin.isPeriodic(file.path)) return;
+    this.store.update((n) => n + 1);
+  }
+
+  private bumpUnconditionally(): void {
     this.store.update((n) => n + 1);
   }
 
@@ -64,7 +69,7 @@ export default class CalendarFileStore {
 
 const KEY_FORMATS: Record<Granularity, string> = {
   day: "YYYY-MM-DD",
-  week: "YYYY-[W]WW",
+  week: "gggg-[W]ww",
   month: "YYYY-MM",
   quarter: "YYYY-[Q]Q",
   year: "YYYY",
