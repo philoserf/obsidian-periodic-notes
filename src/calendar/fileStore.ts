@@ -53,6 +53,25 @@ export default class CalendarFileStore {
     const settings = get(this.plugin.settings);
     return settings[granularity]?.enabled ?? granularity === "day";
   }
+
+  public getEnabledGranularities(): Granularity[] {
+    const settings = get(this.plugin.settings);
+    return (["week", "month", "year"] as Granularity[]).filter(
+      (g) => settings[g]?.enabled,
+    );
+  }
+}
+
+const KEY_FORMATS: Record<Granularity, string> = {
+  day: "YYYY-MM-DD",
+  week: "YYYY-[W]WW",
+  month: "YYYY-MM",
+  quarter: "YYYY-[Q]Q",
+  year: "YYYY",
+};
+
+export function fileMapKey(granularity: Granularity, date: Moment): string {
+  return `${granularity}:${date.format(KEY_FORMATS[granularity])}`;
 }
 
 export function computeFileMap(
@@ -65,26 +84,23 @@ export function computeFileMap(
 
   for (const week of month) {
     for (const day of week.days) {
-      map.set(`day:${day.format("YYYY-MM-DD")}`, getFile(day, "day"));
+      map.set(fileMapKey("day", day), getFile(day, "day"));
     }
     if (enabledGranularities.includes("week")) {
       const weekStart = week.days[0];
-      map.set(
-        `week:${weekStart.format("YYYY-[W]WW")}`,
-        getFile(weekStart, "week"),
-      );
+      map.set(fileMapKey("week", weekStart), getFile(weekStart, "week"));
     }
   }
 
   if (enabledGranularities.includes("month")) {
     map.set(
-      `month:${displayedMonth.format("YYYY-MM")}`,
+      fileMapKey("month", displayedMonth),
       getFile(displayedMonth, "month"),
     );
   }
   if (enabledGranularities.includes("year")) {
     map.set(
-      `year:${displayedMonth.format("YYYY")}`,
+      fileMapKey("year", displayedMonth),
       getFile(displayedMonth, "year"),
     );
   }

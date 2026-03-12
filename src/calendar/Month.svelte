@@ -7,6 +7,7 @@
   import type { Granularity } from "src/types";
   import { isMetaPressed } from "src/utils";
   import { DISPLAYED_MONTH } from "./context";
+  import { fileMapKey } from "./fileStore";
   import type { FileMap, IEventHandlers } from "./types";
 
   let {
@@ -25,18 +26,12 @@
 
   let displayedMonth = getContext<Writable<Moment>>(DISPLAYED_MONTH);
 
-  let monthEnabled = $derived(
-    fileMap.has(`month:${$displayedMonth.format("YYYY-MM")}`),
-  );
-  let yearEnabled = $derived(
-    fileMap.has(`year:${$displayedMonth.format("YYYY")}`),
-  );
-  let monthFile = $derived(
-    fileMap.get(`month:${$displayedMonth.format("YYYY-MM")}`) ?? null,
-  );
-  let yearFile = $derived(
-    fileMap.get(`year:${$displayedMonth.format("YYYY")}`) ?? null,
-  );
+  let monthKey = $derived(fileMapKey("month", $displayedMonth));
+  let yearKey = $derived(fileMapKey("year", $displayedMonth));
+  let monthEnabled = $derived(fileMap.has(monthKey));
+  let yearEnabled = $derived(fileMap.has(yearKey));
+  let monthFile = $derived(fileMap.get(monthKey) ?? null);
+  let yearFile = $derived(fileMap.get(yearKey) ?? null);
 
   function makeHandlers(
     granularity: Granularity,

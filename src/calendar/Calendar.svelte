@@ -3,7 +3,6 @@
   import { setContext } from "svelte";
   import { writable } from "svelte/store";
 
-  import type { Granularity } from "src/types";
   import { DISPLAYED_MONTH } from "./context";
   import Day from "./Day.svelte";
   import type CalendarFileStore from "./fileStore";
@@ -37,17 +36,17 @@
   let fileMap: FileMap = $state.raw(new Map());
 
   $effect(() => {
-    const currentMonth = $displayedMonthStore;
+    month = getMonth($displayedMonthStore);
+  });
+
+  $effect(() => {
+    const currentMonth = month;
     return fileStore.store.subscribe(() => {
-      month = getMonth(currentMonth);
       showWeekNums = fileStore.isGranularityEnabled("week");
-      const enabledGranularities = (
-        ["week", "month", "year"] as Granularity[]
-      ).filter((g) => fileStore.isGranularityEnabled(g));
       fileMap = computeFileMap(
-        month,
+        currentMonth,
         (date, granularity) => fileStore.getFile(date, granularity),
-        enabledGranularities,
+        fileStore.getEnabledGranularities(),
       );
     });
   });

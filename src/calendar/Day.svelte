@@ -5,6 +5,7 @@
 
   import { isMetaPressed } from "src/utils";
   import { DISPLAYED_MONTH } from "./context";
+  import { fileMapKey } from "./fileStore";
   import type { FileMap, IEventHandlers } from "./types";
 
   let {
@@ -27,7 +28,7 @@
 
   const displayedMonth = getContext<Writable<Moment>>(DISPLAYED_MONTH);
 
-  let file = $derived(fileMap.get(`day:${date.format("YYYY-MM-DD")}`) ?? null);
+  let file = $derived(fileMap.get(fileMapKey("day", date)) ?? null);
 
   function handleClick(event: MouseEvent) {
     onClick?.("day", date, file, isMetaPressed(event));
