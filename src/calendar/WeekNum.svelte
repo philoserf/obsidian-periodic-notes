@@ -1,10 +1,8 @@
 <script lang="ts">
   import type { Moment } from "moment";
-  import type { TFile } from "obsidian";
 
   import { isMetaPressed } from "src/utils";
-  import type CalendarFileStore from "./fileStore";
-  import type { IEventHandlers } from "./types";
+  import type { FileMap, IEventHandlers } from "./types";
   import { getStartOfWeek } from "./utils";
 
   let {
@@ -13,7 +11,7 @@
     onHover,
     onClick,
     onContextMenu,
-    fileStore,
+    fileMap,
     activeFilePath = null,
   }: {
     weekNum: number;
@@ -21,18 +19,14 @@
     onHover: IEventHandlers["onHover"];
     onClick: IEventHandlers["onClick"];
     onContextMenu: IEventHandlers["onContextMenu"];
-    fileStore: CalendarFileStore;
+    fileMap: FileMap;
     activeFilePath: string | null;
   } = $props();
 
-  let file: TFile | null = $state(null);
   let startOfWeek = $derived(getStartOfWeek(days));
-
-  $effect(() => {
-    return fileStore.store.subscribe(() => {
-      file = fileStore.getFile(startOfWeek, "week");
-    });
-  });
+  let file = $derived(
+    fileMap.get(`week:${startOfWeek.format("YYYY-[W]WW")}`) ?? null,
+  );
 
   function handleHover(event: PointerEvent) {
     if (event.target) {

@@ -1,17 +1,15 @@
 <script lang="ts">
   import type { Moment } from "moment";
-  import type { TFile } from "obsidian";
   import { getContext } from "svelte";
   import type { Writable } from "svelte/store";
 
   import { isMetaPressed } from "src/utils";
   import { DISPLAYED_MONTH } from "./context";
-  import type CalendarFileStore from "./fileStore";
-  import type { IEventHandlers } from "./types";
+  import type { FileMap, IEventHandlers } from "./types";
 
   let {
     date,
-    fileStore,
+    fileMap,
     onHover,
     onClick,
     onContextMenu,
@@ -19,7 +17,7 @@
     activeFilePath = null,
   }: {
     date: Moment;
-    fileStore: CalendarFileStore;
+    fileMap: FileMap;
     onHover: IEventHandlers["onHover"];
     onClick: IEventHandlers["onClick"];
     onContextMenu: IEventHandlers["onContextMenu"];
@@ -29,13 +27,7 @@
 
   const displayedMonth = getContext<Writable<Moment>>(DISPLAYED_MONTH);
 
-  let file: TFile | null = $state(null);
-
-  $effect(() => {
-    return fileStore.store.subscribe(() => {
-      file = fileStore.getFile(date, "day");
-    });
-  });
+  let file = $derived(fileMap.get(`day:${date.format("YYYY-MM-DD")}`) ?? null);
 
   function handleClick(event: MouseEvent) {
     onClick?.("day", date, file, isMetaPressed(event));
