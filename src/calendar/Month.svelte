@@ -1,22 +1,20 @@
 <script lang="ts">
   import type { Moment } from "moment";
-  import type { TFile } from "obsidian";
   import { getContext } from "svelte";
   import type { Writable } from "svelte/store";
 
   import { isMetaPressed } from "src/utils";
   import { DISPLAYED_MONTH } from "./context";
-  import type CalendarFileStore from "./fileStore";
-  import type { IEventHandlers } from "./types";
+  import type { FileMap, IEventHandlers } from "./types";
 
   let {
-    fileStore,
+    fileMap,
     onHover,
     onClick,
     onContextMenu,
     resetDisplayedMonth,
   }: {
-    fileStore: CalendarFileStore;
+    fileMap: FileMap;
     onHover: IEventHandlers["onHover"];
     onClick: IEventHandlers["onClick"];
     onContextMenu: IEventHandlers["onContextMenu"];
@@ -25,24 +23,18 @@
 
   let displayedMonth = getContext<Writable<Moment>>(DISPLAYED_MONTH);
 
-  let monthFile: TFile | null = $state(null);
-  let yearFile: TFile | null = $state(null);
-  let monthEnabled: boolean = $state(fileStore.isGranularityEnabled("month"));
-  let yearEnabled: boolean = $state(fileStore.isGranularityEnabled("year"));
-
-  $effect(() => {
-    $displayedMonth;
-    return fileStore.store.subscribe(() => {
-      monthEnabled = fileStore.isGranularityEnabled("month");
-      yearEnabled = fileStore.isGranularityEnabled("year");
-      monthFile = monthEnabled
-        ? fileStore.getFile($displayedMonth, "month")
-        : null;
-      yearFile = yearEnabled
-        ? fileStore.getFile($displayedMonth, "year")
-        : null;
-    });
-  });
+  let monthEnabled = $derived(
+    fileMap.has(`month:${$displayedMonth.format("YYYY-MM")}`),
+  );
+  let yearEnabled = $derived(
+    fileMap.has(`year:${$displayedMonth.format("YYYY")}`),
+  );
+  let monthFile = $derived(
+    fileMap.get(`month:${$displayedMonth.format("YYYY-MM")}`) ?? null,
+  );
+  let yearFile = $derived(
+    fileMap.get(`year:${$displayedMonth.format("YYYY")}`) ?? null,
+  );
 
   function handleMonthClick(event: MouseEvent) {
     if (monthEnabled) {

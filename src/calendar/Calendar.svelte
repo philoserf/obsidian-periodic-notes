@@ -3,11 +3,13 @@
   import { setContext } from "svelte";
   import { writable } from "svelte/store";
 
+  import type { Granularity } from "src/types";
   import { DISPLAYED_MONTH } from "./context";
   import Day from "./Day.svelte";
   import type CalendarFileStore from "./fileStore";
+  import { computeFileMap } from "./fileStore";
   import Nav from "./Nav.svelte";
-  import type { IEventHandlers, IMonth } from "./types";
+  import type { FileMap, IEventHandlers, IMonth } from "./types";
   import { getMonth, getWeekdayLabels, isWeekend } from "./utils";
   import WeekNum from "./WeekNum.svelte";
 
@@ -30,25 +32,33 @@
   const displayedMonthStore = writable<Moment>(window.moment());
   setContext(DISPLAYED_MONTH, displayedMonthStore);
 
-  let showWeekNums: boolean = $state(fileStore.isGranularityEnabled("week"));
+  let month: IMonth = $state.raw(getMonth(window.moment()));
+  let showWeekNums: boolean = $state(false);
+  let fileMap: FileMap = $state.raw(new Map());
 
   $effect(() => {
+    const currentMonth = $displayedMonthStore;
     return fileStore.store.subscribe(() => {
+      month = getMonth(currentMonth);
       showWeekNums = fileStore.isGranularityEnabled("week");
+      const enabledGranularities = (
+        ["week", "month", "year"] as Granularity[]
+      ).filter((g) => fileStore.isGranularityEnabled(g));
+      fileMap = computeFileMap(
+        month,
+        (date, granularity) => fileStore.getFile(date, granularity),
+        enabledGranularities,
+      );
     });
   });
+
   let eventHandlers: IEventHandlers = $derived({
     onHover,
     onClick,
     onContextMenu,
   });
 
-  let month: IMonth = $state.raw(getMonth(window.moment()));
   const daysOfWeek: string[] = getWeekdayLabels();
-
-  $effect(() => {
-    month = getMonth($displayedMonthStore);
-  });
 
   export function tick() {
     const now = window.moment();
@@ -63,7 +73,7 @@
 </script>
 
 <div id="calendar-container" class="container">
-  <Nav {fileStore} {today} {eventHandlers} />
+  <Nav {fileMap} {today} {eventHandlers} />
   <table class="calendar">
     <colgroup>
       {#if showWeekNums}
@@ -88,7 +98,7 @@
         <tr>
           {#if showWeekNums}
             <WeekNum
-              {fileStore}
+              {fileMap}
               {activeFilePath}
               {...week}
               {...eventHandlers}
@@ -97,7 +107,7 @@
           {#each week.days as day (day.format())}
             <Day
               date={day}
-              {fileStore}
+              {fileMap}
               {today}
               {activeFilePath}
               {...eventHandlers}

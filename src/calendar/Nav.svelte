@@ -5,16 +5,15 @@
 
   import Arrow from "./Arrow.svelte";
   import { DISPLAYED_MONTH } from "./context";
-  import type CalendarFileStore from "./fileStore";
   import Month from "./Month.svelte";
-  import type { IEventHandlers } from "./types";
+  import type { FileMap, IEventHandlers } from "./types";
 
   let {
-    fileStore,
+    fileMap,
     today,
     eventHandlers,
   }: {
-    fileStore: CalendarFileStore;
+    fileMap: FileMap;
     today: Moment;
     eventHandlers: IEventHandlers;
   } = $props();
@@ -37,7 +36,7 @@
 </script>
 
 <div class="nav">
-  <Month {fileStore} {resetDisplayedMonth} {...eventHandlers} />
+  <Month {fileMap} {resetDisplayedMonth} {...eventHandlers} />
   <div class="right-nav">
     <Arrow
       direction="left"
