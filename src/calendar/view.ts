@@ -65,15 +65,25 @@ export class CalendarView extends ItemView {
   }
 
   private onHover(
-    _granularity: Granularity,
-    _date: Moment,
+    granularity: Granularity,
+    date: Moment,
     file: TFile | null,
     targetEl: EventTarget,
     metaPressed: boolean,
   ): void {
     if (!metaPressed) return;
-    if (!file) return;
-    this.app.workspace.trigger("link-hover", this, targetEl, file.path, "");
+    const formattedDate = date.format(
+      granularity === "day"
+        ? "YYYY-MM-DD"
+        : date.localeData().longDateFormat("L"),
+    );
+    this.app.workspace.trigger(
+      "link-hover",
+      this,
+      targetEl,
+      formattedDate,
+      file?.path,
+    );
   }
 
   private onClick(

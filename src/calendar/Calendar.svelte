@@ -30,15 +30,29 @@
   let displayedMonthStore = writable<Moment>(window.moment());
   setContext(DISPLAYED_MONTH, displayedMonthStore);
 
-  let showWeekNums = $derived(fileStore.isGranularityEnabled("week"));
+  let showWeekNums: boolean = $state(fileStore.isGranularityEnabled("week"));
+
+  $effect(() => {
+    return fileStore.store.subscribe(() => {
+      showWeekNums = fileStore.isGranularityEnabled("week");
+    });
+  });
   let eventHandlers: IEventHandlers = $derived({
     onHover,
     onClick,
     onContextMenu,
   });
 
-  let month: IMonth = $derived.by(() => getMonth($displayedMonthStore));
-  let daysOfWeek: string[] = $derived.by(() => getDaysOfWeek());
+  let month: IMonth = $state.raw(getMonth(window.moment()));
+  let daysOfWeek: string[] = $state.raw(getDaysOfWeek());
+
+  $effect(() => {
+    month = getMonth($displayedMonthStore);
+  });
+
+  $effect(() => {
+    daysOfWeek = getDaysOfWeek();
+  });
 
   export function tick() {
     today = window.moment();
