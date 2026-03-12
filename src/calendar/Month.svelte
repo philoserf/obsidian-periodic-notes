@@ -1,8 +1,10 @@
 <script lang="ts">
   import type { Moment } from "moment";
+  import type { TFile } from "obsidian";
   import { getContext } from "svelte";
   import type { Writable } from "svelte/store";
 
+  import type { Granularity } from "src/types";
   import { isMetaPressed } from "src/utils";
   import { DISPLAYED_MONTH } from "./context";
   import type { FileMap, IEventHandlers } from "./types";
@@ -36,57 +38,53 @@
     fileMap.get(`year:${$displayedMonth.format("YYYY")}`) ?? null,
   );
 
-  function handleMonthClick(event: MouseEvent) {
-    if (monthEnabled) {
-      onClick?.("month", $displayedMonth, monthFile, isMetaPressed(event));
-    } else {
-      resetDisplayedMonth();
-    }
+  function makeHandlers(
+    granularity: Granularity,
+    getEnabled: () => boolean,
+    getFile: () => TFile | null,
+  ) {
+    return {
+      click: (event: MouseEvent) => {
+        if (getEnabled()) {
+          onClick?.(
+            granularity,
+            $displayedMonth,
+            getFile(),
+            isMetaPressed(event),
+          );
+        } else if (granularity === "month") {
+          resetDisplayedMonth();
+        }
+      },
+      hover: (event: PointerEvent) => {
+        if (!getEnabled() || !event.target) return;
+        onHover?.(
+          granularity,
+          $displayedMonth,
+          getFile(),
+          event.target,
+          isMetaPressed(event),
+        );
+      },
+      context: (event: MouseEvent) => {
+        const f = getFile();
+        if (getEnabled() && f) {
+          onContextMenu?.(granularity, $displayedMonth, f, event);
+        }
+      },
+    };
   }
 
-  function handleMonthHover(event: PointerEvent) {
-    if (!monthEnabled) return;
-    if (event.target) {
-      onHover?.(
-        "month",
-        $displayedMonth,
-        monthFile,
-        event.target,
-        isMetaPressed(event),
-      );
-    }
-  }
-
-  function handleMonthContext(event: MouseEvent) {
-    if (monthEnabled && monthFile) {
-      onContextMenu?.("month", $displayedMonth, monthFile, event);
-    }
-  }
-
-  function handleYearClick(event: MouseEvent) {
-    if (yearEnabled) {
-      onClick?.("year", $displayedMonth, yearFile, isMetaPressed(event));
-    }
-  }
-
-  function handleYearHover(event: PointerEvent) {
-    if (!yearEnabled) return;
-    if (event.target) {
-      onHover?.(
-        "year",
-        $displayedMonth,
-        yearFile,
-        event.target,
-        isMetaPressed(event),
-      );
-    }
-  }
-
-  function handleYearContext(event: MouseEvent) {
-    if (yearEnabled && yearFile) {
-      onContextMenu?.("year", $displayedMonth, yearFile, event);
-    }
-  }
+  const monthH = makeHandlers(
+    "month",
+    () => monthEnabled,
+    () => monthFile,
+  );
+  const yearH = makeHandlers(
+    "year",
+    () => yearEnabled,
+    () => yearFile,
+  );
 </script>
 
 <div>
@@ -96,7 +94,7 @@
       class:clickable={monthEnabled}
       role={monthEnabled ? "button" : undefined}
       tabindex={monthEnabled ? 0 : undefined}
-      onclick={handleMonthClick}
+      onclick={monthH.click}
       onkeydown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
           if (monthEnabled) {
@@ -106,8 +104,8 @@
           }
         }
       }}
-      oncontextmenu={handleMonthContext}
-      onpointerenter={handleMonthHover}
+      oncontextmenu={monthH.context}
+      onpointerenter={monthH.hover}
     >
       {$displayedMonth.format("MMM")}
     </span>
@@ -116,7 +114,7 @@
       class:clickable={yearEnabled}
       role={yearEnabled ? "button" : undefined}
       tabindex={yearEnabled ? 0 : undefined}
-      onclick={handleYearClick}
+      onclick={yearH.click}
       onkeydown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
           if (yearEnabled) {
@@ -124,8 +122,8 @@
           }
         }
       }}
-      oncontextmenu={handleYearContext}
-      onpointerenter={handleYearHover}
+      oncontextmenu={yearH.context}
+      onpointerenter={yearH.hover}
     >
       {$displayedMonth.format("YYYY")}
     </span>
