@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.3.0
+
+### Breaking Changes
+
+- Remove quick switcher and related-files switcher feature (#73)
+- Remove NLDates (Natural Language Dates) plugin dependency (#73)
+
+### Bug Fixes
+
+- Fix suggestion selection not saving folder and template values
+
+### Security
+
+- Update vite, svelte, and vite-plugin-svelte to resolve vulnerabilities
+
+### Documentation
+
+- Regenerate walkthrough after switcher removal
+
 ## 1.2.0
 
 ### Features
