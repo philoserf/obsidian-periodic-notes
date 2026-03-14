@@ -24,7 +24,9 @@
   $effect(() => {
     if (!inputEl) return;
     error = validateTemplate(app, inputEl.value);
-    const suggest = new FileSuggest(app, inputEl);
+    const suggest = new FileSuggest(app, inputEl, (value) => {
+      $config.templatePath = value;
+    });
     return () => suggest.close();
   });
 </script>

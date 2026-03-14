@@ -1,6 +1,22 @@
-import { AbstractInputSuggest, type TFile, type TFolder } from "obsidian";
+import {
+  AbstractInputSuggest,
+  type App,
+  type TFile,
+  type TFolder,
+} from "obsidian";
 
 export class FileSuggest extends AbstractInputSuggest<TFile> {
+  private onSelectCallback?: (value: string) => void;
+
+  constructor(
+    app: App,
+    inputEl: HTMLInputElement,
+    onSelectCallback?: (value: string) => void,
+  ) {
+    super(app, inputEl);
+    this.onSelectCallback = onSelectCallback;
+  }
+
   getSuggestions(query: string): TFile[] {
     const lowerQuery = query.toLowerCase();
     return this.app.vault
@@ -14,11 +30,23 @@ export class FileSuggest extends AbstractInputSuggest<TFile> {
 
   selectSuggestion(file: TFile): void {
     this.setValue(file.path);
+    this.onSelectCallback?.(file.path);
     this.close();
   }
 }
 
 export class FolderSuggest extends AbstractInputSuggest<TFolder> {
+  private onSelectCallback?: (value: string) => void;
+
+  constructor(
+    app: App,
+    inputEl: HTMLInputElement,
+    onSelectCallback?: (value: string) => void,
+  ) {
+    super(app, inputEl);
+    this.onSelectCallback = onSelectCallback;
+  }
+
   getSuggestions(query: string): TFolder[] {
     const lowerQuery = query.toLowerCase();
     return this.app.vault
@@ -32,6 +60,7 @@ export class FolderSuggest extends AbstractInputSuggest<TFolder> {
 
   selectSuggestion(folder: TFolder): void {
     this.setValue(folder.path);
+    this.onSelectCallback?.(folder.path);
     this.close();
   }
 }

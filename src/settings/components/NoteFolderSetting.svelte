@@ -24,7 +24,9 @@
   $effect(() => {
     if (!inputEl) return;
     error = validateFolder(app, inputEl.value);
-    const suggest = new FolderSuggest(app, inputEl);
+    const suggest = new FolderSuggest(app, inputEl, (value) => {
+      $config.folder = value;
+    });
     return () => suggest.close();
   });
 </script>
