@@ -65,14 +65,4 @@ declare module "obsidian" {
     plugins: Record<string, InstalledPlugin>;
     getPluginById(id: string): InstalledPlugin;
   }
-
-  interface NLDResult {
-    formattedString: string;
-    date: Date;
-    moment: Moment;
-  }
-
-  interface NLDatesPlugin extends Plugin {
-    parseDate(dateStr: string): NLDResult;
-  }
 }

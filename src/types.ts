@@ -16,13 +16,3 @@ export interface PeriodicConfig {
   folder: string;
   templatePath?: string;
 }
-
-export interface DateNavigationItem {
-  granularity: Granularity;
-  date: import("moment").Moment;
-  label: string;
-  matchData?: {
-    exact: boolean;
-    matchType: import("./cache").MatchType;
-  };
-}

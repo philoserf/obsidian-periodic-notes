@@ -25,7 +25,6 @@ import {
   findStartupNoteConfig,
   getEnabledGranularities,
 } from "./settings/utils";
-import { NLDNavigator } from "./switcher/switcher";
 import { type Granularity, granularities } from "./types";
 import {
   applyTemplateTransformations,
@@ -67,21 +66,6 @@ export default class PeriodicNotesPlugin extends Plugin {
 
     this.configureRibbonIcons();
     this.configureCommands();
-
-    this.addCommand({
-      id: "show-date-switcher",
-      name: "Show date switcher...",
-      checkCallback: (checking: boolean) => {
-        if (!this.app.plugins.getPlugin("nldates-obsidian")) {
-          return false;
-        }
-        if (checking) {
-          return !!this.app.workspace.getMostRecentLeaf();
-        }
-        new NLDNavigator(this.app, this).open();
-      },
-      hotkeys: [],
-    });
 
     // Calendar view
     this.registerView(
