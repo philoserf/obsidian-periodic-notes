@@ -104,7 +104,7 @@ export function configureGlobalMomentLocale(
 
   if (localeOverride !== "system-default") {
     momentLocale = localeOverride;
-  } else if (systemLang.startsWith(obsidianLang)) {
+  } else if (systemLang?.startsWith(obsidianLang)) {
     // If the system locale is more specific (en-gb vs en), use the system locale.
     momentLocale = systemLang;
   }
