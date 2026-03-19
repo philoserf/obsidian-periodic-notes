@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.4.0
+
+### Features
+
+- Update repository settings configuration
+
+### Bug Fixes
+
+- Guard against null systemLang in configureGlobalMomentLocale
+
+### Chores
+
+- Normalize manifest.json field order
+- Update dev dependencies (@biomejs/biome, @types/node)
+- Add vite.config.ts to biome includes
+
+### Documentation
+
+- Update LICENSE to MIT with current copyright
+
 ## 1.3.0
 
 ### Breaking Changes
