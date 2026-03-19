@@ -11,7 +11,8 @@
       "src/**/*.js",
       "*.json",
       "scripts/**/*.ts",
-      "version-bump.ts"
+      "version-bump.ts",
+      "vite.config.ts"
     ],
     "ignoreUnknown": true
   },
