@@ -116,7 +116,7 @@ export default class PeriodicNotesPlugin extends Plugin {
       );
       this.ribbonEl.addEventListener("contextmenu", (e: MouseEvent) => {
         e.preventDefault();
-        showFileMenu(this.app, this, {
+        showFileMenu(this, {
           x: e.pageX,
           y: e.pageY,
         });

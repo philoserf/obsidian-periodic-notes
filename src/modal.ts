@@ -1,11 +1,10 @@
-import { type App, Menu, type Point } from "obsidian";
+import { Menu, type Point } from "obsidian";
 import { get } from "svelte/store";
 import { displayConfigs } from "./commands";
 import type PeriodicNotesPlugin from "./main";
 import { getEnabledGranularities } from "./settings/utils";
 
 export function showFileMenu(
-  _app: App,
   plugin: PeriodicNotesPlugin,
   position: Point,
 ): void {
