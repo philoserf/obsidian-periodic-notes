@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Obsidian plugin to create and manage daily, weekly, monthly, quarterly, and yearly notes. Built with Svelte 5 and Vite.
+Obsidian plugin to create and manage daily, weekly, monthly, and yearly notes. Built with Svelte 5 (calendar only) and Vite.
 
 ## Development Commands
 
@@ -24,10 +24,18 @@ bun test                 # Run tests
 
 ### Source Structure
 
+- `src/main.ts` — Plugin lifecycle, settings load/save, ribbon, commands
+- `src/settings.ts` — Native Obsidian `Setting` API settings tab
+- `src/cache.ts` — Dual-index cache (byPath + byKey) for file-to-date resolution
+- `src/template.ts` — Template reading and rendering (depends on obsidian)
+- `src/format.ts` — Pure functions: format helpers, validation, path utils (directly testable)
+- `src/commands.ts` — Command factory + context menu
+- `src/constants.ts` — All constants (DEFAULT_FORMAT, WEEKDAYS, VIEW_TYPE_CALENDAR, etc.)
+- `src/types.ts` — All shared types (Granularity, NoteConfig, Settings, CacheEntry)
+- `src/platform.ts` — Platform detection helpers (isMetaPressed)
+- `src/icons.ts` — SVG icon data
+- `src/fileSuggest.ts` — File and folder autocomplete suggests
 - `src/calendar/` — Svelte 5 sidebar calendar (see below)
-- `src/settings/` — Settings UI with validation, localization, and page-based layout
-- `src/switcher/` — Quick switcher and related-files switcher
-- `src/ui/` — Shared UI components (file suggest)
 
 ### Build System
 
@@ -37,20 +45,38 @@ bun test                 # Run tests
 - **Externals**: `obsidian`, `electron`, `fs`, `os`, `path` are not bundled
 - **Path alias**: `src` resolves to `src/` directory
 - Vite outputs to project root (`outDir: "."`) with `emptyOutDir: false` — never change this
+- Only the default export from `main.ts` — no named exports (vite output.exports: "default")
+
+### Settings
+
+- `plugin.settings` is a plain `Settings` object (not a Svelte store)
+- Settings shape: `{ granularities: Record<Granularity, NoteConfig> }`
+- Four granularities: day, week, month, year
+- No migration — if saved data doesn't match v2 shape, defaults are used
+- Native Obsidian `Setting` API in `settings.ts` — no Svelte in settings
+
+### Cache
+
+- Dual-index: `byPath` (filePath → CacheEntry) and `byKey` (canonicalKey → CacheEntry)
+- `canonicalKey`: `${granularity}:${date.startOf(granularity).toISOString()}`
+- `getPeriodicNote` is O(1) via byKey lookup
+- Resolves files by exact filename format or frontmatter — no loose/date-prefix matching
+- `CacheEntry`: filePath, date, granularity, match ("filename" | "frontmatter")
 
 ### Calendar View (`src/calendar/`)
 
 - Svelte 5 components mounted in an Obsidian `ItemView` sidebar panel
-- **Reactivity bridge**: `CalendarView` (TypeScript) communicates to Svelte via exported functions (`tick()`, `setActiveFilePath()`); Svelte communicates back via callback props (`onHover`, `onClick`, `onContextMenu`)
-- **FileMap pattern**: Single subscription in `Calendar.svelte` pre-computes a `Map<string, TFile | null>` via `computeFileMap()`. Child components do `$derived` lookups via `fileMapKey()` — no per-cell subscriptions
-- **Event filtering**: `fileStore.bump()` checks `isPeriodic()` before notifying subscribers; `bumpUnconditionally()` handles events that always matter (`resolve`, `settings-updated`)
+- **Reactivity bridge**: `CalendarView` communicates to Svelte via exported functions (`tick()`, `setActiveFilePath()`); Svelte communicates back via callback props (`onHover`, `onClick`, `onContextMenu`)
+- **FileMap pattern**: Single subscription in `Calendar.svelte` pre-computes a `Map<string, TFile | null>` via `computeFileMap()`. Child components do `$derived` lookups via `fileMapKey()`
 - **Store bridge**: `$derived.by()` does NOT track Svelte store auto-subscriptions — must use `$state` + `$effect` + `.subscribe()`
+- **CalendarStore**: Counter-bump `Writable<number>` as notification mechanism
 
 ### Testing
 
 - `bunfig.toml` preload (`src/test-preload.ts`) provides `window.moment` globally
-- Test files re-implement pure functions to avoid `obsidian` imports
-- Modules that cannot be imported in tests: `cache.ts`, `utils.ts`, `settings/validation.ts`
+- `format.ts` is pure — import directly in tests, no re-implementation needed
+- `template.ts` and `cache.ts` import from obsidian — test files re-implement pure logic
+- Modules that CANNOT be imported in tests: `cache.ts`, `template.ts`, `settings.ts`, `platform.ts`
 
 ### Deploy to Local Vault
 
