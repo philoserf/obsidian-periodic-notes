@@ -7,6 +7,14 @@
           {
             "type": "command",
             "command": "if echo \"$CLAUDE_FILE_PATH\" | grep -qE '\\.(ts|js|json|svelte)$'; then bunx biome check --write \"$CLAUDE_FILE_PATH\" 2>/dev/null; fi; exit 0"
+          },
+          {
+            "type": "command",
+            "command": "if echo \"$CLAUDE_FILE_PATH\" | grep -qE '\\.svelte$'; then svelte-check --threshold error --output human-verbose 2>&1 | tail -5; fi; exit 0"
+          },
+          {
+            "type": "command",
+            "command": "if echo \"$CLAUDE_FILE_PATH\" | grep -qE 'src/.*\\.ts$' && ! echo \"$CLAUDE_FILE_PATH\" | grep -qE '\\.test\\.ts$'; then TEST=$(echo \"$CLAUDE_FILE_PATH\" | sed 's/\\.ts$/.test.ts/'); [ -f \"$TEST\" ] && bun test \"$TEST\" 2>&1 | tail -3; fi; exit 0"
           }
         ]
       }
