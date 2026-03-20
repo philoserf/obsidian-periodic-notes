@@ -1,5 +1,39 @@
 # Changelog
 
+## 2.0.0
+
+### Breaking Changes
+
+- Drop quarter granularity — only day, week, month, year remain
+- Drop openAtStartup setting
+- Drop getting-started banner
+- Drop legacy daily-notes plugin migration code
+- Drop loose/date-prefixed file matching — only exact filename format and frontmatter matching
+- Drop localization settings UI (locale and week-start pickers) — app locale is respected automatically
+- Restructure settings shape — existing settings are reset to defaults on first load
+- Remove `svelte-writable-derived` dependency
+
+### Improvements
+
+- Replace Svelte settings UI with native Obsidian Setting API — simpler, smaller bundle
+- Add secondary cache index for O(1) note lookups (was linear scan)
+- Split utils.ts into focused modules: `format.ts` (pure, testable) and `template.ts`
+- Plugin settings are now a plain object instead of a Svelte store
+- Svelte is now only used for the calendar sidebar
+- Bundle size reduced from 94 KB to 70 KB (25% reduction)
+
+### Refactoring
+
+- Rename: `PeriodicNotesCache` → `NoteCache`, `CalendarFileStore` → `CalendarStore`
+- Rename: `IWeek` → `Week`, `IMonth` → `Month`, `IEventHandlers` → `EventHandlers`
+- Rename: `WeekNum.svelte` → `Week.svelte`, `fileStore.ts` → `store.ts`
+- Absorb `modal.ts` into `commands.ts` as `showContextMenu`
+- Absorb `calendar/constants.ts` and `calendar/context.ts` into `src/constants.ts`
+- Move `fileSuggest.ts` from `src/ui/` to `src/`
+- Delete `parser.ts` (loose matching removed)
+- Delete entire `src/settings/` directory (replaced by native `settings.ts`)
+- Simplify `obsidian.d.ts` to workspace event types only
+
 ## 1.5.0
 
 ### Bug Fixes
