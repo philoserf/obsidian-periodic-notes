@@ -39,6 +39,8 @@
     month = getMonth($displayedMonthStore);
   });
 
+  // $derived.by() doesn't track Svelte store subscriptions,
+  // so we manually subscribe inside $effect and return the unsubscribe.
   $effect(() => {
     const currentMonth = month;
     return fileStore.store.subscribe(() => {

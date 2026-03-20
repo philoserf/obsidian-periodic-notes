@@ -7,6 +7,8 @@ import { get, type Writable, writable } from "svelte/store";
 import type { FileMap, IMonth } from "./types";
 
 export default class CalendarFileStore {
+  // Svelte 5 runes don't track store auto-subscriptions.
+  // Bumping a counter triggers subscribers to re-read plugin state.
   public store: Writable<number>;
   private plugin: PeriodicNotesPlugin;
 
