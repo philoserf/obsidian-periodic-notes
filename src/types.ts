@@ -1,18 +1,22 @@
-export type Granularity = "day" | "week" | "month" | "quarter" | "year";
+import type { Moment } from "moment";
 
-export const granularities: Granularity[] = [
-  "day",
-  "week",
-  "month",
-  "quarter",
-  "year",
-];
+export type Granularity = "day" | "week" | "month" | "year";
+export const granularities: Granularity[] = ["day", "week", "month", "year"];
 
-export interface PeriodicConfig {
+export interface NoteConfig {
   enabled: boolean;
-  openAtStartup: boolean;
-
   format: string;
   folder: string;
   templatePath?: string;
+}
+
+export interface Settings {
+  granularities: Record<Granularity, NoteConfig>;
+}
+
+export interface CacheEntry {
+  filePath: string;
+  date: Moment;
+  granularity: Granularity;
+  match: "filename" | "frontmatter";
 }
