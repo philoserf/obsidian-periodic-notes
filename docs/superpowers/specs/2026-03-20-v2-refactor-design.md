@@ -14,7 +14,7 @@ Restructure the codebase for simplicity, clarity, and testability. This is a bre
 | Getting-started banner       | Drop                                        |
 | Legacy daily-notes migration | Drop                                        |
 | Loose/date-prefixed matching | Drop                                        |
-| Localization module          | Drop                                        |
+| Localization module          | Drop settings UI; keep minimal locale boot  |
 | Settings UI                  | Native Obsidian `Setting` API, bare minimum |
 | Approach                     | Big bang — single branch, one release       |
 
@@ -80,6 +80,10 @@ Single file: `src/settings.ts`. Uses Obsidian's `Setting` class with one section
 
 No banner, no locale dropdown, no week-start picker, no collapsible groups.
 
+### Locale boot
+
+Keep a minimal `configureLocale()` function in `main.ts` that runs once on load. It reads Obsidian's language setting from `localStorage` and calls `moment.locale()` so the calendar respects the user's app language (week start day, weekday names, etc.). No settings UI, no `vault.getConfig()`, no week-start picker — just follow the Obsidian app locale.
+
 ### Deleted
 
 - `src/settings/` entire directory (index.ts, localization.ts, localization.test.ts, validation.ts, utils.ts, components/\*, pages/\*)
@@ -92,7 +96,7 @@ No banner, no locale dropdown, no week-start picker, no collapsible groups.
 
 ### Dropped functions
 
-- `getLocaleOptions`, `getWeekStartOptions` — localization removed
+- `getLocaleOptions`, `getWeekStartOptions` — localization UI removed
 - `isDailyNotesPluginEnabled`, `hasLegacyDailyNoteSettings`, `disableDailyNotesPlugin` — legacy migration removed
 - `clearStartupNote`, `findStartupNoteConfig` — openAtStartup removed
 - `getEnabledGranularities` — trivial, inline where needed
@@ -122,7 +126,7 @@ src/
     Nav.svelte
     Arrow.svelte
     types.ts         — Week, Month, FileMap, EventHandlers
-    utils.ts         — Calendar date math + getRelativeDate
+    utils.ts         — Calendar date math + isMetaPressed
 ```
 
 ### Deleted files
@@ -137,7 +141,7 @@ src/
 
 ### Key splits
 
-`src/utils.ts` (308 lines, 15 exports) splits into:
+`src/utils.ts` (308 lines, 13 exports) splits into:
 
 **template.ts** (depends on obsidian):
 
@@ -158,9 +162,13 @@ src/
 
 **Functions moved elsewhere:**
 
-- `isMetaPressed` → `main.ts` (private, only used in ribbon config)
-- `getRelativeDate` → `calendar/utils.ts` (only used by calendar)
-- `capitalize` → delete if unused, inline if used once
+- `isMetaPressed` → `calendar/utils.ts` (used by Day.svelte, Week.svelte, Month.svelte, and main.ts ribbon config)
+
+**Functions deleted:**
+
+- `getRelativeDate` — dead code, no runtime consumers
+- `capitalize` — only used by deleted settings components
+- `getFolder` — trivial with new settings shape, inline as `settings.granularities[g].folder`
 
 ### Naming changes
 
@@ -201,6 +209,12 @@ class NoteCache extends Component {
 
 `set` and `delete` maintain both maps. `getPeriodicNote` becomes a direct lookup.
 
+### Other cache methods
+
+- `getPeriodicNotes` (plural) — still iterates `byPath`, returns all entries matching a date at a granularity. Acceptable since it's called rarely (related-files display).
+- `findAdjacent` — reworked to filter and sort `byKey` entries for the target granularity. Since `canonicalKey` is granularity-aware and ISO-sortable, `localeCompare` on keys gives correct chronological order.
+- `isPeriodic` and `find` — use `byPath` lookup, unchanged.
+
 ### Simplified CacheEntry
 
 No loose matching means no `exact` boolean, no `date-prefixed` match type:
@@ -232,7 +246,7 @@ Lightest touch. Svelte stays for calendar components.
 - `WeekNum.svelte` → `Week.svelte`
 - `IWeek` → `Week`, `IMonth` → `Month`, `IEventHandlers` → `EventHandlers`
 - Settings access: `plugin.settings` (plain object) instead of `get(plugin.settings)`
-- `getRelativeDate` moves from `utils.ts` to `calendar/utils.ts` (quarter case removed)
+- `isMetaPressed` moves from `utils.ts` to `calendar/utils.ts` (used by Day, Week, Month components and main.ts imports from there)
 - `calendar/context.ts` deleted — `DISPLAYED_MONTH` moves to `constants.ts`
 - `calendar/constants.ts` deleted — `VIEW_TYPE_CALENDAR` moves to `constants.ts`
 - `$effect` + `.subscribe()` bridge pattern stays — runes migration is post-v2
@@ -312,6 +326,27 @@ declare module "obsidian" {
 ### Vite config
 
 Unchanged.
+
+## Quarter Removal Checklist
+
+Removing the quarter granularity touches:
+
+- `types.ts` — remove from `Granularity` union and `granularities` array
+- `constants.ts` — remove from `DEFAULT_FORMAT`, `HUMANIZE_FORMAT`
+- `commands.ts` — remove from `granularityLabels` (was `displayConfigs`)
+- `icons.ts` — remove `calendarQuarterIcon` export
+- `main.ts` — remove `addIcon("calendar-quarter", ...)` call
+- `template.ts` — remove `granularity === "quarter"` branch from `applyTemplate`
+- `cache.ts` — no quarter-specific logic, just fewer iterations
+
+## Styles Cleanup
+
+`src/styles.css` — remove dead CSS rules tied to deleted UI:
+
+- `.settings-banner` — getting-started banner
+- `.periodic-modal` — was for the switcher (already removed)
+- `.has-error` — if only used by Svelte settings validation
+- Any other rules only referenced by deleted Svelte components
 
 ## Issues Closed by This Refactor
 
