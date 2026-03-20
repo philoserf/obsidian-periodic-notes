@@ -1,4 +1,5 @@
 import { type App, normalizePath, PluginSettingTab, Setting } from "obsidian";
+import { DEFAULT_FORMAT } from "./constants";
 import { FileSuggest, FolderSuggest } from "./fileSuggest";
 import { validateFormat } from "./format";
 import type PeriodicNotesPlugin from "./main";
@@ -65,13 +66,18 @@ export class SettingsTab extends PluginSettingTab {
       .setName("Format")
       .setDesc("Moment.js date format string")
       .addText((text) => {
-        text.setValue(config.format).onChange(async (value) => {
-          const error = validateFormat(value, granularity);
-          formatSetting.descEl.setText(error || "Moment.js date format string");
-          formatSetting.descEl.toggleClass("has-error", !!error);
-          this.plugin.settings.granularities[granularity].format = value;
-          await this.plugin.saveSettings();
-        });
+        text
+          .setPlaceholder(DEFAULT_FORMAT[granularity])
+          .setValue(config.format)
+          .onChange(async (value) => {
+            const error = validateFormat(value, granularity);
+            formatSetting.descEl.setText(
+              error || "Moment.js date format string",
+            );
+            formatSetting.descEl.toggleClass("has-error", !!error);
+            this.plugin.settings.granularities[granularity].format = value;
+            await this.plugin.saveSettings();
+          });
       });
 
     new Setting(containerEl).setName("Folder").addText((text) => {
