@@ -1,73 +1,96 @@
 import type { Moment } from "moment";
-import { addIcon, Plugin, type TFile } from "obsidian";
-import { get, type Writable, writable } from "svelte/store";
+import { addIcon, Platform, Plugin, type TFile } from "obsidian";
 
-import { type PeriodicNoteCachedMetadata, PeriodicNotesCache } from "./cache";
-import { VIEW_TYPE_CALENDAR } from "./calendar/constants";
+import { NoteCache } from "./cache";
+import { VIEW_TYPE_CALENDAR } from "./constants";
 import { CalendarView } from "./calendar/view";
-import { displayConfigs, getCommands } from "./commands";
-import { DEFAULT_PERIODIC_CONFIG } from "./constants";
+import { getCommands, granularityLabels, showContextMenu } from "./commands";
+import { DEFAULT_SETTINGS } from "./constants";
+import { getConfig, getFormat } from "./format";
 import {
   calendarDayIcon,
   calendarMonthIcon,
-  calendarQuarterIcon,
   calendarWeekIcon,
   calendarYearIcon,
 } from "./icons";
-import { showFileMenu } from "./modal";
+import { SettingsTab } from "./settings";
+import { applyTemplate, getNoteCreationPath, readTemplate } from "./template";
 import {
-  DEFAULT_SETTINGS,
-  PeriodicNotesSettingsTab,
+  type CacheEntry,
+  type Granularity,
+  granularities,
   type Settings,
-} from "./settings";
-import { initializeLocaleConfigOnce } from "./settings/localization";
-import {
-  findStartupNoteConfig,
-  getEnabledGranularities,
-} from "./settings/utils";
-import { type Granularity, granularities } from "./types";
-import {
-  applyTemplateTransformations,
-  getConfig,
-  getFormat,
-  getNoteCreationPath,
-  getTemplateContents,
-  isMetaPressed,
-} from "./utils";
+} from "./types";
+
+const langToMomentLocale: Record<string, string> = {
+  en: "en-gb",
+  zh: "zh-cn",
+  "zh-TW": "zh-tw",
+  ru: "ru",
+  ko: "ko",
+  it: "it",
+  id: "id",
+  ro: "ro",
+  "pt-BR": "pt-br",
+  cz: "cs",
+  da: "da",
+  de: "de",
+  es: "es",
+  fr: "fr",
+  no: "nn",
+  pl: "pl",
+  pt: "pt",
+  tr: "tr",
+  hi: "hi",
+  nl: "nl",
+  ar: "ar",
+  ja: "ja",
+};
+
+function configureLocale(): void {
+  const obsidianLang = localStorage.getItem("language") || "en";
+  const systemLang = navigator.language?.toLowerCase();
+  let momentLocale = langToMomentLocale[obsidianLang];
+  if (systemLang?.startsWith(obsidianLang)) {
+    momentLocale = systemLang;
+  }
+  const actual = window.moment.locale(momentLocale);
+  console.debug(
+    `[Periodic Notes] Configured locale: requested ${momentLocale}, got ${actual}`,
+  );
+}
+
+function isMetaPressed(e: MouseEvent | KeyboardEvent): boolean {
+  return Platform.isMacOS ? e.metaKey : e.ctrlKey;
+}
 
 interface OpenOpts {
   inNewSplit?: boolean;
 }
 
 export default class PeriodicNotesPlugin extends Plugin {
-  public settings!: Writable<Settings>;
+  public settings!: Settings;
   private ribbonEl!: HTMLElement | null;
-
-  private cache!: PeriodicNotesCache;
+  private cache!: NoteCache;
 
   async onload(): Promise<void> {
     addIcon("calendar-day", calendarDayIcon);
     addIcon("calendar-week", calendarWeekIcon);
     addIcon("calendar-month", calendarMonthIcon);
-    addIcon("calendar-quarter", calendarQuarterIcon);
     addIcon("calendar-year", calendarYearIcon);
 
-    this.settings = writable<Settings>();
     await this.loadSettings();
-    this.register(this.settings.subscribe(this.onUpdateSettings.bind(this)));
-
-    initializeLocaleConfigOnce(this.app);
+    configureLocale();
 
     this.ribbonEl = null;
-    this.cache = new PeriodicNotesCache(this.app, this);
+    this.cache = new NoteCache(this.app, this);
 
     this.openPeriodicNote = this.openPeriodicNote.bind(this);
-    this.addSettingTab(new PeriodicNotesSettingsTab(this.app, this));
+    this.addSettingTab(new SettingsTab(this.app, this));
 
     this.configureRibbonIcons();
     this.configureCommands();
 
-    // Calendar view
     this.registerView(
       VIEW_TYPE_CALENDAR,
       (leaf) => new CalendarView(leaf, this),
@@ -87,25 +110,20 @@ export default class PeriodicNotesPlugin extends Plugin {
         });
       },
     });
-
-    this.app.workspace.onLayoutReady(() => {
-      const startupGranularity = findStartupNoteConfig(this.settings);
-      if (startupGranularity) {
-        this.openPeriodicNote(startupGranularity, window.moment());
-      }
-    });
   }
 
-  private configureRibbonIcons() {
+  private configureRibbonIcons(): void {
     this.ribbonEl?.detach();
 
-    const configuredGranularities = getEnabledGranularities(get(this.settings));
-    if (configuredGranularities.length) {
-      const granularity = configuredGranularities[0];
-      const config = displayConfigs[granularity];
+    const enabled = granularities.filter(
+      (g) => this.settings.granularities[g].enabled,
+    );
+    if (enabled.length) {
+      const granularity = enabled[0];
+      const label = granularityLabels[granularity];
       this.ribbonEl = this.addRibbonIcon(
         `calendar-${granularity}`,
-        config.labelOpenPresent,
+        label.labelOpenPresent,
         (e: MouseEvent) => {
           if (e.type !== "auxclick") {
             this.openPeriodicNote(granularity, window.moment(), {
@@ -116,15 +134,12 @@ export default class PeriodicNotesPlugin extends Plugin {
       );
       this.ribbonEl.addEventListener("contextmenu", (e: MouseEvent) => {
         e.preventDefault();
-        showFileMenu(this, {
-          x: e.pageX,
-          y: e.pageY,
-        });
+        showContextMenu(this, { x: e.pageX, y: e.pageY });
       });
     }
   }
 
-  private configureCommands() {
+  private configureCommands(): void {
     for (const granularity of granularities) {
       getCommands(this.app, this, granularity).forEach(
         this.addCommand.bind(this),
@@ -133,24 +148,14 @@ export default class PeriodicNotesPlugin extends Plugin {
   }
 
   async loadSettings(): Promise<void> {
-    const savedSettings = await this.loadData();
-    const settings = Object.assign({}, DEFAULT_SETTINGS, savedSettings || {});
-
-    if (
-      !settings.day &&
-      !settings.week &&
-      !settings.month &&
-      !settings.quarter &&
-      !settings.year
-    ) {
-      settings.day = { ...DEFAULT_PERIODIC_CONFIG, enabled: true };
-    }
-
-    this.settings.set(settings);
+    const saved = await this.loadData();
+    this.settings = saved?.granularities
+      ? saved
+      : structuredClone(DEFAULT_SETTINGS);
   }
 
-  private async onUpdateSettings(newSettings: Settings): Promise<void> {
-    await this.saveData(newSettings);
+  public async saveSettings(): Promise<void> {
+    await this.saveData(this.settings);
     this.configureRibbonIcons();
     this.app.workspace.trigger("periodic-notes:settings-updated");
   }
@@ -159,16 +164,15 @@ export default class PeriodicNotesPlugin extends Plugin {
     granularity: Granularity,
     date: Moment,
   ): Promise<TFile> {
-    const settings = get(this.settings);
-    const config = getConfig(settings, granularity);
-    const format = getFormat(settings, granularity);
+    const config = getConfig(this.settings, granularity);
+    const format = getFormat(this.settings, granularity);
     const filename = date.format(format);
-    const templateContents = await getTemplateContents(
+    const templateContents = await readTemplate(
       this.app,
       config.templatePath,
       granularity,
     );
-    const renderedContents = applyTemplateTransformations(
+    const rendered = applyTemplate(
       filename,
       granularity,
       date,
@@ -176,7 +180,7 @@ export default class PeriodicNotesPlugin extends Plugin {
       templateContents,
     );
     const destPath = await getNoteCreationPath(this.app, filename, config);
-    return this.app.vault.create(destPath, renderedContents);
+    return this.app.vault.create(destPath, rendered);
   }
 
   public getPeriodicNote(granularity: Granularity, date: Moment): TFile | null {
@@ -187,7 +191,7 @@ export default class PeriodicNotesPlugin extends Plugin {
     granularity: Granularity,
     date: Moment,
     includeFinerGranularities = false,
-  ): PeriodicNoteCachedMetadata[] {
+  ): CacheEntry[] {
     return this.cache.getPeriodicNotes(
       granularity,
       date,
@@ -202,11 +206,11 @@ export default class PeriodicNotesPlugin extends Plugin {
   public findAdjacent(
     filePath: string,
     direction: "forwards" | "backwards",
-  ): PeriodicNoteCachedMetadata | null {
+  ): CacheEntry | null {
     return this.cache.findAdjacent(filePath, direction);
   }
 
-  public findInCache(filePath: string): PeriodicNoteCachedMetadata | null {
+  public findInCache(filePath: string): CacheEntry | null {
     return this.cache.find(filePath);
   }
 
@@ -221,7 +225,6 @@ export default class PeriodicNotesPlugin extends Plugin {
     if (!file) {
       file = await this.createPeriodicNote(granularity, date);
     }
-
     const leaf = inNewSplit ? workspace.getLeaf("split") : workspace.getLeaf();
     await leaf.openFile(file, { active: true });
   }
