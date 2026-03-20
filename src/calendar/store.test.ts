@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import moment from "moment";
 
-import { computeFileMap, fileMapKey } from "./fileStore";
+import { computeFileMap, fileMapKey } from "./store";
 import { getMonth } from "./utils";
 
 describe("fileMapKey", () => {
