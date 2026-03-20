@@ -6,7 +6,7 @@
   let arrowEl: HTMLElement;
 
   $effect(() => {
-    setIcon(arrowEl, "chevron-right");
+    if (arrowEl) setIcon(arrowEl, "chevron-right");
   });
 </script>
 
