@@ -27,7 +27,6 @@ export class PeriodicNotesSettingsTab extends PluginSettingTab {
     readonly plugin: PeriodicNotesPlugin,
   ) {
     super(app, plugin);
-    this.plugin = plugin;
   }
 
   display(): void {
