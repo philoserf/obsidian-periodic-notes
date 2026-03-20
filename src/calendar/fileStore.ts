@@ -1,5 +1,6 @@
 import type { Moment } from "moment";
 import type { Component, TAbstractFile, TFile } from "obsidian";
+import { DEFAULT_FORMAT } from "src/constants";
 import type PeriodicNotesPlugin from "src/main";
 import type { Granularity } from "src/types";
 import { get, type Writable, writable } from "svelte/store";
@@ -69,16 +70,8 @@ export default class CalendarFileStore {
   }
 }
 
-const KEY_FORMATS: Record<Granularity, string> = {
-  day: "YYYY-MM-DD",
-  week: "gggg-[W]ww",
-  month: "YYYY-MM",
-  quarter: "YYYY-[Q]Q",
-  year: "YYYY",
-};
-
 export function fileMapKey(granularity: Granularity, date: Moment): string {
-  return `${granularity}:${date.format(KEY_FORMATS[granularity])}`;
+  return `${granularity}:${date.format(DEFAULT_FORMAT[granularity])}`;
 }
 
 export function computeFileMap(
