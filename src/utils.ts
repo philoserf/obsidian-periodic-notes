@@ -204,11 +204,11 @@ export async function getTemplateContents(
   templatePath: string | undefined,
   granularity: Granularity,
 ): Promise<string> {
-  const { metadataCache, vault } = app;
-  const normalizedTemplatePath = normalizePath(templatePath ?? "");
-  if (templatePath === "/") {
-    return Promise.resolve("");
+  if (!templatePath || templatePath === "/") {
+    return "";
   }
+  const { metadataCache, vault } = app;
+  const normalizedTemplatePath = normalizePath(templatePath);
 
   try {
     const templateFile = metadataCache.getFirstLinkpathDest(
