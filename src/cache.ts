@@ -66,6 +66,11 @@ export class PeriodicNotesCache extends Component {
           if (file instanceof TFile) this.resolve(file, "create");
         }),
       );
+      this.registerEvent(
+        this.app.vault.on("delete", (file) => {
+          if (file instanceof TFile) this.cachedFiles.delete(file.path);
+        }),
+      );
       this.registerEvent(this.app.vault.on("rename", this.resolveRename, this));
       this.registerEvent(
         this.app.metadataCache.on("changed", this.resolveChangedMetadata, this),
