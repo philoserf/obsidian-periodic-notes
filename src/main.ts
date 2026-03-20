@@ -1,11 +1,10 @@
 import type { Moment } from "moment";
-import { addIcon, Platform, Plugin, type TFile } from "obsidian";
+import { addIcon, Plugin, type TFile } from "obsidian";
 
 import { NoteCache } from "./cache";
-import { VIEW_TYPE_CALENDAR } from "./constants";
 import { CalendarView } from "./calendar/view";
 import { getCommands, granularityLabels, showContextMenu } from "./commands";
-import { DEFAULT_SETTINGS } from "./constants";
+import { DEFAULT_SETTINGS, VIEW_TYPE_CALENDAR } from "./constants";
 import { getConfig, getFormat } from "./format";
 import {
   calendarDayIcon,
@@ -13,6 +12,7 @@ import {
   calendarWeekIcon,
   calendarYearIcon,
 } from "./icons";
+import { isMetaPressed } from "./platform";
 import { SettingsTab } from "./settings";
 import { applyTemplate, getNoteCreationPath, readTemplate } from "./template";
 import {
@@ -58,10 +58,6 @@ function configureLocale(): void {
   console.debug(
     `[Periodic Notes] Configured locale: requested ${momentLocale}, got ${actual}`,
   );
-}
-
-function isMetaPressed(e: MouseEvent | KeyboardEvent): boolean {
-  return Platform.isMacOS ? e.metaKey : e.ctrlKey;
 }
 
 interface OpenOpts {

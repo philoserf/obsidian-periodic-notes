@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Moment } from "moment";
 
-  import { isMetaPressed } from "./utils";
+  import { isMetaPressed } from "src/platform";
   import { fileMapKey } from "./store";
   import type { FileMap, EventHandlers } from "./types";
   import { getStartOfWeek } from "./utils";

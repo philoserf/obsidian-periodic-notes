@@ -1,9 +1,9 @@
 import type { Moment } from "moment";
 import { ItemView, Menu, type TFile, type WorkspaceLeaf } from "obsidian";
+import { VIEW_TYPE_CALENDAR } from "src/constants";
 import type PeriodicNotesPlugin from "src/main";
 import type { Granularity } from "src/types";
 import { mount, unmount } from "svelte";
-import { VIEW_TYPE_CALENDAR } from "src/constants";
 import Calendar from "./Calendar.svelte";
 import CalendarStore from "./store";
 

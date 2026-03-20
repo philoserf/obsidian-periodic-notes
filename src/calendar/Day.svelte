@@ -3,7 +3,7 @@
   import { getContext } from "svelte";
   import type { Writable } from "svelte/store";
 
-  import { isMetaPressed } from "./utils";
+  import { isMetaPressed } from "src/platform";
   import { DISPLAYED_MONTH } from "src/constants";
   import { fileMapKey } from "./store";
   import type { FileMap, EventHandlers } from "./types";

@@ -1,5 +1,4 @@
 import type { Moment } from "moment";
-import { Platform } from "obsidian";
 import type { Month, Week } from "./types";
 
 export function getWeekdayLabels(): string[] {
@@ -36,8 +35,4 @@ export function getMonth(displayedMonth: Moment): Month {
   }
 
   return month;
-}
-
-export function isMetaPressed(e: MouseEvent | KeyboardEvent): boolean {
-  return Platform.isMacOS ? e.metaKey : e.ctrlKey;
 }
