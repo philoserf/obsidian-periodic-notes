@@ -70,13 +70,13 @@ export function validateFormatComplexity(
   if (strippedFormat.includes("/")) {
     if (
       granularity === "day" &&
-      !["m", "d", "y"].every(
-        (requiredChar) =>
-          getBasename(format)
-            .replace(/\[[^\]]*\]/g, "") // remove everything within brackets
-            .toLowerCase()
-            .indexOf(requiredChar) !== -1,
-      )
+      (() => {
+        const base = getBasename(format).replace(/\[[^\]]*\]/g, "");
+        return (
+          !["M", "D"].every((t) => base.includes(t)) ||
+          !(base.includes("Y") || base.includes("y"))
+        );
+      })()
     ) {
       return "fragile-basename";
     }
