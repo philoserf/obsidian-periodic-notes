@@ -82,7 +82,7 @@ No banner, no locale dropdown, no week-start picker, no collapsible groups.
 
 ### Locale boot
 
-Keep a minimal `configureLocale()` function in `main.ts` that runs once on load. It reads Obsidian's language setting from `localStorage` and calls `moment.locale()` so the calendar respects the user's app language (week start day, weekday names, etc.). No settings UI, no `vault.getConfig()`, no week-start picker — just follow the Obsidian app locale.
+Keep a minimal `configureLocale()` function in `main.ts` that runs once on load. Takes no parameters. Reads Obsidian's language setting from `localStorage.getItem("language")`, maps it to a Moment locale, and calls `moment.locale()`. Hardcodes `system-default` behavior — no locale override, no week-start override. The calendar respects the user's Obsidian app language (week start day, weekday names, etc.). No settings UI, no `vault.getConfig()`, no week-start picker.
 
 ### Deleted
 
@@ -157,8 +157,12 @@ src/
 
 - `getFormat`, `getPossibleFormats`, `getConfig`
 - `removeEscapedCharacters`, `validateFormat`, `validateFormatComplexity`
-- `getDateInput`, `getBasename`, `isIsoFormat`, `isValidFilename`
+- `getBasename`, `isIsoFormat`, `isValidFilename`
 - `join`
+
+Note: `getDateInput` moves to `cache.ts` as a private helper — it takes a `TFile` parameter (Obsidian type) and is only consumed by the cache's `resolve` method. This keeps `format.ts` free of Obsidian runtime dependencies.
+
+`validateTemplate` and `validateFolder` from `settings/validation.ts` move to `settings.ts` as private helpers — they're only needed by the native settings UI for inline validation.
 
 **Functions moved elsewhere:**
 
@@ -187,6 +191,7 @@ src/
 | `showFileMenu`                | `showContextMenu`     | It's a context menu       |
 | `applyPeriodicTemplateToFile` | `applyTemplateToFile` | Context is obvious        |
 | `getTemplateContents`         | `readTemplate`        | It reads                  |
+| `DEFAULT_PERIODIC_CONFIG`     | `DEFAULT_CONFIG`      | Simpler                   |
 
 ## Cache Improvements
 
@@ -292,7 +297,7 @@ declare module "obsidian" {
 
 - `parser.test.ts` — module deleted
 - `settings/localization.test.ts` — module deleted
-- `settings/validation.test.ts` — functions move to `format.ts`
+- `settings/validation.test.ts` — test logic absorbed into `format.test.ts` (rewritten to import directly)
 - `settings/utils.test.ts` — functions dropped or inlined
 
 ### Tests rewritten
