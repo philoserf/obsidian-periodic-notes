@@ -288,6 +288,7 @@ export class NoteCache extends Component {
       .map(([, entry]) => entry);
 
     const idx = sorted.findIndex((e) => e.filePath === filePath);
+    if (idx === -1) return null;
     const offset = direction === "forwards" ? 1 : -1;
     return sorted[idx + offset] ?? null;
   }

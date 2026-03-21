@@ -46,12 +46,10 @@ describe("canonicalKey logic", () => {
   });
 
   test("keys sort chronologically", () => {
-    const keys = [
-      canonicalKey("day", window.moment("2026-03-22")),
-      canonicalKey("day", window.moment("2026-03-20")),
-      canonicalKey("day", window.moment("2026-03-21")),
-    ].sort();
-    expect(keys[0]).toContain("2026-03-20");
-    expect(keys[2]).toContain("2026-03-22");
+    const k20 = canonicalKey("day", window.moment("2026-03-20"));
+    const k21 = canonicalKey("day", window.moment("2026-03-21"));
+    const k22 = canonicalKey("day", window.moment("2026-03-22"));
+    const sorted = [k22, k20, k21].sort();
+    expect(sorted).toEqual([k20, k21, k22]);
   });
 });

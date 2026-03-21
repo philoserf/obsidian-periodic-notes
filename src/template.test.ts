@@ -60,6 +60,26 @@ function applyTemplate(
     );
   }
 
+  if (granularity === "month" || granularity === "year") {
+    const pattern = new RegExp(
+      `{{\\s*(${granularity})\\s*(([-+]\\d+)([ymwdhs]))?\\s*(:.+?)?}}`,
+      "gi",
+    );
+    contents = contents.replace(
+      pattern,
+      (_, _token, calc, timeDelta, unit, momentFormat) => {
+        const periodStart = date.clone().startOf(granularity);
+        if (calc) {
+          periodStart.add(parseInt(timeDelta, 10), unit);
+        }
+        if (momentFormat) {
+          return periodStart.format(momentFormat.substring(1).trim());
+        }
+        return periodStart.format(format);
+      },
+    );
+  }
+
   return contents;
 }
 
@@ -120,5 +140,41 @@ describe("applyTemplate", () => {
       "{{yesterday}}",
     );
     expect(result).toBe("{{yesterday}}");
+  });
+
+  test("replaces month granularity tokens with delta", () => {
+    const date = window.moment("2026-03-01");
+    const result = applyTemplate(
+      "2026-03",
+      "month",
+      date,
+      "YYYY-MM",
+      "Prev: {{month-1M:YYYY-MM}} Next: {{month+1M:YYYY-MM}}",
+    );
+    expect(result).toBe("Prev: 2026-02 Next: 2026-04");
+  });
+
+  test("replaces year granularity tokens", () => {
+    const date = window.moment("2026-01-01");
+    const result = applyTemplate(
+      "2026",
+      "year",
+      date,
+      "YYYY",
+      "Year: {{year:YYYY}}",
+    );
+    expect(result).toBe("Year: 2026");
+  });
+
+  test("replaces year granularity tokens with delta", () => {
+    const date = window.moment("2026-01-01");
+    const result = applyTemplate(
+      "2026",
+      "year",
+      date,
+      "YYYY",
+      "Last: {{year-1y:YYYY}}",
+    );
+    expect(result).toBe("Last: 2025");
   });
 });
