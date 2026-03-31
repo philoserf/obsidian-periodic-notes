@@ -8,7 +8,6 @@
     "module": "ESNext",
     "types": ["svelte", "node"],
     "noEmit": true,
-    "baseUrl": ".",
-    "paths": { "src/*": ["src/*"] }
+    "paths": { "src/*": ["./src/*"] }
   }
 }
