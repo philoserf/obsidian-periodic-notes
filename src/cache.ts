@@ -135,7 +135,7 @@ export class NoteCache extends Component {
 
     for (const granularity of active) {
       const folder = settings.granularities[granularity].folder || "/";
-      if (!file.path.startsWith(folder === "/" ? "" : folder)) continue;
+      if (!file.path.startsWith(folder === "/" ? "" : `${folder}/`)) continue;
       const frontmatterEntry = parseFrontMatterEntry(
         cache.frontmatter,
         granularity,
@@ -178,7 +178,7 @@ export class NoteCache extends Component {
 
     for (const granularity of active) {
       const folder = settings.granularities[granularity].folder || "/";
-      if (!file.path.startsWith(folder === "/" ? "" : folder)) continue;
+      if (!file.path.startsWith(folder === "/" ? "" : `${folder}/`)) continue;
 
       const formats = getPossibleFormats(settings, granularity);
       const dateInputStr = getDateInput(file, formats[0], granularity);
