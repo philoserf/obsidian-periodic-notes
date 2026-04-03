@@ -1,4 +1,10 @@
-import { type App, normalizePath, PluginSettingTab, Setting } from "obsidian";
+import {
+  type App,
+  debounce,
+  normalizePath,
+  PluginSettingTab,
+  Setting,
+} from "obsidian";
 import { DEFAULT_FORMAT } from "./constants";
 import { FileSuggest, FolderSuggest } from "./fileSuggest";
 import { validateFormat } from "./format";
@@ -26,6 +32,8 @@ const labels: Record<Granularity, string> = {
 };
 
 export class SettingsTab extends PluginSettingTab {
+  private debouncedSave = debounce(() => this.plugin.saveSettings(), 500, true);
+
   constructor(
     readonly app: App,
     readonly plugin: PeriodicNotesPlugin,
@@ -71,7 +79,7 @@ export class SettingsTab extends PluginSettingTab {
             );
             formatSetting.descEl.toggleClass("has-error", !!error);
             this.plugin.settings.granularities[granularity].format = value;
-            await this.plugin.saveSettings();
+            this.debouncedSave();
           });
       });
 
@@ -83,7 +91,7 @@ export class SettingsTab extends PluginSettingTab {
           folderSetting.descEl.setText(warning || "");
           folderSetting.descEl.toggleClass("has-error", !!warning);
           this.plugin.settings.granularities[granularity].folder = value;
-          await this.plugin.saveSettings();
+          this.debouncedSave();
         });
         new FolderSuggest(this.app, text.inputEl);
       });
@@ -97,7 +105,7 @@ export class SettingsTab extends PluginSettingTab {
           templateSetting.descEl.toggleClass("has-error", !!error);
           this.plugin.settings.granularities[granularity].templatePath =
             value || undefined;
-          await this.plugin.saveSettings();
+          this.debouncedSave();
         });
         new FileSuggest(this.app, text.inputEl);
       });
