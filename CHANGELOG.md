@@ -1,5 +1,23 @@
 # Changelog
 
+## 2.0.1
+
+### Fixed
+
+- Add missing parameters to `periodic-notes:resolve` event type
+- Append path separator in cache folder prefix check
+- Replace nested SVG wrapper with `<g>` in calendarYearIcon
+
+### Performance
+
+- Debounce settings text field saves
+
+### Changed
+
+- Remove unused sass devDependency
+- CI workflow updates
+- Bump @types/node to 25.5.2
+
 ## 2.0.0
 
 ### Breaking Changes

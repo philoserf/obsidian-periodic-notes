@@ -383,6 +383,14 @@ sed -n '49,75p' src/settings.ts
 ```
 
 ```output
+      this.addGranularitySection(containerEl, granularity);
+    }
+  }
+
+  private addGranularitySection(
+    containerEl: HTMLElement,
+    granularity: Granularity,
+  ): void {
     const config = this.plugin.settings.granularities[granularity];
 
     containerEl.createEl("h3", { text: labels[granularity] });
@@ -402,14 +410,6 @@ sed -n '49,75p' src/settings.ts
           .setPlaceholder(DEFAULT_FORMAT[granularity])
           .setValue(config.format)
           .onChange(async (value) => {
-            const error = validateFormat(value, granularity);
-            formatSetting.descEl.setText(
-              error || "Moment.js date format string",
-            );
-            formatSetting.descEl.toggleClass("has-error", !!error);
-            this.plugin.settings.granularities[granularity].format = value;
-            await this.plugin.saveSettings();
-          });
 ```
 
 ## Calendar View
