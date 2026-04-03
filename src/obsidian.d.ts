@@ -10,7 +10,10 @@ declare module "obsidian" {
     ): EventRef;
     on(
       name: "periodic-notes:resolve",
-      callback: () => void,
+      callback: (
+        granularity: import("./types").Granularity,
+        file: TFile,
+      ) => void,
       // biome-ignore lint/suspicious/noExplicitAny: Obsidian API lacks type
       ctx?: any,
     ): EventRef;
