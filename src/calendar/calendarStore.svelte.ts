@@ -17,13 +17,16 @@ export default class CalendarStore {
     plugin.app.workspace.onLayoutReady(() => {
       const { vault, metadataCache, workspace } = plugin.app;
       component.registerEvent(vault.on("create", this.bump, this));
-      // Delete fires after NoteCache's handler has already removed the
-      // entry, so isPeriodic(file.path) returns false and bump() would
-      // short-circuit. Bump unconditionally — getPeriodicNote self-heals.
+      // Delete and rename fire after NoteCache's handler, which already
+      // removed the old entry from the index. isPeriodic(path) can return
+      // false even for a file that was just a periodic note, so bump
+      // unconditionally — getPeriodicNote self-heals stale entries.
       component.registerEvent(
         vault.on("delete", this.bumpUnconditionally, this),
       );
-      component.registerEvent(vault.on("rename", this.onRename, this));
+      component.registerEvent(
+        vault.on("rename", this.bumpUnconditionally, this),
+      );
       component.registerEvent(metadataCache.on("changed", this.bump, this));
       component.registerEvent(
         workspace.on("periodic-notes:resolve", this.bumpUnconditionally, this),
@@ -46,12 +49,6 @@ export default class CalendarStore {
 
   private bumpUnconditionally(): void {
     this.version++;
-  }
-
-  private onRename(file: TAbstractFile, oldPath: string): void {
-    if (this.plugin.isPeriodic(file.path) || this.plugin.isPeriodic(oldPath)) {
-      this.version++;
-    }
   }
 
   public getFile(date: Moment, granularity: Granularity): TFile | null {

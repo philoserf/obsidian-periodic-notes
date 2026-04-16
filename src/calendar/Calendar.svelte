@@ -41,7 +41,7 @@
 
   $effect(() => {
     // Track fileStore.version so mutations re-run this effect.
-    fileStore.version;
+    void fileStore.version;
     showWeeks = fileStore.isGranularityEnabled("week");
     fileMap = computeFileMap(
       month,
