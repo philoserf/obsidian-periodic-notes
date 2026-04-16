@@ -5,8 +5,8 @@
   import type { Granularity } from "src/types";
   import { isMetaPressed } from "src/platform";
   import { DISPLAYED_MONTH } from "src/constants";
+  import { canonicalKey } from "src/cacheSearch";
   import type { DisplayedMonth } from "./displayedMonth.svelte";
-  import { fileMapKey } from "./store";
   import type { FileMap, EventHandlers } from "./types";
 
   let {
@@ -25,8 +25,8 @@
 
   const displayedMonth = getContext<DisplayedMonth>(DISPLAYED_MONTH);
 
-  let monthKey = $derived(fileMapKey("month", displayedMonth.current));
-  let yearKey = $derived(fileMapKey("year", displayedMonth.current));
+  let monthKey = $derived(canonicalKey("month", displayedMonth.current));
+  let yearKey = $derived(canonicalKey("year", displayedMonth.current));
   let monthEnabled = $derived(fileMap.has(monthKey));
   let yearEnabled = $derived(fileMap.has(yearKey));
   let monthFile = $derived(fileMap.get(monthKey) ?? null);

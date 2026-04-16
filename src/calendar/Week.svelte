@@ -2,7 +2,7 @@
   import type { Moment } from "moment";
 
   import { isMetaPressed } from "src/platform";
-  import { fileMapKey } from "./store";
+  import { canonicalKey } from "src/cacheSearch";
   import type { FileMap, EventHandlers } from "./types";
   import { getStartOfWeek } from "./utils";
 
@@ -25,7 +25,7 @@
   } = $props();
 
   let startOfWeek = $derived(getStartOfWeek(days));
-  let file = $derived(fileMap.get(fileMapKey("week", startOfWeek)) ?? null);
+  let file = $derived(fileMap.get(canonicalKey("week", startOfWeek)) ?? null);
 
   function handleHover(event: PointerEvent) {
     if (event.target) {

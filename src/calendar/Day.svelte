@@ -4,8 +4,8 @@
 
   import { isMetaPressed } from "src/platform";
   import { DISPLAYED_MONTH } from "src/constants";
+  import { canonicalKey } from "src/cacheSearch";
   import type { DisplayedMonth } from "./displayedMonth.svelte";
-  import { fileMapKey } from "./store";
   import type { FileMap, EventHandlers } from "./types";
 
   let {
@@ -28,7 +28,7 @@
 
   const displayedMonth = getContext<DisplayedMonth>(DISPLAYED_MONTH);
 
-  let file = $derived(fileMap.get(fileMapKey("day", date)) ?? null);
+  let file = $derived(fileMap.get(canonicalKey("day", date)) ?? null);
 
   function handleClick(event: MouseEvent) {
     onClick?.("day", date, file, isMetaPressed(event));
