@@ -1,12 +1,11 @@
 <script lang="ts">
-  import type { Moment } from "moment";
   import type { TFile } from "obsidian";
   import { getContext } from "svelte";
-  import type { Writable } from "svelte/store";
 
   import type { Granularity } from "src/types";
   import { isMetaPressed } from "src/platform";
   import { DISPLAYED_MONTH } from "src/constants";
+  import type { DisplayedMonth } from "./displayedMonth.svelte";
   import { fileMapKey } from "./store";
   import type { FileMap, EventHandlers } from "./types";
 
@@ -24,10 +23,10 @@
     resetDisplayedMonth: () => void;
   } = $props();
 
-  let displayedMonth = getContext<Writable<Moment>>(DISPLAYED_MONTH);
+  const displayedMonth = getContext<DisplayedMonth>(DISPLAYED_MONTH);
 
-  let monthKey = $derived(fileMapKey("month", $displayedMonth));
-  let yearKey = $derived(fileMapKey("year", $displayedMonth));
+  let monthKey = $derived(fileMapKey("month", displayedMonth.current));
+  let yearKey = $derived(fileMapKey("year", displayedMonth.current));
   let monthEnabled = $derived(fileMap.has(monthKey));
   let yearEnabled = $derived(fileMap.has(yearKey));
   let monthFile = $derived(fileMap.get(monthKey) ?? null);
@@ -43,7 +42,7 @@
         if (getEnabled()) {
           onClick?.(
             granularity,
-            $displayedMonth,
+            displayedMonth.current,
             getFile(),
             isMetaPressed(event),
           );
@@ -55,7 +54,7 @@
         if (!getEnabled() || !event.target) return;
         onHover?.(
           granularity,
-          $displayedMonth,
+          displayedMonth.current,
           getFile(),
           event.target,
           isMetaPressed(event),
@@ -64,7 +63,7 @@
       context: (event: MouseEvent) => {
         const f = getFile();
         if (getEnabled() && f) {
-          onContextMenu?.(granularity, $displayedMonth, f, event);
+          onContextMenu?.(granularity, displayedMonth.current, f, event);
         }
       },
     };
@@ -94,7 +93,7 @@
       onkeydown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
           if (monthEnabled) {
-            onClick?.("month", $displayedMonth, monthFile, false);
+            onClick?.("month", displayedMonth.current, monthFile, false);
           } else {
             resetDisplayedMonth();
           }
@@ -103,7 +102,7 @@
       oncontextmenu={monthH.context}
       onpointerenter={monthH.hover}
     >
-      {$displayedMonth.format("MMM")}
+      {displayedMonth.current.format("MMM")}
     </span>
     <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
     <span
@@ -115,14 +114,14 @@
       onkeydown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
           if (yearEnabled) {
-            onClick?.("year", $displayedMonth, yearFile, false);
+            onClick?.("year", displayedMonth.current, yearFile, false);
           }
         }
       }}
       oncontextmenu={yearH.context}
       onpointerenter={yearH.hover}
     >
-      {$displayedMonth.format("YYYY")}
+      {displayedMonth.current.format("YYYY")}
     </span>
   </span>
 </div>

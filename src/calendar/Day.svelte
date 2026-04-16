@@ -1,10 +1,10 @@
 <script lang="ts">
   import type { Moment } from "moment";
   import { getContext } from "svelte";
-  import type { Writable } from "svelte/store";
 
   import { isMetaPressed } from "src/platform";
   import { DISPLAYED_MONTH } from "src/constants";
+  import type { DisplayedMonth } from "./displayedMonth.svelte";
   import { fileMapKey } from "./store";
   import type { FileMap, EventHandlers } from "./types";
 
@@ -26,7 +26,7 @@
     activeFilePath: string | null;
   } = $props();
 
-  const displayedMonth = getContext<Writable<Moment>>(DISPLAYED_MONTH);
+  const displayedMonth = getContext<DisplayedMonth>(DISPLAYED_MONTH);
 
   let file = $derived(fileMap.get(fileMapKey("day", date)) ?? null);
 
@@ -51,7 +51,7 @@
     tabindex="0"
     class="day"
     class:active={file !== null && file.path === activeFilePath}
-    class:adjacent-month={!date.isSame($displayedMonth, "month")}
+    class:adjacent-month={!date.isSame(displayedMonth.current, "month")}
     class:has-note={file !== null}
     class:today={date.isSame(today, "day")}
     onclick={handleClick}

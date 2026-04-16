@@ -1,10 +1,10 @@
 <script lang="ts">
   import type { Moment } from "moment";
   import { setContext } from "svelte";
-  import { writable } from "svelte/store";
 
   import { DISPLAYED_MONTH } from "src/constants";
   import Day from "./Day.svelte";
+  import { DisplayedMonth } from "./displayedMonth.svelte";
   import type CalendarStore from "./store";
   import { computeFileMap, fileMapKey } from "./store";
   import Nav from "./Nav.svelte";
@@ -28,15 +28,15 @@
 
   let today: Moment = $state.raw(window.moment());
 
-  const displayedMonthStore = writable<Moment>(window.moment());
-  setContext(DISPLAYED_MONTH, displayedMonthStore);
+  const displayedMonth = new DisplayedMonth();
+  setContext(DISPLAYED_MONTH, displayedMonth);
 
   let month: Month = $state.raw(getMonth(window.moment()));
   let showWeeks: boolean = $state(false);
   let fileMap: FileMap = $state.raw(new Map());
 
   $effect(() => {
-    month = getMonth($displayedMonthStore);
+    month = getMonth(displayedMonth.current);
   });
 
   // $derived.by() doesn't track Svelte store subscriptions,
