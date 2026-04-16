@@ -25,7 +25,8 @@ bun test                 # Run tests
 
 - `src/main.ts` — Plugin lifecycle, settings load/save, ribbon, commands
 - `src/settings.ts` — Native Obsidian `Setting` API settings tab
-- `src/cache.ts` — Dual-index cache (byPath + byKey) for file-to-date resolution (depends on obsidian)
+- `src/cache.ts` — Obsidian-coupled orchestration: vault/metadata events, resolve logic, template-apply trigger (depends on obsidian)
+- `src/cacheIndex.ts` — Pure dual-index state (byPath + byKey) with dirty-flag sorted-key cache (directly testable)
 - `src/cacheSearch.ts` — Pure cache helpers: `canonicalKey` and `findAdjacentKey` binary search (directly testable)
 - `src/template.ts` — Template I/O: reading from vault, applying to file, creating notes (depends on obsidian)
 - `src/templateRender.ts` — Pure template token replacement (directly testable)
@@ -58,9 +59,10 @@ bun test                 # Run tests
 
 ### Cache
 
-- Dual-index: `byPath` (filePath → CacheEntry) and `byKey` (canonicalKey → CacheEntry)
+- `CacheIndex` (pure) owns the dual-index state: `byPath` (filePath → CacheEntry) and `byKey` (canonicalKey → CacheEntry), plus a per-granularity sorted-key cache with dirty-flag invalidation
+- `NoteCache` (Obsidian-coupled) wraps a `CacheIndex` and adds vault/metadata event wiring, resolve/rename/delete handling, and template application
 - `canonicalKey`: `${granularity}:${date.startOf(granularity).toISOString()}`
-- `getPeriodicNote` is O(1) via byKey lookup
+- `getPeriodicNote` is O(1) via byKey lookup; `findAdjacent` is O(log n) warm, O(m log m) cold rebuild (m = entries in one granularity)
 - Resolves files by exact filename format or frontmatter — no loose/date-prefix matching
 - `CacheEntry`: filePath, date, granularity, match ("filename" | "frontmatter")
 
@@ -75,7 +77,7 @@ bun test                 # Run tests
 ### Testing
 
 - `bunfig.toml` preload (`src/test-preload.ts`) provides `window.moment` globally
-- Pure modules — import directly in tests: `format.ts`, `cacheSearch.ts`, `templateRender.ts`, `calendar/store.ts` (pure parts), `calendar/utils.ts`
+- Pure modules — import directly in tests: `format.ts`, `cacheIndex.ts`, `cacheSearch.ts`, `templateRender.ts`, `calendar/store.ts` (pure parts), `calendar/utils.ts`
 - Modules that CANNOT be imported in tests (import obsidian at top level): `cache.ts`, `template.ts`, `settings.ts`, `platform.ts`, `main.ts`, `commands.ts`
 
 ### Deploy to Local Vault
