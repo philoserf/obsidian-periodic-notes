@@ -10,6 +10,7 @@ import {
   TFolder,
 } from "obsidian";
 
+import { findAdjacentKey } from "./cacheSearch";
 import {
   getEnabledGranularities,
   getFormat,
@@ -50,6 +51,8 @@ function getDateInput(
 export class NoteCache extends Component {
   private byPath: Map<string, CacheEntry>;
   private byKey: Map<string, CacheEntry>;
+  private sortedByGranularity: Map<Granularity, string[]>;
+  private dirtyGranularities: Set<Granularity>;
 
   constructor(
     readonly app: App,
@@ -58,6 +61,8 @@ export class NoteCache extends Component {
     super();
     this.byPath = new Map();
     this.byKey = new Map();
+    this.sortedByGranularity = new Map();
+    this.dirtyGranularities = new Set(granularities);
 
     this.app.workspace.onLayoutReady(() => {
       console.info("[Periodic Notes] initializing cache");
@@ -90,6 +95,8 @@ export class NoteCache extends Component {
     console.info("[Periodic Notes] resetting cache");
     this.byPath.clear();
     this.byKey.clear();
+    this.sortedByGranularity.clear();
+    this.dirtyGranularities = new Set(granularities);
     this.initialize();
   }
 
@@ -211,6 +218,7 @@ export class NoteCache extends Component {
     const oldByPath = this.byPath.get(entry.filePath);
     if (oldByPath) {
       this.byKey.delete(canonicalKey(oldByPath.granularity, oldByPath.date));
+      this.dirtyGranularities.add(oldByPath.granularity);
     }
     const key = canonicalKey(entry.granularity, entry.date);
     // Evict any other file that claims the same canonical key
@@ -220,6 +228,7 @@ export class NoteCache extends Component {
     }
     this.byPath.set(entry.filePath, entry);
     this.byKey.set(key, entry);
+    this.dirtyGranularities.add(entry.granularity);
   }
 
   private remove(filePath: string): void {
@@ -227,6 +236,7 @@ export class NoteCache extends Component {
     if (entry) {
       this.byKey.delete(canonicalKey(entry.granularity, entry.date));
       this.byPath.delete(filePath);
+      this.dirtyGranularities.add(entry.granularity);
     }
   }
 
@@ -241,26 +251,6 @@ export class NoteCache extends Component {
     if (file instanceof TFile) return file;
     this.remove(entry.filePath);
     return null;
-  }
-
-  public getPeriodicNotes(
-    granularity: Granularity,
-    targetDate: Moment,
-    includeFinerGranularities = false,
-  ): CacheEntry[] {
-    const matches: CacheEntry[] = [];
-    const gIdx = granularities.indexOf(granularity);
-    for (const entry of this.byPath.values()) {
-      const eIdx = granularities.indexOf(entry.granularity);
-      if (
-        (granularity === entry.granularity ||
-          (includeFinerGranularities && eIdx <= gIdx)) &&
-        entry.date.isSame(targetDate, granularity)
-      ) {
-        matches.push(entry);
-      }
-    }
-    return matches;
   }
 
   public isPeriodic(targetPath: string, granularity?: Granularity): boolean {
@@ -282,14 +272,25 @@ export class NoteCache extends Component {
     const curr = this.find(filePath);
     if (!curr) return null;
 
-    const sorted = Array.from(this.byKey.entries())
-      .filter(([key]) => key.startsWith(`${curr.granularity}:`))
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([, entry]) => entry);
+    const sorted = this.getSortedKeys(curr.granularity);
+    const key = canonicalKey(curr.granularity, curr.date);
+    const adjKey = findAdjacentKey(sorted, key, direction);
+    return adjKey ? (this.byKey.get(adjKey) ?? null) : null;
+  }
 
-    const idx = sorted.findIndex((e) => e.filePath === filePath);
-    if (idx === -1) return null;
-    const offset = direction === "forwards" ? 1 : -1;
-    return sorted[idx + offset] ?? null;
+  private getSortedKeys(granularity: Granularity): string[] {
+    if (!this.dirtyGranularities.has(granularity)) {
+      const cached = this.sortedByGranularity.get(granularity);
+      if (cached) return cached;
+    }
+    const prefix = `${granularity}:`;
+    const keys: string[] = [];
+    for (const k of this.byKey.keys()) {
+      if (k.startsWith(prefix)) keys.push(k);
+    }
+    keys.sort();
+    this.sortedByGranularity.set(granularity, keys);
+    this.dirtyGranularities.delete(granularity);
+    return keys;
   }
 }

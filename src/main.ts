@@ -191,18 +191,6 @@ export default class PeriodicNotesPlugin extends Plugin {
     return this.cache.getPeriodicNote(granularity, date);
   }
 
-  public getPeriodicNotes(
-    granularity: Granularity,
-    date: Moment,
-    includeFinerGranularities = false,
-  ): CacheEntry[] {
-    return this.cache.getPeriodicNotes(
-      granularity,
-      date,
-      includeFinerGranularities,
-    );
-  }
-
   public isPeriodic(filePath: string, granularity?: Granularity): boolean {
     return this.cache.isPeriodic(filePath, granularity);
   }
