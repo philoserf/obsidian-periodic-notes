@@ -1,74 +1,9 @@
 import type { Moment } from "moment";
-import type { Component, TAbstractFile, TFile } from "obsidian";
+import type { TFile } from "obsidian";
 import { DEFAULT_FORMAT } from "src/constants";
-import type PeriodicNotesPlugin from "src/main";
 import type { Granularity } from "src/types";
-import { type Writable, writable } from "svelte/store";
 
 import type { FileMap, Month } from "./types";
-
-export default class CalendarStore {
-  // Svelte 5 runes don't track store auto-subscriptions.
-  // Bumping a counter triggers subscribers to re-read plugin state.
-  public store: Writable<number>;
-  private plugin: PeriodicNotesPlugin;
-
-  constructor(component: Component, plugin: PeriodicNotesPlugin) {
-    this.plugin = plugin;
-    this.store = writable(0);
-
-    plugin.app.workspace.onLayoutReady(() => {
-      const { vault, metadataCache, workspace } = plugin.app;
-      component.registerEvent(vault.on("create", this.bump, this));
-      component.registerEvent(vault.on("delete", this.bump, this));
-      component.registerEvent(vault.on("rename", this.onRename, this));
-      component.registerEvent(metadataCache.on("changed", this.bump, this));
-      component.registerEvent(
-        workspace.on("periodic-notes:resolve", this.bumpUnconditionally, this),
-      );
-      component.registerEvent(
-        workspace.on(
-          "periodic-notes:settings-updated",
-          this.bumpUnconditionally,
-          this,
-        ),
-      );
-      this.bump();
-    });
-  }
-
-  private bump(file?: TAbstractFile): void {
-    if (file && !this.plugin.isPeriodic(file.path)) return;
-    this.store.update((n) => n + 1);
-  }
-
-  private bumpUnconditionally(): void {
-    this.store.update((n) => n + 1);
-  }
-
-  private onRename(file: TAbstractFile, oldPath: string): void {
-    if (this.plugin.isPeriodic(file.path) || this.plugin.isPeriodic(oldPath)) {
-      this.store.update((n) => n + 1);
-    }
-  }
-
-  public getFile(date: Moment, granularity: Granularity): TFile | null {
-    return this.plugin.getPeriodicNote(granularity, date);
-  }
-
-  public isGranularityEnabled(granularity: Granularity): boolean {
-    return (
-      this.plugin.settings.granularities[granularity]?.enabled ??
-      granularity === "day"
-    );
-  }
-
-  public getEnabledGranularities(): Granularity[] {
-    return (["week", "month", "year"] as Granularity[]).filter(
-      (g) => this.plugin.settings.granularities[g]?.enabled,
-    );
-  }
-}
 
 export function fileMapKey(granularity: Granularity, date: Moment): string {
   return `${granularity}:${date.format(DEFAULT_FORMAT[granularity])}`;

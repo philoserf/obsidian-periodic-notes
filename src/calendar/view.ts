@@ -5,7 +5,7 @@ import type PeriodicNotesPlugin from "src/main";
 import type { Granularity } from "src/types";
 import { mount, unmount } from "svelte";
 import Calendar from "./Calendar.svelte";
-import CalendarStore from "./store";
+import CalendarStore from "./calendarStore.svelte";
 
 interface CalendarExports {
   tick: () => void;

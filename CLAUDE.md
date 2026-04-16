@@ -71,13 +71,12 @@ bun test                 # Run tests
 - Svelte 5 components mounted in an Obsidian `ItemView` sidebar panel
 - **Reactivity bridge**: `CalendarView` communicates to Svelte via exported functions (`tick()`, `setActiveFilePath()`); Svelte communicates back via callback props (`onHover`, `onClick`, `onContextMenu`)
 - **FileMap pattern**: Single subscription in `Calendar.svelte` pre-computes a `Map<string, TFile | null>` via `computeFileMap()`. Child components do `$derived` lookups via `fileMapKey()`
-- **Store bridge**: `$derived.by()` does NOT track Svelte store auto-subscriptions — must use `$state` + `$effect` + `.subscribe()`
-- **CalendarStore**: Counter-bump `Writable<number>` as notification mechanism
+- **CalendarStore**: `$state` version counter in `calendarStore.svelte.ts`; bumped on vault/metadata events, read inside `$effect` in `Calendar.svelte` to re-derive the FileMap
 
 ### Testing
 
 - `bunfig.toml` preload (`src/test-preload.ts`) provides `window.moment` globally
-- Pure modules — import directly in tests: `format.ts`, `cacheIndex.ts`, `cacheSearch.ts`, `templateRender.ts`, `calendar/store.ts` (pure parts), `calendar/utils.ts`
+- Pure modules — import directly in tests: `format.ts`, `cacheIndex.ts`, `cacheSearch.ts`, `templateRender.ts`, `calendar/store.ts`, `calendar/utils.ts`
 - Modules that CANNOT be imported in tests (import obsidian at top level): `cache.ts`, `template.ts`, `settings.ts`, `platform.ts`, `main.ts`, `commands.ts`
 
 ### Deploy to Local Vault
