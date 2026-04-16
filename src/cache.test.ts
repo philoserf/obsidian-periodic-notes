@@ -1,15 +1,16 @@
 import { describe, expect, test } from "bun:test";
-import type { Granularity } from "./types";
 
-type CacheEntry = {
-  filePath: string;
-  date: moment.Moment;
-  granularity: Granularity;
-  match: "filename" | "frontmatter";
-};
+import { canonicalKey } from "./cacheSearch";
+import type { Granularity } from "./types";
 
 describe("CacheEntry shape", () => {
   test("has required fields", () => {
+    type CacheEntry = {
+      filePath: string;
+      date: moment.Moment;
+      granularity: Granularity;
+      match: "filename" | "frontmatter";
+    };
     const entry: CacheEntry = {
       filePath: "daily/2026-03-20.md",
       date: window.moment("2026-03-20"),
@@ -22,11 +23,7 @@ describe("CacheEntry shape", () => {
   });
 });
 
-describe("canonicalKey logic", () => {
-  function canonicalKey(granularity: Granularity, date: moment.Moment): string {
-    return `${granularity}:${date.clone().startOf(granularity).toISOString()}`;
-  }
-
+describe("canonicalKey", () => {
   test("day keys differ by day", () => {
     const k1 = canonicalKey("day", window.moment("2026-03-20"));
     const k2 = canonicalKey("day", window.moment("2026-03-21"));

@@ -14,7 +14,8 @@ import {
 } from "./icons";
 import { isMetaPressed } from "./platform";
 import { SettingsTab } from "./settings";
-import { applyTemplate, getNoteCreationPath, readTemplate } from "./template";
+import { getNoteCreationPath, readTemplate } from "./template";
+import { applyTemplate } from "./templateRender";
 import {
   type CacheEntry,
   type Granularity,

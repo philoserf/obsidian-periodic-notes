@@ -10,7 +10,7 @@ import {
   TFolder,
 } from "obsidian";
 
-import { findAdjacentKey } from "./cacheSearch";
+import { canonicalKey, findAdjacentKey } from "./cacheSearch";
 import {
   getEnabledGranularities,
   getFormat,
@@ -23,10 +23,6 @@ import { applyTemplateToFile } from "./template";
 import { type CacheEntry, type Granularity, granularities } from "./types";
 
 export type { CacheEntry };
-
-function canonicalKey(granularity: Granularity, date: Moment): string {
-  return `${granularity}:${date.clone().startOf(granularity).toISOString()}`;
-}
 
 function pathWithoutExtension(file: TFile): string {
   const extLen = file.extension.length + 1;
