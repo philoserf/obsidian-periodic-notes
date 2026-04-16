@@ -1,10 +1,10 @@
 <script lang="ts">
   import type { Moment } from "moment";
   import { getContext } from "svelte";
-  import type { Writable } from "svelte/store";
 
   import Arrow from "./Arrow.svelte";
   import { DISPLAYED_MONTH } from "src/constants";
+  import type { DisplayedMonth } from "./displayedMonth.svelte";
   import Month from "./Month.svelte";
   import type { FileMap, EventHandlers } from "./types";
 
@@ -18,21 +18,25 @@
     eventHandlers: EventHandlers;
   } = $props();
 
-  let displayedMonth = getContext<Writable<Moment>>(DISPLAYED_MONTH);
+  const displayedMonth = getContext<DisplayedMonth>(DISPLAYED_MONTH);
 
   function incrementDisplayedMonth() {
-    displayedMonth.update((month) => month.clone().add(1, "month"));
+    displayedMonth.current = displayedMonth.current.clone().add(1, "month");
   }
 
   function decrementDisplayedMonth() {
-    displayedMonth.update((month) => month.clone().subtract(1, "month"));
+    displayedMonth.current = displayedMonth.current
+      .clone()
+      .subtract(1, "month");
   }
 
   function resetDisplayedMonth() {
-    displayedMonth.set(today.clone());
+    displayedMonth.current = today.clone();
   }
 
-  let showingCurrentMonth = $derived($displayedMonth.isSame(today, "month"));
+  let showingCurrentMonth = $derived(
+    displayedMonth.current.isSame(today, "month"),
+  );
 </script>
 
 <div class="nav">
