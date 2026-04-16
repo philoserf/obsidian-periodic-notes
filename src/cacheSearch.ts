@@ -1,3 +1,11 @@
+import type { Moment } from "moment";
+
+import type { Granularity } from "./types";
+
+export function canonicalKey(granularity: Granularity, date: Moment): string {
+  return `${granularity}:${date.clone().startOf(granularity).toISOString()}`;
+}
+
 export function findAdjacentKey(
   sorted: string[],
   key: string,

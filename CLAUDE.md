@@ -25,8 +25,10 @@ bun test                 # Run tests
 
 - `src/main.ts` — Plugin lifecycle, settings load/save, ribbon, commands
 - `src/settings.ts` — Native Obsidian `Setting` API settings tab
-- `src/cache.ts` — Dual-index cache (byPath + byKey) for file-to-date resolution
-- `src/template.ts` — Template reading and rendering (depends on obsidian)
+- `src/cache.ts` — Dual-index cache (byPath + byKey) for file-to-date resolution (depends on obsidian)
+- `src/cacheSearch.ts` — Pure cache helpers: `canonicalKey` and `findAdjacentKey` binary search (directly testable)
+- `src/template.ts` — Template I/O: reading from vault, applying to file, creating notes (depends on obsidian)
+- `src/templateRender.ts` — Pure template token replacement (directly testable)
 - `src/format.ts` — Pure functions: format helpers, validation, path utils (directly testable)
 - `src/commands.ts` — Command factory + context menu
 - `src/constants.ts` — All constants (DEFAULT_FORMAT, WEEKDAYS, VIEW_TYPE_CALENDAR, etc.)
@@ -73,9 +75,8 @@ bun test                 # Run tests
 ### Testing
 
 - `bunfig.toml` preload (`src/test-preload.ts`) provides `window.moment` globally
-- `format.ts` is pure — import directly in tests, no re-implementation needed
-- `template.ts` and `cache.ts` import from obsidian — test files re-implement pure logic
-- Modules that CANNOT be imported in tests: `cache.ts`, `template.ts`, `settings.ts`, `platform.ts`
+- Pure modules — import directly in tests: `format.ts`, `cacheSearch.ts`, `templateRender.ts`, `calendar/store.ts` (pure parts), `calendar/utils.ts`
+- Modules that CANNOT be imported in tests (import obsidian at top level): `cache.ts`, `template.ts`, `settings.ts`, `platform.ts`, `main.ts`, `commands.ts`
 
 ### Deploy to Local Vault
 
