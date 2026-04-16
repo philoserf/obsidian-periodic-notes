@@ -1,5 +1,5 @@
 import type { Moment } from "moment";
-import { addIcon, Plugin, type TFile } from "obsidian";
+import { addIcon, Notice, Plugin, type TFile } from "obsidian";
 
 import { NoteCache } from "./cache";
 import { CalendarView } from "./calendar/view";
@@ -214,11 +214,20 @@ export default class PeriodicNotesPlugin extends Plugin {
   ): Promise<void> {
     const { inNewSplit = false } = opts ?? {};
     const { workspace } = this.app;
-    let file = this.cache.getPeriodicNote(granularity, date);
-    if (!file) {
-      file = await this.createPeriodicNote(granularity, date);
+    try {
+      let file = this.cache.getPeriodicNote(granularity, date);
+      if (!file) {
+        file = await this.createPeriodicNote(granularity, date);
+      }
+      const leaf = inNewSplit
+        ? workspace.getLeaf("split")
+        : workspace.getLeaf();
+      await leaf.openFile(file, { active: true });
+    } catch (err) {
+      console.error("[Periodic Notes] failed to open periodic note", err);
+      new Notice(
+        "Periodic Notes: failed to open note. See console for details.",
+      );
     }
-    const leaf = inNewSplit ? workspace.getLeaf("split") : workspace.getLeaf();
-    await leaf.openFile(file, { active: true });
   }
 }
