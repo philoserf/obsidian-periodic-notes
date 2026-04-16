@@ -3,10 +3,11 @@
   import { setContext } from "svelte";
 
   import { DISPLAYED_MONTH } from "src/constants";
+  import { canonicalKey } from "src/cacheSearch";
   import type CalendarStore from "./calendarStore.svelte";
   import Day from "./Day.svelte";
   import { DisplayedMonth } from "./displayedMonth.svelte";
-  import { computeFileMap, fileMapKey } from "./store";
+  import { computeFileMap } from "./store";
   import Nav from "./Nav.svelte";
   import type { FileMap, EventHandlers, Month } from "./types";
   import { getMonth, getWeekdayLabels, isWeekend } from "./utils";
@@ -92,7 +93,7 @@
       </tr>
     </thead>
     <tbody>
-      {#each month as week (fileMapKey("week", week.days[0]))}
+      {#each month as week (canonicalKey("week", week.days[0]))}
         <tr>
           {#if showWeeks}
             <Week
