@@ -85,6 +85,20 @@ export function getCommands(
 ): Command[] {
   const label = granularityLabels[granularity];
 
+  const navCommand = (id: string, name: string, run: () => void): Command => ({
+    id,
+    name,
+    checkCallback: (checking: boolean) => {
+      if (!plugin.settings.granularities[granularity].enabled) return false;
+      const activeFile = app.workspace.getActiveFile();
+      if (checking) {
+        if (!activeFile) return false;
+        return plugin.isPeriodic(activeFile.path, granularity);
+      }
+      run();
+    },
+  });
+
   return [
     {
       id: `open-${label.periodicity}-note`,
@@ -95,58 +109,26 @@ export function getCommands(
         plugin.openPeriodicNote(granularity, window.moment());
       },
     },
-    {
-      id: `next-${label.periodicity}-note`,
-      name: `Jump forwards to closest ${label.periodicity} note`,
-      checkCallback: (checking: boolean) => {
-        if (!plugin.settings.granularities[granularity].enabled) return false;
-        const activeFile = app.workspace.getActiveFile();
-        if (checking) {
-          if (!activeFile) return false;
-          return plugin.isPeriodic(activeFile.path, granularity);
-        }
-        jumpToAdjacentNote(app, plugin, "forwards");
-      },
-    },
-    {
-      id: `prev-${label.periodicity}-note`,
-      name: `Jump backwards to closest ${label.periodicity} note`,
-      checkCallback: (checking: boolean) => {
-        if (!plugin.settings.granularities[granularity].enabled) return false;
-        const activeFile = app.workspace.getActiveFile();
-        if (checking) {
-          if (!activeFile) return false;
-          return plugin.isPeriodic(activeFile.path, granularity);
-        }
-        jumpToAdjacentNote(app, plugin, "backwards");
-      },
-    },
-    {
-      id: `open-next-${label.periodicity}-note`,
-      name: `Open next ${label.periodicity} note`,
-      checkCallback: (checking: boolean) => {
-        if (!plugin.settings.granularities[granularity].enabled) return false;
-        const activeFile = app.workspace.getActiveFile();
-        if (checking) {
-          if (!activeFile) return false;
-          return plugin.isPeriodic(activeFile.path, granularity);
-        }
-        openAdjacentNote(app, plugin, "forwards");
-      },
-    },
-    {
-      id: `open-prev-${label.periodicity}-note`,
-      name: `Open previous ${label.periodicity} note`,
-      checkCallback: (checking: boolean) => {
-        if (!plugin.settings.granularities[granularity].enabled) return false;
-        const activeFile = app.workspace.getActiveFile();
-        if (checking) {
-          if (!activeFile) return false;
-          return plugin.isPeriodic(activeFile.path, granularity);
-        }
-        openAdjacentNote(app, plugin, "backwards");
-      },
-    },
+    navCommand(
+      `next-${label.periodicity}-note`,
+      `Jump forwards to closest ${label.periodicity} note`,
+      () => jumpToAdjacentNote(app, plugin, "forwards"),
+    ),
+    navCommand(
+      `prev-${label.periodicity}-note`,
+      `Jump backwards to closest ${label.periodicity} note`,
+      () => jumpToAdjacentNote(app, plugin, "backwards"),
+    ),
+    navCommand(
+      `open-next-${label.periodicity}-note`,
+      `Open next ${label.periodicity} note`,
+      () => openAdjacentNote(app, plugin, "forwards"),
+    ),
+    navCommand(
+      `open-prev-${label.periodicity}-note`,
+      `Open previous ${label.periodicity} note`,
+      () => openAdjacentNote(app, plugin, "backwards"),
+    ),
   ];
 }
 
