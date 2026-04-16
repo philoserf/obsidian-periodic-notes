@@ -224,9 +224,13 @@ export default class PeriodicNotesPlugin extends Plugin {
         : workspace.getLeaf();
       await leaf.openFile(file, { active: true });
     } catch (err) {
-      console.error("[Periodic Notes] failed to open periodic note", err);
+      const label = date.format(getFormat(this.settings, granularity));
+      console.error(
+        `[Periodic Notes] failed to open ${granularity} note "${label}"`,
+        err,
+      );
       new Notice(
-        "Periodic Notes: failed to open note. See console for details.",
+        `Periodic Notes: failed to open ${granularity} note "${label}". See console for details.`,
       );
     }
   }
