@@ -1,5 +1,37 @@
 # Changelog
 
+## 2.1.0
+
+### Fixed
+
+- Calendar dot now clears immediately when a periodic note is deleted (previously required navigating away and back)
+- Calendar dot now clears immediately when a periodic note is renamed to a non-periodic path
+
+### Performance
+
+- `findAdjacent` (next/previous navigation) is now O(log n) on warm calls and O(m log m) on cold rebuilds, down from O(n log n) per call — benefit scales with vault size
+- Cache invalidation is skipped when `set()` would write the same canonical key (e.g., metadata changes on already-indexed notes)
+- Template rendering regex patterns hoisted to module-level constants
+
+### Changed
+
+- Calendar fully migrated to Svelte 5 runes; legacy `Writable<number>` counter-bump store and context `Writable<Moment>` replaced with `$state`-backed classes
+- Extracted pure logic into directly testable modules: `cacheIndex.ts`, `cacheSearch.ts`, `templateRender.ts`
+- Test coverage expanded from 61 to 86 tests, including direct coverage of cache dual-index invariants
+
+### Removed
+
+- `plugin.getPeriodicNotes()` — leftover from the v1.x switcher feature, no internal callers, not declared as public API
+
+### Documentation
+
+- Added `THEORY.md` explaining the architecture
+- Regenerated `walkthrough.md`
+
+### CI
+
+- Bumped `softprops/action-gh-release` to v3
+
 ## 2.0.1
 
 ### Fixed
