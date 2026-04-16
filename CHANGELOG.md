@@ -1,5 +1,25 @@
 # Changelog
 
+## 2.1.1
+
+### Fixed
+
+- `openPeriodicNote` now catches rejections internally and surfaces them as a `Notice` naming the granularity and formatted date; previously, failures in template read, vault create, or folder create were silent across five fire-and-forget call sites (ribbon, commands, calendar, adjacent navigation)
+
+### Changed
+
+- Extracted a local `navCommand` helper in `commands.ts` to remove the duplicated `checkCallback` gating across four navigation commands
+- Calendar `FileMap` now keys on `canonicalKey` (ISO-based) instead of a separate `fileMapKey` (format-based); unifies the single "granularity + date → key" concept and deletes the redundant helper
+
+### Dependencies
+
+- Bump `svelte` 5.55.1 → 5.55.4, `vite` 8.0.3 → 8.0.8, `@biomejs/biome` 2.4.10 → 2.4.12, `@types/bun` 1.3.11 → 1.3.12, `@types/node` 25.5.2 → 25.6.0
+
+### Documentation
+
+- Expanded `README.md` with features, usage, settings, and template-token reference
+- Regenerated `walkthrough.md`
+
 ## 2.1.0
 
 ### Fixed
