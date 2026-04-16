@@ -3,9 +3,9 @@
   import { setContext } from "svelte";
 
   import { DISPLAYED_MONTH } from "src/constants";
+  import type CalendarStore from "./calendarStore.svelte";
   import Day from "./Day.svelte";
   import { DisplayedMonth } from "./displayedMonth.svelte";
-  import type CalendarStore from "./store";
   import { computeFileMap, fileMapKey } from "./store";
   import Nav from "./Nav.svelte";
   import type { FileMap, EventHandlers, Month } from "./types";
@@ -39,18 +39,15 @@
     month = getMonth(displayedMonth.current);
   });
 
-  // $derived.by() doesn't track Svelte store subscriptions,
-  // so we manually subscribe inside $effect and return the unsubscribe.
   $effect(() => {
-    const currentMonth = month;
-    return fileStore.store.subscribe(() => {
-      showWeeks = fileStore.isGranularityEnabled("week");
-      fileMap = computeFileMap(
-        currentMonth,
-        (date, granularity) => fileStore.getFile(date, granularity),
-        fileStore.getEnabledGranularities(),
-      );
-    });
+    // Track fileStore.version so mutations re-run this effect.
+    fileStore.version;
+    showWeeks = fileStore.isGranularityEnabled("week");
+    fileMap = computeFileMap(
+      month,
+      (date, granularity) => fileStore.getFile(date, granularity),
+      fileStore.getEnabledGranularities(),
+    );
   });
 
   let eventHandlers: EventHandlers = $derived({
