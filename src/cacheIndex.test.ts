@@ -189,13 +189,20 @@ describe("CacheIndex.findAdjacent", () => {
     expect(index.findAdjacent("weekly/2026-W12.md", "forwards")).toBe(null);
   });
 
-  test("reflects newly inserted entries between existing keys", () => {
-    // Before insert, 19 → 20. After inserting 19.5-equivalent (not meaningful
-    // for "day" granularity, so insert 2026-03-19 again with different file);
-    // instead use remove-and-reinsert across a gap.
-    index.remove("2026-03-19.md");
-    // Now 18 → 20 should be the forward from 18.
-    expect(index.findAdjacent("2026-03-18.md", "forwards")?.filePath).toBe(
+  test("reflects newly inserted entries in sorted order", () => {
+    const fresh = new CacheIndex();
+    fresh.set(makeEntry("2026-03-18.md", "2026-03-18"));
+    fresh.set(makeEntry("2026-03-20.md", "2026-03-20"));
+    // Before insertion, forward from 18 skips straight to 20.
+    expect(fresh.findAdjacent("2026-03-18.md", "forwards")?.filePath).toBe(
+      "2026-03-20.md",
+    );
+    // Inserting 19 must invalidate the sorted cache and put 19 between.
+    fresh.set(makeEntry("2026-03-19.md", "2026-03-19"));
+    expect(fresh.findAdjacent("2026-03-18.md", "forwards")?.filePath).toBe(
+      "2026-03-19.md",
+    );
+    expect(fresh.findAdjacent("2026-03-19.md", "forwards")?.filePath).toBe(
       "2026-03-20.md",
     );
   });
