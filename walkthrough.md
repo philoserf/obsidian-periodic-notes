@@ -1,4 +1,4 @@
-# Periodic Notes Walkthrough (v2.1.0)
+# Periodic Notes Walkthrough (v2.1.1)
 
 *2026-04-16T17:33:23Z by Showboat 0.6.1*
 <!-- showboat-id: b5d18f98-73ae-4629-b5c4-1e5d2b586d59 -->
@@ -160,7 +160,7 @@ sed -n '73,110p' src/main.ts
 
 ### The central public API
 
-Other code (commands, the calendar view) reaches back into the plugin through four methods: `openPeriodicNote`, `getPeriodicNote`, `isPeriodic`, and `findAdjacent`. `openPeriodicNote` is the single entry point for "navigate to a date" — if no file exists, it creates one.
+Other code (commands, the calendar view) reaches back into the plugin through four methods: `openPeriodicNote`, `getPeriodicNote`, `isPeriodic`, and `findAdjacent`. `openPeriodicNote` is the single entry point for "navigate to a date" — if no file exists, it creates one. The body is wrapped in `try/catch`: any failure (template read, vault create, folder create) becomes a console error and a user `Notice` naming the granularity and date, so every fire-and-forget caller (ribbon, commands, calendar click) gets safe failure semantics.
 
 ```bash
 sed -n '191,224p' src/main.ts
@@ -193,14 +193,14 @@ sed -n '191,224p' src/main.ts
   ): Promise<void> {
     const { inNewSplit = false } = opts ?? {};
     const { workspace } = this.app;
-    let file = this.cache.getPeriodicNote(granularity, date);
-    if (!file) {
-      file = await this.createPeriodicNote(granularity, date);
-    }
-    const leaf = inNewSplit ? workspace.getLeaf("split") : workspace.getLeaf();
-    await leaf.openFile(file, { active: true });
-  }
-}
+    try {
+      let file = this.cache.getPeriodicNote(granularity, date);
+      if (!file) {
+        file = await this.createPeriodicNote(granularity, date);
+      }
+      const leaf = inNewSplit
+        ? workspace.getLeaf("split")
+        : workspace.getLeaf();
 ```
 
 ### Settings: plain object, not reactive state
@@ -944,13 +944,14 @@ export class DisplayedMonth {
 
 ### The FileMap pattern
 
-`Calendar.svelte` pre-computes a `Map<string, TFile | null>` covering every cell visible in the current month (up to 42 days + 6 weeks + 1 month + 1 year). Child components (`Day`, `Week`, `Month`) do synchronous `$derived` lookups via `fileMapKey(granularity, date)` instead of each running their own cache query. This replaces ~50 potential cache queries per render with one traversal.
+`Calendar.svelte` pre-computes a `Map<string, TFile | null>` covering every cell visible in the current month (up to 42 days + 6 weeks + 1 month + 1 year). Child components (`Day`, `Week`, `Month`) do synchronous `$derived` lookups via `canonicalKey(granularity, date)` — the same key function the cache uses — instead of each running their own cache query. This replaces ~50 potential cache queries per render with one traversal.
 
 ```bash
 sed -n '30,55p' src/calendar/Calendar.svelte
 ```
 
 ```output
+  let today: Moment = $state.raw(window.moment());
 
   const displayedMonth = new DisplayedMonth();
   setContext(DISPLAYED_MONTH, displayedMonth);
@@ -976,7 +977,6 @@ sed -n '30,55p' src/calendar/Calendar.svelte
 
   let eventHandlers: EventHandlers = $derived({
     onHover,
-    onClick,
 ```
 
 ```bash
@@ -984,10 +984,6 @@ sed -n '8,42p' src/calendar/store.ts
 ```
 
 ```output
-export function fileMapKey(granularity: Granularity, date: Moment): string {
-  return `${granularity}:${date.format(DEFAULT_FORMAT[granularity])}`;
-}
-
 export function computeFileMap(
   month: Month,
   getFile: (date: Moment, granularity: Granularity) => TFile | null,
@@ -998,27 +994,29 @@ export function computeFileMap(
 
   for (const week of month) {
     for (const day of week.days) {
-      map.set(fileMapKey("day", day), getFile(day, "day"));
+      map.set(canonicalKey("day", day), getFile(day, "day"));
     }
     if (enabledGranularities.includes("week")) {
       const weekStart = week.days[0];
-      map.set(fileMapKey("week", weekStart), getFile(weekStart, "week"));
+      map.set(canonicalKey("week", weekStart), getFile(weekStart, "week"));
     }
   }
 
   if (enabledGranularities.includes("month")) {
     map.set(
-      fileMapKey("month", displayedMonth),
+      canonicalKey("month", displayedMonth),
       getFile(displayedMonth, "month"),
     );
   }
   if (enabledGranularities.includes("year")) {
     map.set(
-      fileMapKey("year", displayedMonth),
+      canonicalKey("year", displayedMonth),
       getFile(displayedMonth, "year"),
     );
   }
 
+  return map;
+}
 ```
 
 ## Build and test
@@ -1088,7 +1086,7 @@ grep -rE "^\s*(test|it)\(" src/ | grep -v "^Binary" | wc -l | tr -d " "
 ```
 
 ```output
-86
+82
 ```
 
 ## Concerns
@@ -1118,4 +1116,3 @@ grep -rE "^\s*(test|it)\(" src/ | grep -v "^Binary" | wc -l | tr -d " "
 9. **`canonicalKey` and `fileMapKey` compute the same concept differently.** `canonicalKey` (cache side) uses `startOf(granularity).toISOString()`. `fileMapKey` (calendar side) uses `date.format(DEFAULT_FORMAT[granularity])`. For a locale where `startOf("week")` and the `gggg-[W]ww` format disagree on week numbering, these keys would diverge and the calendar would lose track of week files. Moment's internals keep them consistent in practice, but nothing in the code enforces it.
 
 10. **No integration tests.** The pure layers have good coverage (86 tests), but the full flow — `onLayoutReady` → scan vault → resolve events → template application → calendar render — has no end-to-end test. Regressions like the delete event-order bug (fixed in v2.1.0) can only be caught by manual smoke testing.
-
