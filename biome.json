@@ -12,7 +12,8 @@
       "*.json",
       "scripts/**/*.ts",
       "version-bump.ts",
-      "vite.config.ts"
+      "vite.config.ts",
+      "deploy.ts"
     ],
     "ignoreUnknown": true
   },

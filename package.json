@@ -17,7 +17,7 @@
     "format:check": "biome format .",
     "version": "bun run version-bump.ts",
     "test": "bun test",
-    "deploy": "cp main.js manifest.json styles.css ~/source/philoserf/notes/.obsidian/plugins/periodic-notes/"
+    "deploy": "bun run deploy.ts"
   },
   "overrides": {
     "devalue": ">=5.6.4"

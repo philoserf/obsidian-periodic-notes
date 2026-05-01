@@ -1,6 +1,6 @@
 {
   "extends": "@tsconfig/svelte/tsconfig.json",
-  "include": ["src/**/*", "version-bump.ts"],
+  "include": ["src/**/*", "deploy.ts", "version-bump.ts"],
   "exclude": ["src/**/*.test.ts"],
   "compilerOptions": {
     "target": "ESNext",
