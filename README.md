@@ -1,8 +1,17 @@
-# Periodic Notes for Obsidian
+# Periodic Notes
 
-Create and manage daily, weekly, monthly, and yearly notes in [Obsidian](https://obsidian.md/).
+Create and manage daily, weekly, monthly, and yearly notes in [Obsidian](https://obsidian.md/). Originally created by [Liam Cain](https://github.com/liamcain/obsidian-periodic-notes).
 
-Originally created by [Liam Cain](https://github.com/liamcain/obsidian-periodic-notes).
+## You probably shouldn't install this
+
+This is personal tooling, not a general-purpose plugin. It is opinionated in ways that only make sense for one person's workflow:
+
+- **Single user.** The only known installation is the maintainer's. Breaking changes ship without migration paths (see `CHANGELOG.md` — 1.3.0 removed the quick switcher and NLDates dependency, 2.0.0 dropped quarter granularity, openAtStartup, legacy migrations, and reset existing settings to defaults).
+- **Fork, not upstream.** This diverged from `liamcain/obsidian-periodic-notes` and is not a drop-in replacement. Settings, features, and internal structure have all changed.
+- **Svelte 5 + Vite.** The calendar sidebar uses Svelte 5 runes. The rest of the plugin uses native Obsidian APIs. There is no compatibility layer for older Obsidian versions.
+- **No issue triage for feature requests.** Bugs are welcome; feature requests from other users will almost always be closed as out-of-scope.
+
+If you want something similar, the code is MIT-licensed — fork it and adapt. Don't expect upstream to accommodate your workflow.
 
 ## Features
 
@@ -74,16 +83,6 @@ Offset units follow [Moment.js](https://momentjs.com/docs/#/manipulating/add/): 
 
 ## Alternatives
 
-- [Calendar](https://github.com/liamcain/obsidian-calendar-plugin) — sidebar calendar without periodic-note management.
-- [Daily Notes](https://help.obsidian.md/daily-notes) — Obsidian core, daily granularity only.
 - [liamcain/obsidian-periodic-notes](https://github.com/liamcain/obsidian-periodic-notes) — the original upstream this fork diverged from.
-
-## Further reading
-
-- [CHANGELOG](CHANGELOG.md) — release history.
-- [THEORY.md](THEORY.md) — architecture and design rationale.
-- [walkthrough.md](walkthrough.md) — code walkthrough for contributors.
-
-## License
-
-MIT — see [LICENSE](LICENSE).
+- [Daily Notes](https://help.obsidian.md/daily-notes) — Obsidian core, daily granularity only.
+- [Calendar](https://github.com/liamcain/obsidian-calendar-plugin) — sidebar calendar without periodic-note management.

@@ -1,5 +1,7 @@
 # CLAUDE.md
 
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 ## Project Overview
 
 Obsidian plugin to create and manage daily, weekly, monthly, and yearly notes. Built with Svelte 5 (calendar only) and Vite.
@@ -15,8 +17,11 @@ bun run typecheck        # TypeScript type checking only
 bun run lint             # Biome lint + format check
 bun run lint:fix         # Auto-fix lint and format issues
 bun run format           # Format code with Biome
+bun run format:check     # Check formatting without writing
 bun run version          # Sync package.json version to manifest.json + versions.json
-bun test                 # Run tests
+bun run audit            # Bun audit (critical level)
+bun test                 # Run all tests
+bun test src/format.test.ts   # Run a single test file
 ```
 
 ## Architecture
@@ -37,6 +42,7 @@ bun test                 # Run tests
 - `src/platform.ts` — Platform detection helpers (isMetaPressed)
 - `src/icons.ts` — SVG icon data
 - `src/fileSuggest.ts` — File and folder autocomplete suggests
+- `src/obsidian.d.ts` — Local type augmentations for Obsidian API
 - `src/calendar/` — Svelte 5 sidebar calendar (see below)
 
 ### Build System
@@ -86,6 +92,8 @@ Copies build artifacts to the local Obsidian vault plugin directory:
 ```bash
 bun run build && bun run deploy
 ```
+
+The `deploy` script path is hard-coded to `~/source/philoserf/notes/.obsidian/plugins/periodic-notes/` — edit `package.json` for a different vault.
 
 ### Release Process
 

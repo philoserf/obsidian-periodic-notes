@@ -1,60 +1,41 @@
-# Periodic Notes Walkthrough (v2.1.1)
+# Periodic Notes Walkthrough
 
-*2026-04-16T17:33:23Z by Showboat 0.6.1*
-<!-- showboat-id: b5d18f98-73ae-4629-b5c4-1e5d2b586d59 -->
+*2026-05-01T22:13:10Z by Showboat 0.6.1*
+<!-- showboat-id: 4c4aed65-1c1f-4583-8553-3878c37ee952 -->
 
 ## Overview
 
-This is an Obsidian plugin that creates and manages periodic notes at four granularities: day, week, month, and year. Given a date and granularity, it resolves or creates the corresponding Markdown file (following a configurable filename format), renders a template into it, and surfaces navigation commands plus a sidebar calendar view.
+Periodic Notes is an [Obsidian](https://obsidian.md/) plugin that creates and manages daily, weekly, monthly, and yearly notes. It is a personal fork of [liamcain/obsidian-periodic-notes](https://github.com/liamcain/obsidian-periodic-notes), trimmed and modernized for one user's workflow.
 
-**Technology:**
+The plugin has three responsibilities:
 
-- Obsidian plugin API (desktop + mobile), TypeScript strict mode
-- Bun runtime for tooling; Biome for lint+format; Vite for bundling
-- Svelte 5 with runes (`$state`, `$effect`, `$derived`) for the calendar sidebar only
-- Moment.js (provided by Obsidian as `window.moment`) for all date math
+1. **Resolve** existing notes in the vault into a date-keyed cache, so any granularity/date pair can find its file in O(1).
+2. **Create** new notes from a Moment.js format string, applying a user-configured template with token replacement.
+3. **Surface** the result in the UI: ribbon icons, command palette, context menus, and a Svelte-driven calendar sidebar.
 
-**Public API surface** (augmented onto Obsidian's `Workspace`):
+The codebase is intentionally split between **pure modules** (directly testable, no Obsidian import) and **Obsidian-coupled modules** (vault/metadata events, file I/O). This split is the most important architectural decision in the project — every module's testability falls out of which side of the line it sits on.
 
-```bash
-sed -n '1,22p' src/obsidian.d.ts
-```
+### Key technologies
 
-```output
-import "obsidian";
-
-declare module "obsidian" {
-  export interface Workspace extends Events {
-    on(
-      name: "periodic-notes:settings-updated",
-      callback: () => void,
-      // biome-ignore lint/suspicious/noExplicitAny: Obsidian API lacks type
-      ctx?: any,
-    ): EventRef;
-    on(
-      name: "periodic-notes:resolve",
-      callback: (
-        granularity: import("./types").Granularity,
-        file: TFile,
-      ) => void,
-      // biome-ignore lint/suspicious/noExplicitAny: Obsidian API lacks type
-      ctx?: any,
-    ): EventRef;
-  }
-}
-```
+- **TypeScript 6** with strict mode
+- **Bun** as runtime, test runner, and bundler driver
+- **Vite** for production builds (CommonJS output, `obsidian` external)
+- **Svelte 5** with runes (`$state`, `$derived`, `$effect`) — only the calendar sidebar
+- **Biome** for formatting and linting
+- **Moment.js** (provided by Obsidian as `window.moment`) for date parsing and formatting
 
 ## Architecture
 
-The source tree is organized around two boundaries. Files at the top level of `src/` handle plugin lifecycle, cache, templates, and command wiring. Files in `src/calendar/` own the Svelte sidebar.
+### Source layout
 
-Within each area the layout follows one rule: **obsidian-coupled modules are separated from pure ones**, so the pure ones can be unit-tested directly without mocking Obsidian.
+The `src/` directory mixes plain `.ts` modules with a `calendar/` subtree that holds the Svelte sidebar. Files ending in `.test.ts` are colocated with the modules they exercise.
 
 ```bash
-ls src/ && echo && ls src/calendar/
+ls src/ src/calendar/
 ```
 
 ```output
+src/:
 cache.test.ts
 cache.ts
 cacheIndex.test.ts
@@ -79,6 +60,7 @@ templateRender.ts
 test-preload.ts
 types.ts
 
+src/calendar/:
 Arrow.svelte
 Calendar.svelte
 calendarStore.svelte.ts
@@ -95,29 +77,44 @@ view.ts
 Week.svelte
 ```
 
-**Module boundaries:**
+### Module boundaries
 
-- `main.ts` — Plugin lifecycle, ribbon, command registration, view registration, public API surface
-- `cache.ts` — Obsidian-coupled orchestration: vault/metadata event handlers, folder scanning, template-apply trigger
-- `cacheIndex.ts` — Pure dual-index state (byPath + byKey) with lazy per-granularity sorted-key cache
-- `cacheSearch.ts` — Pure helpers: `canonicalKey` and binary-search `findAdjacentKey`
-- `template.ts` — Obsidian-coupled template I/O: read from vault, write rendered output, ensure folders exist
-- `templateRender.ts` — Pure token replacement; hoisted regex constants
-- `format.ts` — Pure format helpers (validation, parsing, path join)
-- `commands.ts` — Command factory per granularity + context menu
-- `settings.ts` — Native Obsidian `Setting` API settings tab
-- `constants.ts`, `types.ts`, `icons.ts`, `platform.ts`, `fileSuggest.ts` — Supporting modules
-- `calendar/` — Svelte 5 sidebar (see its own section below)
+The pure/coupled split:
+
+| Pure (testable, no Obsidian import) | Obsidian-coupled (cannot be imported in tests) |
+|---|---|
+| `format.ts` — format helpers, validation, path utils | `cache.ts` — vault/metadata event wiring |
+| `cacheIndex.ts` — dual-index state with sorted-key cache | `template.ts` — file I/O, folder creation |
+| `cacheSearch.ts` — `canonicalKey` and binary search | `settings.ts` — Obsidian `Setting` API tab |
+| `templateRender.ts` — token replacement | `commands.ts` — command factory, `Menu` |
+| `types.ts` — shared types | `main.ts` — `Plugin` lifecycle |
+| `calendar/store.ts` — `computeFileMap` | `calendar/view.ts` — `ItemView` mount |
+| `calendar/utils.ts` — month grid construction | `calendar/calendarStore.svelte.ts` — vault event subscription |
+
+The rule is mechanical: a module is "pure" if and only if it does not import from `obsidian` at the top level. Tests live next to their target module and import it directly. Tests for coupled modules go through mocked seams or are skipped in favour of integration testing in Obsidian itself.
+
+### Data flow
+
+Obsidian vault events (`create`, `delete`, `rename`, `metadataCache.changed`) feed into `NoteCache.resolve`, which decides whether the file matches a configured granularity. Matches go into `CacheIndex` keyed both by file path and by canonical date key.
+
+The opposite direction starts from a user action: `plugin.openPeriodicNote(granularity, date)` looks up the canonical key in `CacheIndex.getByKey`. On a hit, the existing file is opened in a workspace leaf. On a miss, `createPeriodicNote` reads the template, runs `applyTemplate` for token replacement, and calls `vault.create` — after which the create event re-enters the cache through `resolve`.
+
+The calendar sidebar reads through the same plugin API (`plugin.getPeriodicNote`) and is invalidated by a `$state` version counter that gets bumped on any vault/metadata event.
 
 ## Entry point: `main.ts`
 
-The plugin class extends Obsidian's `Plugin`. `onload` registers icons, loads settings, configures the locale (to avoid week-start surprises), constructs the cache, adds the settings tab, wires ribbon and commands, and registers the calendar view.
+The plugin extends Obsidian's `Plugin` class. `onload` registers icons, loads settings, configures the Moment locale, instantiates the cache, wires up the settings tab, ribbon, and commands, and registers the calendar `ItemView`.
 
 ```bash
-sed -n '73,110p' src/main.ts
+sed -n '68,110p' src/main.ts
 ```
 
 ```output
+export default class PeriodicNotesPlugin extends Plugin {
+  public settings!: Settings;
+  private ribbonEl!: HTMLElement | null;
+  private cache!: NoteCache;
+
   async onload(): Promise<void> {
     addIcon("calendar-day", calendarDayIcon);
     addIcon("calendar-week", calendarWeekIcon);
@@ -158,34 +155,15 @@ sed -n '73,110p' src/main.ts
   }
 ```
 
-### The central public API
+### `openPeriodicNote` — the hot path
 
-Other code (commands, the calendar view) reaches back into the plugin through four methods: `openPeriodicNote`, `getPeriodicNote`, `isPeriodic`, and `findAdjacent`. `openPeriodicNote` is the single entry point for "navigate to a date" — if no file exists, it creates one. The body is wrapped in `try/catch`: any failure (template read, vault create, folder create) becomes a console error and a user `Notice` naming the granularity and date, so every fire-and-forget caller (ribbon, commands, calendar click) gets safe failure semantics.
+This is the function the ribbon, commands, and calendar all funnel into. It performs a cache lookup, creates the file if missing, and opens the leaf. The whole body is wrapped in `try/catch` because there are many failure modes (template read, folder creation, vault collision) and a silent failure here is the worst possible UX.
 
 ```bash
-sed -n '191,224p' src/main.ts
+sed -n '210,237p' src/main.ts
 ```
 
 ```output
-  public getPeriodicNote(granularity: Granularity, date: Moment): TFile | null {
-    return this.cache.getPeriodicNote(granularity, date);
-  }
-
-  public isPeriodic(filePath: string, granularity?: Granularity): boolean {
-    return this.cache.isPeriodic(filePath, granularity);
-  }
-
-  public findAdjacent(
-    filePath: string,
-    direction: "forwards" | "backwards",
-  ): CacheEntry | null {
-    return this.cache.findAdjacent(filePath, direction);
-  }
-
-  public findInCache(filePath: string): CacheEntry | null {
-    return this.cache.find(filePath);
-  }
-
   public async openPeriodicNote(
     granularity: Granularity,
     date: Moment,
@@ -201,11 +179,24 @@ sed -n '191,224p' src/main.ts
       const leaf = inNewSplit
         ? workspace.getLeaf("split")
         : workspace.getLeaf();
+      await leaf.openFile(file, { active: true });
+    } catch (err) {
+      const label = date.format(getFormat(this.settings, granularity));
+      console.error(
+        `[Periodic Notes] failed to open ${granularity} note "${label}"`,
+        err,
+      );
+      new Notice(
+        `Periodic Notes: failed to open ${granularity} note "${label}". See console for details.`,
+      );
+    }
+  }
+}
 ```
 
-### Settings: plain object, not reactive state
+### Settings load — defensive merge
 
-Settings are a plain `Settings` object persisted via `Plugin.saveData()`. There's no Svelte store wrapping it; consumers subscribe to a custom workspace event (`periodic-notes:settings-updated`) when they need to react to settings changes. Loading merges saved fields onto a cloned defaults object — new fields get defaults, removed fields are silently dropped.
+Settings are loaded by deep-merging saved data over `DEFAULT_SETTINGS`. There is **no migration path** — if the saved shape doesn't have a `granularities` key (e.g., from a pre-2.0 install), the user gets defaults. This is a deliberate choice for a single-user plugin: migration code is dead weight.
 
 ```bash
 sed -n '146,166p' src/main.ts
@@ -235,51 +226,16 @@ sed -n '146,166p' src/main.ts
   }
 ```
 
-## Domain types
-
-Four granularities, one `NoteConfig` per granularity, one `Settings` wrapper, and one `CacheEntry` value type — that's the entire domain vocabulary.
-
-```bash
-sed -n '1,22p' src/types.ts
-```
-
-```output
-import type { Moment } from "moment";
-
-export type Granularity = "day" | "week" | "month" | "year";
-export const granularities: Granularity[] = ["day", "week", "month", "year"];
-
-export interface NoteConfig {
-  enabled: boolean;
-  format: string;
-  folder: string;
-  templatePath?: string;
-}
-
-export interface Settings {
-  granularities: Record<Granularity, NoteConfig>;
-}
-
-export interface CacheEntry {
-  filePath: string;
-  date: Moment;
-  granularity: Granularity;
-  match: "filename" | "frontmatter";
-}
-```
-
 ## The cache layer
 
-The cache is the heart of the plugin. It maps between the filesystem world (file paths) and the date world (granularity + Moment), and it does so via a **dual index** so that lookups in either direction are O(1).
+The cache is the heart of the plugin and is split across three files. The split is deliberate: `cacheSearch.ts` is pure data manipulation, `cacheIndex.ts` is pure state, and `cache.ts` is the Obsidian-coupled shell.
 
-The cache is split into three files: a pure `cacheSearch.ts` with the canonical-key and binary-search helpers, a pure `cacheIndex.ts` that owns the dual-index state, and an Obsidian-coupled `cache.ts` that wires vault events into the index.
+### `cacheSearch.ts` — canonical keys and binary search
 
-### Canonical keys (`cacheSearch.ts`)
-
-A canonical key is a string derived from a granularity and a Moment. Two dates in the same week produce the same week-granularity key, because `startOf("week")` collapses them to the week's start timestamp. The `.toISOString()` suffix guarantees that string sort order matches chronological order — that's what makes binary search work.
+A canonical key is a `granularity:ISOString` pair, where the ISO string is normalized to the start of the granularity period. This is what makes O(1) lookups possible: `(day, 2026-05-01T14:33:00)` and `(day, 2026-05-01T08:00:00)` produce the same key.
 
 ```bash
-sed -n '1,27p' src/cacheSearch.ts
+cat src/cacheSearch.ts
 ```
 
 ```output
@@ -312,22 +268,18 @@ export function findAdjacentKey(
 }
 ```
 
-### Dual-index state (`cacheIndex.ts`)
+The binary search is straightforward, but **only works because canonical keys sort lexicographically in chronological order** — that's why the format string is `granularity:ISOString` and not the more obvious `ISOString:granularity`. The granularity prefix is stripped at the call site by filtering on it.
 
-`CacheIndex` is the pure kernel. Two `Map`s are the primary indexes:
+### `cacheIndex.ts` — dual-index state
 
-- `byPath`: file path → `CacheEntry`
-- `byKey`: canonical key → `CacheEntry`
-
-Plus a lazy cache of sorted key lists per granularity, with a dirty-flag set. Lookups (`get`, `getByKey`) are O(1). The sorted cache is only built (and sorted) when `findAdjacent` is called, and only for the one granularity being navigated.
-
-The `set` method enforces the invariant that `byPath` and `byKey` stay in sync, including two eviction edge cases:
+`CacheIndex` maintains three structures: `byPath` (filePath → entry, for O(1) rename/delete), `byKey` (canonicalKey → entry, for O(1) date lookup), and `sortedByGranularity` (sorted key array, for O(log n) adjacency). The sorted arrays use a dirty-flag pattern: invalidated on `set`/`remove`, rebuilt lazily on the next `findAdjacent`.
 
 ```bash
-sed -n '7,33p' src/cacheIndex.ts
+sed -n '6,33p' src/cacheIndex.ts
 ```
 
 ```output
+export class CacheIndex {
   private byPath = new Map<string, CacheEntry>();
   private byKey = new Map<string, CacheEntry>();
   private sortedByGranularity = new Map<Granularity, string[]>();
@@ -357,56 +309,56 @@ sed -n '7,33p' src/cacheIndex.ts
   }
 ```
 
-**The two eviction cases in `set()`:**
+The eviction logic in the middle is subtle: if a `set` collides on the canonical key with a different file (two files claiming to be `2026-05-01`'s daily note), the loser gets evicted from `byPath`. The dirty flag is only flipped when the *key set* actually changes — overwrites of an existing key don't invalidate the sorted array, since order is preserved.
 
-1. Same file, new date — delete the old canonical key from `byKey`, mark the old granularity dirty.
-2. Two different files claim the same canonical key (e.g., duplicate filenames in different folders parsed to the same date) — evict the loser from `byPath`. Last write wins; no user-visible error.
+### `cache.ts` — Obsidian-coupled shell
 
-The dirty flag is only added when the sorted key list would actually change — when the same file is re-set with the same key (common when Obsidian's `metadataCache:changed` fires on a save that didn't touch the date), the sorted cache stays warm.
-
-### `findAdjacent` — binary search over a lazy sorted list
+`NoteCache` extends `Component` to inherit Obsidian's lifecycle-managed event subscriptions. On `onLayoutReady` it walks every enabled granularity's folder tree, calls `resolve` on each file, and registers vault/metadata listeners.
 
 ```bash
-sed -n '67,95p' src/cacheIndex.ts
+sed -n '47,82p' src/cache.ts
 ```
 
 ```output
-  findAdjacent(
-    filePath: string,
-    direction: "forwards" | "backwards",
-  ): CacheEntry | null {
-    const curr = this.get(filePath);
-    if (!curr) return null;
+export class NoteCache extends Component {
+  private index = new CacheIndex();
 
-    const sorted = this.getSortedKeys(curr.granularity);
-    const key = canonicalKey(curr.granularity, curr.date);
-    const adjKey = findAdjacentKey(sorted, key, direction);
-    return adjKey ? (this.byKey.get(adjKey) ?? null) : null;
+  constructor(
+    readonly app: App,
+    readonly plugin: PeriodicNotesPlugin,
+  ) {
+    super();
+
+    this.app.workspace.onLayoutReady(() => {
+      console.info("[Periodic Notes] initializing cache");
+      this.initialize();
+      this.registerEvent(
+        this.app.vault.on("create", (file) => {
+          if (file instanceof TFile) this.resolve(file, "create");
+        }),
+      );
+      this.registerEvent(
+        this.app.vault.on("delete", (file) => {
+          if (file instanceof TFile) this.index.remove(file.path);
+        }),
+      );
+      this.registerEvent(this.app.vault.on("rename", this.onRename, this));
+      this.registerEvent(
+        this.app.metadataCache.on("changed", this.onMetadataChanged, this),
+      );
+      this.registerEvent(
+        this.app.workspace.on(
+          "periodic-notes:settings-updated",
+          this.reset,
+          this,
+        ),
+      );
+    });
   }
 
-  private getSortedKeys(granularity: Granularity): string[] {
-    if (!this.dirtyGranularities.has(granularity)) {
-      const cached = this.sortedByGranularity.get(granularity);
-      if (cached) return cached;
-    }
-    const prefix = `${granularity}:`;
-    const keys: string[] = [];
-    for (const k of this.byKey.keys()) {
-      if (k.startsWith(prefix)) keys.push(k);
-    }
-    keys.sort();
-    this.sortedByGranularity.set(granularity, keys);
-    this.dirtyGranularities.delete(granularity);
-    return keys;
-  }
-}
 ```
 
-### Obsidian-coupled shell (`cache.ts`)
-
-`NoteCache extends Component` and owns a `CacheIndex`. In `onLayoutReady`, it scans the configured folders, wires vault/metadata events, and listens for the `periodic-notes:settings-updated` custom event to reset.
-
-The `resolve` path is how a file becomes a periodic note. For each enabled granularity (in order day → week → month → year), it checks that the file is under the configured folder, computes a date-parseable input from the filename, tries `moment(input, formats, true)`, and if valid calls `index.set(...)`. First match wins.
+The `resolve` method tries to match a file in two ways: by parsing the filename against the configured Moment.js format(s), or by reading a frontmatter entry. **Frontmatter wins over filename** — once an entry is set as `match: "frontmatter"` it cannot be overwritten by a filename match.
 
 ```bash
 sed -n '161,201p' src/cache.ts
@@ -456,282 +408,17 @@ sed -n '161,201p' src/cache.ts
   }
 ```
 
-**Frontmatter takes priority.** If an entry already exists and its match source is `"frontmatter"`, `resolve` short-circuits — filename-based re-resolution won't overwrite a frontmatter claim. The `onMetadataChanged` handler is what creates frontmatter entries: it parses the granularity key from frontmatter (e.g., `day: 2026-04-16`) and indexes under `match: "frontmatter"`.
+The `reason === "create" && file.stat.size === 0` guard is what triggers template application: when Obsidian's "create new note" command produces an empty file in a managed folder, the plugin matches it as a periodic note and applies the configured template asynchronously. The fire-and-forget `.catch()` is intentional — `resolve` is called from a synchronous event handler.
 
-**Template application is triggered from here.** When `resolve` is called with `reason === "create"` and the file is zero bytes, it fires `applyTemplateToFile` in the background. This is a no-op for notes created via `plugin.createPeriodicNote()` (which writes rendered content at creation time) — it exists for files created by the user or other plugins that happen to match a periodic format.
+## Format and validation
 
-**`getPeriodicNote` is self-healing.** If the index has an entry but the vault no longer contains the file, the stale entry is removed and null is returned.
+`format.ts` is the project's largest pure module. It owns format-string lookup, validation, and a few path helpers.
 
 ```bash
-sed -n '203,229p' src/cache.ts
+sed -n '92,113p' src/format.ts
 ```
 
 ```output
-  public getPeriodicNote(
-    granularity: Granularity,
-    targetDate: Moment,
-  ): TFile | null {
-    const entry = this.index.getByKey(granularity, targetDate);
-    if (!entry) return null;
-    const file = this.app.vault.getAbstractFileByPath(entry.filePath);
-    if (file instanceof TFile) return file;
-    this.index.remove(entry.filePath);
-    return null;
-  }
-
-  public isPeriodic(targetPath: string, granularity?: Granularity): boolean {
-    return this.index.has(targetPath, granularity);
-  }
-
-  public find(filePath: string | undefined): CacheEntry | null {
-    return this.index.get(filePath);
-  }
-
-  public findAdjacent(
-    filePath: string,
-    direction: "forwards" | "backwards",
-  ): CacheEntry | null {
-    return this.index.findAdjacent(filePath, direction);
-  }
-}
-```
-
-## Template rendering
-
-Templates support a small DSL of `{{tokens}}` that expand to formatted Moment values. Pure rendering logic lives in `templateRender.ts`; file I/O lives in `template.ts`.
-
-### Token patterns (pre-compiled)
-
-Four static regexes handle the granularity-specific tokens. They're defined at module load rather than rebuilt per call.
-
-```bash
-sed -n '1,13p' src/templateRender.ts
-```
-
-```output
-import type { Moment } from "moment";
-
-import { WEEKDAYS } from "./constants";
-import type { Granularity } from "./types";
-
-const DATE_TIME_TOKEN =
-  /{{\s*(date|time)\s*(([-+]\d+)([ymwdhs]))?\s*(:.+?)?}}/gi;
-const MONTH_TOKEN = /{{\s*(month)\s*(([-+]\d+)([ymwdhs]))?\s*(:.+?)?}}/gi;
-const YEAR_TOKEN = /{{\s*(year)\s*(([-+]\d+)([ymwdhs]))?\s*(:.+?)?}}/gi;
-const WEEKDAY_TOKEN = new RegExp(
-  `{{\\s*(${WEEKDAYS.join("|")})\\s*:(.*?)}}`,
-  "gi",
-);
-```
-
-### `applyTemplate` — layered by granularity
-
-Universal tokens (`{{date}}`, `{{time}}`, `{{title}}`) are replaced first. Then granularity-specific branches run:
-
-- **day** — `{{yesterday}}`, `{{tomorrow}}`, and `{{date±Nunit}}` / `{{time±Nunit}}`
-- **week** — `{{monday:format}}` through `{{sunday:format}}`
-- **month** / **year** — `{{month±Nunit:format}}` / `{{year±Nunit:format}}`
-
-A token from one granularity left in another granularity's template is preserved literally — templates are not accidentally granularity-polymorphic.
-
-```bash
-sed -n '63,118p' src/templateRender.ts
-```
-
-```output
-export function applyTemplate(
-  filename: string,
-  granularity: Granularity,
-  date: Moment,
-  format: string,
-  rawTemplateContents: string,
-): string {
-  let contents = rawTemplateContents
-    .replace(/{{\s*date\s*}}/gi, filename)
-    .replace(/{{\s*time\s*}}/gi, window.moment().format("HH:mm"))
-    .replace(/{{\s*title\s*}}/gi, filename);
-
-  if (granularity === "day") {
-    contents = contents
-      .replace(
-        /{{\s*yesterday\s*}}/gi,
-        date.clone().subtract(1, "day").format(format),
-      )
-      .replace(/{{\s*tomorrow\s*}}/gi, date.clone().add(1, "d").format(format));
-    contents = replaceGranularityTokens(
-      contents,
-      date,
-      DATE_TIME_TOKEN,
-      format,
-    );
-  }
-
-  if (granularity === "week") {
-    contents = contents.replace(WEEKDAY_TOKEN, (_, dayOfWeek, momentFormat) => {
-      const day = getDayOfWeekNumericalValue(dayOfWeek);
-      return date.weekday(day).format(momentFormat.trim());
-    });
-  }
-
-  if (granularity === "month") {
-    contents = replaceGranularityTokens(
-      contents,
-      date,
-      MONTH_TOKEN,
-      format,
-      "month",
-    );
-  }
-
-  if (granularity === "year") {
-    contents = replaceGranularityTokens(
-      contents,
-      date,
-      YEAR_TOKEN,
-      format,
-      "year",
-    );
-  }
-
-  return contents;
-}
-```
-
-### Template I/O shell (`template.ts`)
-
-`readTemplate` resolves a template path via Obsidian's metadata cache and reads it. Errors log + toast + return empty string — the caller gets a rendered-but-empty note rather than a hard failure.
-
-`applyTemplateToFile` is the write path used by `NoteCache.resolve` for externally-created periodic notes. `createPeriodicNote` in `main.ts` takes a different path: it renders the template eagerly and calls `vault.create(path, rendered)` directly.
-
-```bash
-sed -n '7,49p' src/template.ts
-```
-
-```output
-export async function readTemplate(
-  app: App,
-  templatePath: string | undefined,
-  granularity: Granularity,
-): Promise<string> {
-  if (!templatePath || templatePath === "/") return "";
-  const { metadataCache, vault } = app;
-  const normalized = normalizePath(templatePath);
-
-  try {
-    const file = metadataCache.getFirstLinkpathDest(normalized, "");
-    return file ? vault.cachedRead(file) : "";
-  } catch (err) {
-    console.error(
-      `[Periodic Notes] Failed to read the ${granularity} note template '${normalized}'`,
-      err,
-    );
-    new Notice(`Failed to read the ${granularity} note template`);
-    return "";
-  }
-}
-
-export async function applyTemplateToFile(
-  app: App,
-  file: TFile,
-  settings: Settings,
-  entry: CacheEntry,
-): Promise<void> {
-  const format = getFormat(settings, entry.granularity);
-  const templateContents = await readTemplate(
-    app,
-    settings.granularities[entry.granularity].templatePath,
-    entry.granularity,
-  );
-  const rendered = applyTemplate(
-    file.basename,
-    entry.granularity,
-    entry.date,
-    format,
-    templateContents,
-  );
-  await app.vault.modify(file, rendered);
-}
-```
-
-## Format helpers
-
-`format.ts` is pure and deals with Moment format strings: fetching the configured (or default) format, generating the set of formats to try during parsing (full and basename), and validating formats.
-
-The `validateFormatComplexity` classifier is load-bearing — it detects nested paths in formats (e.g., `YYYY/YYYY-MM-DD`) and flags whether the filename alone is sufficient to parse the date, which determines how `NoteCache.getDateInput` constructs the parse input.
-
-```bash
-sed -n '9,31p' src/format.ts
-```
-
-```output
-export function getFormat(
-  settings: Settings,
-  granularity: Granularity,
-): string {
-  return (
-    settings.granularities[granularity].format || DEFAULT_FORMAT[granularity]
-  );
-}
-
-export function getPossibleFormats(
-  settings: Settings,
-  granularity: Granularity,
-): string[] {
-  const format = settings.granularities[granularity].format;
-  if (!format) return [DEFAULT_FORMAT[granularity]];
-
-  const partialFormatExp = /[^/]*$/.exec(format);
-  if (partialFormatExp) {
-    const partialFormat = partialFormatExp[0];
-    return [format, partialFormat];
-  }
-  return [format];
-}
-```
-
-```bash
-sed -n '54,107p' src/format.ts
-```
-
-```output
-export function isValidFilename(filename: string): boolean {
-  const illegalRe = /[?<>\\:*|"]/g;
-  // biome-ignore lint/suspicious/noControlCharactersInRegex: intentional filename validation
-  const controlRe = /[\x00-\x1f\x80-\x9f]/g;
-  const reservedRe = /^\.+$/;
-  const windowsReservedRe = /^(con|prn|aux|nul|com[0-9]|lpt[0-9])(\..*)?$/i;
-
-  return (
-    !illegalRe.test(filename) &&
-    !controlRe.test(filename) &&
-    !reservedRe.test(filename) &&
-    !windowsReservedRe.test(filename)
-  );
-}
-
-export function validateFormat(
-  format: string,
-  granularity: Granularity,
-): string {
-  if (!format) return "";
-  if (!isValidFilename(format)) return "Format contains illegal characters";
-
-  if (granularity === "day") {
-    const testFormattedDate = window.moment().format(format);
-    const parsedDate = window.moment(testFormattedDate, format, true);
-    if (!parsedDate.isValid()) return "Failed to parse format";
-  }
-  return "";
-}
-
-function isMissingRequiredTokens(format: string): boolean {
-  const base = getBasename(format).replace(/\[[^\]]*\]/g, "");
-  return (
-    !["M", "D"].every((t) => base.includes(t)) ||
-    !(base.includes("Y") || base.includes("y"))
-  );
-}
-
 export function validateFormatComplexity(
   format: string,
   granularity: Granularity,
@@ -748,107 +435,161 @@ export function validateFormatComplexity(
   }
   return "valid";
 }
+
+export function isIsoFormat(format: string): boolean {
+  const cleanFormat = removeEscapedCharacters(format);
+  return /w{1,2}/.test(cleanFormat);
+}
+
+```
+
+The "fragile-basename" classification handles a real-world edge case: a daily note with format `YYYY/MM/DD-dddd` (folder-nested) where the basename alone (`05-Friday`) doesn't carry enough information to parse a date. In that case `getDateInput` (in `cache.ts`) reconstructs a path-suffix string from the file's actual location.
+
+## Template rendering
+
+`templateRender.ts` is the pure half of the template system: it takes a string and returns a string. All the I/O — reading the template file, writing to the new note — lives in `template.ts`.
+
+The supported tokens are `{{date}}`, `{{time}}`, `{{title}}`, `{{yesterday}}`, `{{tomorrow}}`, `{{date+Nd:format}}` (and similar `{{month}}`/`{{year}}` arithmetic), and `{{<weekday>:format}}` for weekly notes.
+
+```bash
+sed -n '6,14p' src/templateRender.ts
+```
+
+```output
+const DATE_TIME_TOKEN =
+  /{{\s*(date|time)\s*(([-+]\d+)([ymwdhs]))?\s*(:.+?)?}}/gi;
+const MONTH_TOKEN = /{{\s*(month)\s*(([-+]\d+)([ymwdhs]))?\s*(:.+?)?}}/gi;
+const YEAR_TOKEN = /{{\s*(year)\s*(([-+]\d+)([ymwdhs]))?\s*(:.+?)?}}/gi;
+const WEEKDAY_TOKEN = new RegExp(
+  `{{\\s*(${WEEKDAYS.join("|")})\\s*:(.*?)}}`,
+  "gi",
+);
+
+```
+
+`replaceGranularityTokens` is the workhorse. It snaps `date` to the start of the relevant unit, then patches in the *current* hour/minute/second from `now` — so a token in a daily-note template references "today at the moment of creation," not midnight.
+
+```bash
+sed -n '32,61p' src/templateRender.ts
+```
+
+```output
+function replaceGranularityTokens(
+  contents: string,
+  date: Moment,
+  pattern: RegExp,
+  format: string,
+  startOfUnit?: Granularity,
+): string {
+  const now = window.moment();
+  return contents.replace(
+    pattern,
+    (_, _token, calc, timeDelta, unit, momentFormat) => {
+      const periodStart = date.clone();
+      if (startOfUnit) {
+        periodStart.startOf(startOfUnit);
+      }
+      periodStart.set({
+        hour: now.get("hour"),
+        minute: now.get("minute"),
+        second: now.get("second"),
+      });
+      if (calc) {
+        periodStart.add(parseInt(timeDelta, 10), unit);
+      }
+      if (momentFormat) {
+        return periodStart.format(momentFormat.substring(1).trim());
+      }
+      return periodStart.format(format);
+    },
+  );
+}
 ```
 
 ## Commands
 
-For each granularity, `getCommands` returns five commands: open-now, jump-next, jump-prev, open-next, open-prev. "Jump" means navigate to the nearest _existing_ periodic note (via `findAdjacent`) and notice if none exists. "Open" means navigate to the adjacent _date_, creating the note if needed (via `openPeriodicNote`).
-
-All commands use Obsidian's `checkCallback` pattern so they hide from the palette when disabled or when the active file isn't periodic.
+`commands.ts` builds five commands per granularity (open present, jump-next, jump-prev, open-next, open-prev) plus one "show calendar" command in `main.ts`. The `navCommand` helper extracts the shared `checkCallback` boilerplate so each call site only has to specify ID, name, and run-action.
 
 ```bash
-sed -n '41,80p' src/commands.ts
+sed -n '81,133p' src/commands.ts
 ```
 
 ```output
-async function jumpToAdjacentNote(
+export function getCommands(
   app: App,
   plugin: PeriodicNotesPlugin,
-  direction: "forwards" | "backwards",
-): Promise<void> {
-  const activeFile = app.workspace.getActiveFile();
-  if (!activeFile) return;
-  const meta = plugin.findInCache(activeFile.path);
-  if (!meta) return;
+  granularity: Granularity,
+): Command[] {
+  const label = granularityLabels[granularity];
 
-  const adjacent = plugin.findAdjacent(activeFile.path, direction);
-  if (adjacent) {
-    const file = app.vault.getAbstractFileByPath(adjacent.filePath);
-    if (file && file instanceof TFile) {
-      const leaf = app.workspace.getLeaf();
-      await leaf.openFile(file, { active: true });
-    }
-  } else {
-    const qualifier = direction === "forwards" ? "after" : "before";
-    new Notice(
-      `There's no ${granularityLabels[meta.granularity].periodicity} note ${qualifier} this`,
-    );
-  }
+  const navCommand = (id: string, name: string, run: () => void): Command => ({
+    id,
+    name,
+    checkCallback: (checking: boolean) => {
+      if (!plugin.settings.granularities[granularity].enabled) return false;
+      const activeFile = app.workspace.getActiveFile();
+      if (checking) {
+        if (!activeFile) return false;
+        return plugin.isPeriodic(activeFile.path, granularity);
+      }
+      run();
+    },
+  });
+
+  return [
+    {
+      id: `open-${label.periodicity}-note`,
+      name: label.labelOpenPresent,
+      checkCallback: (checking: boolean) => {
+        if (!plugin.settings.granularities[granularity].enabled) return false;
+        if (checking) return true;
+        plugin.openPeriodicNote(granularity, window.moment());
+      },
+    },
+    navCommand(
+      `next-${label.periodicity}-note`,
+      `Jump forwards to closest ${label.periodicity} note`,
+      () => jumpToAdjacentNote(app, plugin, "forwards"),
+    ),
+    navCommand(
+      `prev-${label.periodicity}-note`,
+      `Jump backwards to closest ${label.periodicity} note`,
+      () => jumpToAdjacentNote(app, plugin, "backwards"),
+    ),
+    navCommand(
+      `open-next-${label.periodicity}-note`,
+      `Open next ${label.periodicity} note`,
+      () => openAdjacentNote(app, plugin, "forwards"),
+    ),
+    navCommand(
+      `open-prev-${label.periodicity}-note`,
+      `Open previous ${label.periodicity} note`,
+      () => openAdjacentNote(app, plugin, "backwards"),
+    ),
+  ];
 }
-
-async function openAdjacentNote(
-  app: App,
-  plugin: PeriodicNotesPlugin,
-  direction: "forwards" | "backwards",
-): Promise<void> {
-  const activeFile = app.workspace.getActiveFile();
-  if (!activeFile) return;
-  const meta = plugin.findInCache(activeFile.path);
-  if (!meta) return;
-
-  const offset = direction === "forwards" ? 1 : -1;
-  const adjacentDate = meta.date.clone().add(offset, meta.granularity);
-  plugin.openPeriodicNote(meta.granularity, adjacentDate);
-}
-
 ```
+
+The two flavours of "navigate":
+
+- **`jumpToAdjacentNote`** — walks the cache to find the nearest *existing* periodic note in the chosen direction. Uses `findAdjacent` (binary search over sorted keys).
+- **`openAdjacentNote`** — opens the note for the *adjacent date* (today + 1 day, etc.), creating it if missing.
+
+Both require an active periodic file as their starting point; `checkCallback` returns false if the active file isn't periodic, so the commands grey out in the palette.
 
 ## The calendar sidebar
 
-The calendar is an Obsidian `ItemView` that mounts a Svelte 5 component tree. Two boundaries make it work:
+The calendar is the only Svelte 5 surface in the project. It is mounted into an Obsidian `ItemView` via the imperative `mount()` API.
 
-- **Obsidian ↔ Svelte via exported functions + callback props.** `CalendarView` calls `calendar.tick()` and `calendar.setActiveFilePath(path)` when Obsidian-side events fire. Svelte calls back through `onHover`, `onClick`, `onContextMenu` props for user interaction.
-- **Plugin state ↔ Svelte via a `$state` version counter.** `CalendarStore` exposes a numeric `version` field (`$state(0)`). Any vault event that might have changed the periodic-note landscape bumps the counter. `Calendar.svelte` reads `fileStore.version` inside an `$effect` so Svelte's reactivity tracks it automatically.
+### `view.ts` — the mount point
 
-### `CalendarView` (the Obsidian host)
+`CalendarView` extends `ItemView`. On `onOpen` it constructs a `CalendarStore` (the reactivity bridge) and mounts the `Calendar.svelte` root component, passing event handlers as props. The mounted component's exported `tick()` and `setActiveFilePath()` functions are stored so the view can drive them on Obsidian events.
 
 ```bash
-sed -n '14,62p' src/calendar/view.ts
+sed -n '46,63p' src/calendar/view.ts
 ```
 
 ```output
-
-export class CalendarView extends ItemView {
-  private calendar!: CalendarExports;
-  private plugin: PeriodicNotesPlugin;
-
-  constructor(leaf: WorkspaceLeaf, plugin: PeriodicNotesPlugin) {
-    super(leaf);
-    this.plugin = plugin;
-
-    this.registerEvent(
-      this.app.workspace.on("file-open", this.onFileOpen.bind(this)),
-    );
-  }
-
-  getViewType(): string {
-    return VIEW_TYPE_CALENDAR;
-  }
-
-  getDisplayText(): string {
-    return "Calendar";
-  }
-
-  getIcon(): string {
-    return "calendar-day";
-  }
-
-  async onClose(): Promise<void> {
-    if (this.calendar) {
-      unmount(this.calendar);
-    }
-  }
-
   async onOpen(): Promise<void> {
     const fileStore = new CalendarStore(this, this.plugin);
 
@@ -866,23 +607,20 @@ export class CalendarView extends ItemView {
     }
     this.calendar = cal as CalendarExports;
   }
+
 ```
 
-### `CalendarStore` — reactive data bridge
+The runtime `if (!("tick" in cal ...))` check is a workaround for the fact that Svelte 5's `mount()` returns `unknown` exports — the type system can't prove the component exposes the named functions. Issue #155 in the project's tracker is about removing this once a better Svelte typing exists.
 
-Lives in `calendarStore.svelte.ts`. The `.svelte.ts` extension is required for Svelte's compiler to process `$state` outside of a component.
+### `calendarStore.svelte.ts` — the reactivity bridge
 
-Vault events that may have changed the landscape call `bump(file)`, which increments `version` only if the affected path is still periodic. Events fired _after_ the cache has already mutated (delete, rename) use `bumpUnconditionally` to avoid the race — the fileMap re-derivation is cheap enough to run on every delete/rename, and `getPeriodicNote` self-heals stale entries.
+The store is a single `$state(0)` version counter. Vault and metadata events bump it; consumers (the calendar's `$effect`) read it to re-derive state. This is the "treat the world as a version number" pattern — coarser than fine-grained signals but trivially correct.
 
 ```bash
-sed -n '7,51p' src/calendar/calendarStore.svelte.ts
+sed -n '11,53p' src/calendar/calendarStore.svelte.ts
 ```
 
 ```output
-export default class CalendarStore {
-  // Bumped on any vault/metadata event that may have changed the
-  // periodic-note landscape. Consumers read this inside a $derived
-  // or $effect to re-compute derived state (e.g., the FileMap).
   version = $state(0);
   private plugin: PeriodicNotesPlugin;
 
@@ -924,39 +662,21 @@ export default class CalendarStore {
 
   private bumpUnconditionally(): void {
     this.version++;
+  }
+
 ```
 
-### `DisplayedMonth` — shared navigation state
+The split between `bump` (filtered) and `bumpUnconditionally` is load-bearing. For `delete`/`rename`, `NoteCache` has already removed the entry from the index by the time the calendar store runs, so `isPeriodic` returns false and the filter would skip the event. The comment in the source explains why: bump unconditionally and rely on `getPeriodicNote` to self-heal stale paths.
 
-The navigation state (which month the user is viewing) is shared between `Calendar.svelte`, `Nav.svelte`, `Day.svelte`, and `Month.svelte` via Svelte's context API with a rune-backed class. `$state.raw` is used because Moment instances are mutable third-party objects that don't benefit from the default proxy (and the write pattern is clone-and-reassign, which is what `.raw` tracks).
+### `Calendar.svelte` — the FileMap pattern
+
+The root Svelte component pre-computes a `Map<string, TFile | null>` (a `FileMap`) once per render, keyed by canonical key. Child components do `$derived` lookups against this map instead of subscribing to the store individually. This collapses what would otherwise be ~50 store subscriptions per month down to one.
 
 ```bash
-sed -n '1,6p' src/calendar/displayedMonth.svelte.ts
+sed -n '36,52p' src/calendar/Calendar.svelte
 ```
 
 ```output
-import type { Moment } from "moment";
-
-export class DisplayedMonth {
-  current = $state.raw<Moment>(window.moment());
-}
-```
-
-### The FileMap pattern
-
-`Calendar.svelte` pre-computes a `Map<string, TFile | null>` covering every cell visible in the current month (up to 42 days + 6 weeks + 1 month + 1 year). Child components (`Day`, `Week`, `Month`) do synchronous `$derived` lookups via `canonicalKey(granularity, date)` — the same key function the cache uses — instead of each running their own cache query. This replaces ~50 potential cache queries per render with one traversal.
-
-```bash
-sed -n '30,55p' src/calendar/Calendar.svelte
-```
-
-```output
-  let today: Moment = $state.raw(window.moment());
-
-  const displayedMonth = new DisplayedMonth();
-  setContext(DISPLAYED_MONTH, displayedMonth);
-
-  let month: Month = $state.raw(getMonth(window.moment()));
   let showWeeks: boolean = $state(false);
   let fileMap: FileMap = $state.raw(new Map());
 
@@ -974,16 +694,22 @@ sed -n '30,55p' src/calendar/Calendar.svelte
       fileStore.getEnabledGranularities(),
     );
   });
-
-  let eventHandlers: EventHandlers = $derived({
-    onHover,
 ```
 
+`computeFileMap` itself (in `calendar/store.ts`) is pure — it takes the month grid, a `getFile` callback, and a list of enabled granularities, and emits a flat map. Pure means directly testable with a mocked `getFile`.
+
 ```bash
-sed -n '8,42p' src/calendar/store.ts
+cat src/calendar/store.ts
 ```
 
 ```output
+import type { Moment } from "moment";
+import type { TFile } from "obsidian";
+import { canonicalKey } from "src/cacheSearch";
+import type { Granularity } from "src/types";
+
+import type { FileMap, Month } from "./types";
+
 export function computeFileMap(
   month: Month,
   getFile: (date: Moment, granularity: Granularity) => TFile | null,
@@ -1019,17 +745,94 @@ export function computeFileMap(
 }
 ```
 
-## Build and test
+The `month[1]` index is intentional: a month grid is six weeks (always 42 days, padded with leading/trailing days from adjacent months), and `month[1].days[0]` is reliably inside the displayed month — never the previous month's tail. This is the "displayed month" used to key month/year notes.
 
-### Build
+### Settings UI
 
-Vite bundles `src/main.ts` to `main.js` at the project root (CommonJS, `obsidian` and Electron built-ins externalized). A small plugin copies `src/styles.css` to `styles.css` during the build. The `outDir: "."` with `emptyOutDir: false` combination is the Obsidian plugin convention — never change it.
+`settings.ts` uses the native Obsidian `Setting` API (no Svelte) with a debounced save, surfacing live validation error text in the description element of each setting row.
 
 ```bash
-sed -n '6,33p' vite.config.ts
+sed -n '53,113p' src/settings.ts
 ```
 
 ```output
+  private addGranularitySection(
+    containerEl: HTMLElement,
+    granularity: Granularity,
+  ): void {
+    const config = this.plugin.settings.granularities[granularity];
+
+    containerEl.createEl("h3", { text: labels[granularity] });
+
+    new Setting(containerEl).setName("Enabled").addToggle((toggle) =>
+      toggle.setValue(config.enabled).onChange(async (value) => {
+        this.plugin.settings.granularities[granularity].enabled = value;
+        await this.plugin.saveSettings();
+      }),
+    );
+
+    const formatSetting = new Setting(containerEl)
+      .setName("Format")
+      .setDesc("Moment.js date format string")
+      .addText((text) => {
+        text
+          .setPlaceholder(DEFAULT_FORMAT[granularity])
+          .setValue(config.format)
+          .onChange(async (value) => {
+            const error = validateFormat(value, granularity);
+            formatSetting.descEl.setText(
+              error || "Moment.js date format string",
+            );
+            formatSetting.descEl.toggleClass("has-error", !!error);
+            this.plugin.settings.granularities[granularity].format = value;
+            this.debouncedSave();
+          });
+      });
+
+    const folderSetting = new Setting(containerEl)
+      .setName("Folder")
+      .addText((text) => {
+        text.setValue(config.folder).onChange(async (value) => {
+          const warning = validateFolder(this.app, value);
+          folderSetting.descEl.setText(warning || "");
+          folderSetting.descEl.toggleClass("has-error", !!warning);
+          this.plugin.settings.granularities[granularity].folder = value;
+          this.debouncedSave();
+        });
+        new FolderSuggest(this.app, text.inputEl);
+      });
+
+    const templateSetting = new Setting(containerEl)
+      .setName("Template")
+      .addText((text) => {
+        text.setValue(config.templatePath ?? "").onChange(async (value) => {
+          const error = validateTemplate(this.app, value);
+          templateSetting.descEl.setText(error || "");
+          templateSetting.descEl.toggleClass("has-error", !!error);
+          this.plugin.settings.granularities[granularity].templatePath =
+            value || undefined;
+          this.debouncedSave();
+        });
+        new FileSuggest(this.app, text.inputEl);
+      });
+  }
+}
+```
+
+## Build and test
+
+The build is Vite producing CommonJS output, with `obsidian` and node built-ins marked external. Output goes to the project root (`outDir: "."`) so `main.js` and `manifest.json` sit alongside `package.json` — that's the layout Obsidian expects in `.obsidian/plugins/<id>/`.
+
+```bash
+cat vite.config.ts
+```
+
+```output
+import { copyFileSync } from "node:fs";
+import path from "node:path";
+import { svelte } from "@sveltejs/vite-plugin-svelte";
+import { defineConfig } from "vite";
+
 export default defineConfig({
   plugins: [
     svelte({ emitCss: false }),
@@ -1060,59 +863,69 @@ export default defineConfig({
 });
 ```
 
+The custom `copy-styles` plugin is needed because `emitCss: false` (set on the Svelte plugin) means Svelte component CSS is inlined, but the plugin still needs a `styles.css` for non-Svelte styles. The plugin copies `src/styles.css` to the project root after each build.
+
 ### Tests
 
-Bun's native test runner is used. `bunfig.toml` preloads `src/test-preload.ts`, which stubs `window.moment` globally so pure modules that depend on Moment (but are imported outside a real Obsidian environment) still work.
-
-Pure modules — directly import-and-test:
-
-- `format.ts`, `format.test.ts`
-- `cacheSearch.ts`, `cacheSearch.test.ts`
-- `cacheIndex.ts`, `cacheIndex.test.ts`
-- `templateRender.ts`, `template.test.ts`
-- `calendar/store.ts`, `calendar/store.test.ts`
-- `calendar/utils.ts`, `calendar/utils.test.ts`
-
-Obsidian-coupled modules — cannot be imported in tests because they import `obsidian` at module load:
-
-- `main.ts`, `cache.ts`, `template.ts`, `settings.ts`, `platform.ts`, `commands.ts`
-
-`cache.test.ts` covers only the `CacheEntry` shape; the real invariant coverage lives in `cacheIndex.test.ts` against the pure inner kernel.
-
-Test count (deterministic):
+Tests use Bun's native test runner. The `bunfig.toml` preload sets up `window.moment` globally so pure modules can run without a DOM. Test files are colocated with their target modules. The project has seven test files containing this many `test`/`it` calls:
 
 ```bash
-grep -rE "^\s*(test|it)\(" src/ | grep -v "^Binary" | wc -l | tr -d " "
+grep -hcE '^\s*(test|it)\(' src/*.test.ts src/calendar/*.test.ts | awk '{s+=$1} END {print s}'
 ```
 
 ```output
 82
 ```
 
+These 82 tests cover all the pure modules: `format`, `cacheIndex`, `cacheSearch`, `templateRender`, `cache` (limited surface, mocked), `template` (limited), `calendar/store`, `calendar/utils`. The Obsidian-coupled glue in `cache.ts`, `commands.ts`, and `view.ts` is verified by hand in Obsidian.
+
+### Deploy
+
+The `deploy` script copies the three artifacts (`main.js`, `manifest.json`, `styles.css`) into a vault's plugin directory, with the destination read from `.env.local`.
+
+```bash
+cat deploy.ts
+```
+
+```output
+import { $ } from "bun";
+
+const dest = process.env.OBSIDIAN_DEPLOY_DEST;
+if (!dest) {
+  console.error("OBSIDIAN_DEPLOY_DEST not set — see .env.local");
+  process.exit(1);
+}
+
+await $`cp main.js manifest.json styles.css ${dest}`;
+console.log(`Deployed to ${dest}`);
+```
+
 ## Concerns
 
-### Code quality
+A linear walkthrough should also flag what's brittle, opinionated, or worth revisiting. The open issues tracker (`gh issue list`) is the primary source for tech-debt items the maintainer has already acknowledged.
 
-1. **`NoteCache.initialize` duplicates the per-granularity folder scan.** The loop scans each configured folder independently, so a file living at the root (or in an overlapping folder) is resolved once per enabled granularity. The `visited` `Set<TFolder>` guards against re-traversing the same folder within one pass, but not across granularities. On a large vault with overlapping folder configs, initialize could touch the same files multiple times.
+### Acknowledged in the issue tracker
 
-2. **`getFile` in `CalendarStore` and `getPeriodicNote` in `main.ts` both delegate with the same signature.** `main.ts` hides the cache as a private field, `CalendarStore` uses `this.plugin.getPeriodicNote` as its source of truth. Two names for the same operation across the same call chain.
+- **#150** — `openAdjacentNote` is `async` but doesn't `await` the inner `openPeriodicNote`. Errors are swallowed. Easy fix.
+- **#148** — `periodic-notes:resolve` fires before the template is applied (the `applyTemplateToFile` call is fire-and-forget). Subscribers see an empty file. Fixing requires either deferring the event or chaining it onto the template promise.
+- **#156** — `CacheIndex` memory scales linearly with vault size. For most users (thousands of periodic notes max) this is fine; flagged for users with very large vaults.
+- **#155** — Runtime check for `Calendar.svelte` exports is a Svelte 5 typing workaround.
+- **#154** — Locale configuration in `main.ts` could move to `src/locale.ts` for testability.
+- **#153** — Calendar code mixes `$effect` with assignment; `$derived` would be more idiomatic.
+- **#152** — Speculative `TFolder` cycle guard (`visited` set in `cache.ts:initialize`) was added defensively; the Obsidian vault tree doesn't actually have cycles.
+- **#151** — `getDateInput` could move to `format.ts` to keep `cache.ts` thinner.
+- **#149** — Settings tab has duplicated validated-text helper boilerplate.
+- **#147** — `resolveEntry` could be extracted as a pure function for direct testing.
 
-3. **`dirtyGranularities` initialization is belt-and-suspenders.** `CacheIndex`'s constructor seeds the dirty set with all four granularities even though the sorted cache is empty. `getSortedKeys` would rebuild from empty `byKey` either way. Not a bug, just redundant.
+### Further observations
 
-### Community standards
+- **No `unload`/`onunload` override** — `main.ts` doesn't override `onunload`, relying on Obsidian's `Plugin` base class to dispose of `Component` children. The cache's `Component` registration handles its own cleanup, but if a future change adds non-`Component` resources, they'll leak silently.
 
-4. **No `minAppVersion` validation at runtime.** `manifest.json` declares `minAppVersion: 1.6.0` but the plugin doesn't check it. Obsidian enforces this at install time, but users running outdated Obsidian after partial updates can hit undefined-API errors.
+- **The `getPossibleFormats` fallback** — when format includes `/`, the function returns `[fullFormat, partialFormat]` so Moment will try matching the basename alone first. This silently masks user format-string typos: a misconfigured format with a stray `/` will sometimes "work" by accident.
 
-5. **Settings migration is explicitly absent.** `loadSettings` merges saved fields onto defaults and silently drops anything else. This is intentional (per THEORY.md: "one user — no migration path needed") but a plugin published to the community registry should log a warning when saved data doesn't match the expected shape.
+- **Single-user assumptions baked in** — the README explicitly says "you probably shouldn't install this." That's accurate. Decisions like dropping migration paths (`loadSettings` resets to defaults on shape mismatch), hard-coded English fallbacks in `langToMomentLocale`, and the deploy script's reliance on the maintainer's vault layout all reflect "I am the only user" rather than "general-purpose plugin." Reading the code with that frame is essential — many "code smells" are intentional simplifications.
 
-6. **`parseFrontMatterEntry` returns `unknown` but we only handle `string`.** Other plugins might write `day: 2026-04-16` as an unquoted YAML date (parsed to a JS `Date`), array, or object. The cache silently ignores all non-string cases.
+- **No CSS scoping for the calendar** — `Calendar.svelte`'s `<style>` block uses CSS custom properties (`--color-text-day` etc.) on a wrapper class. Svelte scopes these per-component, but child components inherit through CSS variables only — the styling architecture is implicit and non-obvious to a reader.
 
-### Risks
+- **`registerView` cleanup** — `CalendarView.onClose` unmounts the Svelte component, but doesn't null out `this.calendar`. If `onClose` and `onFileOpen` ever interleave, `setActiveFilePath` could be called on a torn-down component. Probably never happens in practice; not defensively handled.
 
-7. **Event-order coupling.** `CalendarStore`'s event handlers run after `NoteCache`'s for `delete` and `rename` because the calendar sidebar registers listeners later (on sidebar open vs plugin load). The fix (unconditional bump) is correct but documents a fragile contract between two independent components. A future reorganization could silently regress this.
-
-8. **Template failures on creation are non-transactional.** `resolve` calls `applyTemplateToFile` asynchronously. If template reading fails after the file is created, the file is left empty and a Notice fires. The file is still indexed as a periodic note, so navigation works, but the template never gets retried.
-
-9. **`canonicalKey` and `fileMapKey` compute the same concept differently.** `canonicalKey` (cache side) uses `startOf(granularity).toISOString()`. `fileMapKey` (calendar side) uses `date.format(DEFAULT_FORMAT[granularity])`. For a locale where `startOf("week")` and the `gggg-[W]ww` format disagree on week numbering, these keys would diverge and the calendar would lose track of week files. Moment's internals keep them consistent in practice, but nothing in the code enforces it.
-
-10. **No integration tests.** The pure layers have good coverage (86 tests), but the full flow — `onLayoutReady` → scan vault → resolve events → template application → calendar render — has no end-to-end test. Regressions like the delete event-order bug (fixed in v2.1.0) can only be caught by manual smoke testing.
