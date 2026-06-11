@@ -1,7 +1,0 @@
-_extends: .github
-
-repository:
-  name: obsidian-periodic-notes
-  description: "Create/manage your daily, weekly, and monthly notes in Obsidian"
-  topics:
-    - obsidian-plugin
