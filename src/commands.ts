@@ -75,7 +75,7 @@ async function openAdjacentNote(
 
   const offset = direction === "forwards" ? 1 : -1;
   const adjacentDate = meta.date.clone().add(offset, meta.granularity);
-  plugin.openPeriodicNote(meta.granularity, adjacentDate);
+  await plugin.openPeriodicNote(meta.granularity, adjacentDate);
 }
 
 export function getCommands(
