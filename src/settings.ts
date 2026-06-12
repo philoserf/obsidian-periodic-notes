@@ -31,6 +31,36 @@ const labels: Record<Granularity, string> = {
   year: "Yearly Notes",
 };
 
+// How a validated periodic-note text field binds to settings: validate on
+// change, show the error (or the default description), flag the field, then
+// store the raw value and save.
+function addValidatedTextSetting(
+  containerEl: HTMLElement,
+  opts: {
+    name: string;
+    defaultDesc: string;
+    placeholder?: string;
+    value: string;
+    validate: (value: string) => string;
+    onChange: (value: string) => void;
+    attachSuggest?: (inputEl: HTMLInputElement) => void;
+  },
+): void {
+  const setting = new Setting(containerEl)
+    .setName(opts.name)
+    .setDesc(opts.defaultDesc)
+    .addText((text) => {
+      if (opts.placeholder) text.setPlaceholder(opts.placeholder);
+      text.setValue(opts.value).onChange((value) => {
+        const error = opts.validate(value);
+        setting.descEl.setText(error || opts.defaultDesc);
+        setting.descEl.toggleClass("has-error", !!error);
+        opts.onChange(value);
+      });
+      opts.attachSuggest?.(text.inputEl);
+    });
+}
+
 export class SettingsTab extends PluginSettingTab {
   private debouncedSave = debounce(() => this.plugin.saveSettings(), 500, true);
 
@@ -65,49 +95,41 @@ export class SettingsTab extends PluginSettingTab {
       }),
     );
 
-    const formatSetting = new Setting(containerEl)
-      .setName("Format")
-      .setDesc("Moment.js date format string")
-      .addText((text) => {
-        text
-          .setPlaceholder(DEFAULT_FORMAT[granularity])
-          .setValue(config.format)
-          .onChange(async (value) => {
-            const error = validateFormat(value, granularity);
-            formatSetting.descEl.setText(
-              error || "Moment.js date format string",
-            );
-            formatSetting.descEl.toggleClass("has-error", !!error);
-            this.plugin.settings.granularities[granularity].format = value;
-            this.debouncedSave();
-          });
-      });
+    addValidatedTextSetting(containerEl, {
+      name: "Format",
+      defaultDesc: "Moment.js date format string",
+      placeholder: DEFAULT_FORMAT[granularity],
+      value: config.format,
+      validate: (value) => validateFormat(value, granularity),
+      onChange: (value) => {
+        this.plugin.settings.granularities[granularity].format = value;
+        this.debouncedSave();
+      },
+    });
 
-    const folderSetting = new Setting(containerEl)
-      .setName("Folder")
-      .addText((text) => {
-        text.setValue(config.folder).onChange(async (value) => {
-          const warning = validateFolder(this.app, value);
-          folderSetting.descEl.setText(warning || "");
-          folderSetting.descEl.toggleClass("has-error", !!warning);
-          this.plugin.settings.granularities[granularity].folder = value;
-          this.debouncedSave();
-        });
-        new FolderSuggest(this.app, text.inputEl);
-      });
+    addValidatedTextSetting(containerEl, {
+      name: "Folder",
+      defaultDesc: "",
+      value: config.folder,
+      validate: (value) => validateFolder(this.app, value),
+      onChange: (value) => {
+        this.plugin.settings.granularities[granularity].folder = value;
+        this.debouncedSave();
+      },
+      attachSuggest: (inputEl) => new FolderSuggest(this.app, inputEl),
+    });
 
-    const templateSetting = new Setting(containerEl)
-      .setName("Template")
-      .addText((text) => {
-        text.setValue(config.templatePath ?? "").onChange(async (value) => {
-          const error = validateTemplate(this.app, value);
-          templateSetting.descEl.setText(error || "");
-          templateSetting.descEl.toggleClass("has-error", !!error);
-          this.plugin.settings.granularities[granularity].templatePath =
-            value || undefined;
-          this.debouncedSave();
-        });
-        new FileSuggest(this.app, text.inputEl);
-      });
+    addValidatedTextSetting(containerEl, {
+      name: "Template",
+      defaultDesc: "",
+      value: config.templatePath ?? "",
+      validate: (value) => validateTemplate(this.app, value),
+      onChange: (value) => {
+        this.plugin.settings.granularities[granularity].templatePath =
+          value || undefined;
+        this.debouncedSave();
+      },
+      attachSuggest: (inputEl) => new FileSuggest(this.app, inputEl),
+    });
   }
 }
