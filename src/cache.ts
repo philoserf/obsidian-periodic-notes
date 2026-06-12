@@ -11,12 +11,8 @@ import {
 } from "obsidian";
 
 import { CacheIndex } from "./cacheIndex";
-import {
-  extractDateStringFromPath,
-  getEnabledGranularities,
-  getFormat,
-  getPossibleFormats,
-} from "./format";
+import { resolveEntry } from "./cacheResolve";
+import { getEnabledGranularities, getFormat } from "./format";
 import type PeriodicNotesPlugin from "./main";
 import { applyTemplateToFile } from "./template";
 import type { CacheEntry, Granularity } from "./types";
@@ -37,7 +33,7 @@ export class NoteCache extends Component {
       this.initialize();
       this.registerEvent(
         this.app.vault.on("create", (file) => {
-          if (file instanceof TFile) this.resolve(file, "create");
+          if (file instanceof TFile) void this.resolve(file, "create");
         }),
       );
       this.registerEvent(
@@ -90,7 +86,7 @@ export class NoteCache extends Component {
 
       recurseChildren(rootFolder, (file) => {
         if (file instanceof TFile) {
-          this.resolve(file, "initialize");
+          void this.resolve(file, "initialize");
           const metadata = this.app.metadataCache.getFileCache(file);
           if (metadata) this.onMetadataChanged(file, "", metadata);
         }
@@ -135,54 +131,39 @@ export class NoteCache extends Component {
   private onRename(file: TAbstractFile, oldPath: string): void {
     if (file instanceof TFile) {
       this.index.remove(oldPath);
-      this.resolve(file, "rename");
+      void this.resolve(file, "rename");
     }
   }
 
-  private resolve(
+  // Runs synchronously through index.set and the trigger except on the
+  // create-with-template path, where the trigger waits for the template.
+  private async resolve(
     file: TFile,
     reason: "create" | "rename" | "initialize" = "create",
-  ): void {
+  ): Promise<void> {
     const settings = this.plugin.settings;
-    const active = getEnabledGranularities(settings);
-    if (active.length === 0) return;
+    const entry = resolveEntry(file, settings, this.index.get(file.path));
+    if (!entry) return;
 
-    const existing = this.index.get(file.path);
-    if (existing && existing.match === "frontmatter") return;
+    this.index.set(entry);
 
-    for (const granularity of active) {
-      const folder = settings.granularities[granularity].folder || "/";
-      if (!file.path.startsWith(folder === "/" ? "" : `${folder}/`)) continue;
-
-      const formats = getPossibleFormats(settings, granularity);
-      const dateInputStr = extractDateStringFromPath(
-        file,
-        formats[0],
-        granularity,
-      );
-      const date = window.moment(dateInputStr, formats, true);
-      if (date.isValid()) {
-        const entry: CacheEntry = {
-          filePath: file.path,
-          date,
-          granularity,
-          match: "filename",
-        };
-        this.index.set(entry);
-
-        if (reason === "create" && file.stat.size === 0) {
-          applyTemplateToFile(this.app, file, settings, entry).catch((err) => {
-            console.error("[Periodic Notes] failed to apply template", err);
-            new Notice(
-              `Periodic Notes: failed to apply template to "${file.path}". See console for details.`,
-            );
-          });
-        }
-
-        this.app.workspace.trigger("periodic-notes:resolve", granularity, file);
-        return;
+    if (reason === "create" && file.stat.size === 0) {
+      try {
+        await applyTemplateToFile(this.app, file, settings, entry);
+      } catch (err) {
+        console.error("[Periodic Notes] failed to apply template", err);
+        new Notice(
+          `Periodic Notes: failed to apply template to "${file.path}". See console for details.`,
+        );
       }
     }
+
+    // Fires after template application, so listeners may read file contents.
+    this.app.workspace.trigger(
+      "periodic-notes:resolve",
+      entry.granularity,
+      file,
+    );
   }
 
   public getPeriodicNote(
