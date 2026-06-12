@@ -29,7 +29,7 @@ interface OpenOpts {
 }
 
 export default class PeriodicNotesPlugin extends Plugin {
-  public settings!: Settings;
+  public declare settings: Settings;
   private ribbonEl!: HTMLElement | null;
   private cache!: NoteCache;
 
