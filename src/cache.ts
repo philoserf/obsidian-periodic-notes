@@ -12,37 +12,16 @@ import {
 
 import { CacheIndex } from "./cacheIndex";
 import {
+  extractDateStringFromPath,
   getEnabledGranularities,
   getFormat,
   getPossibleFormats,
-  removeEscapedCharacters,
-  validateFormatComplexity,
 } from "./format";
 import type PeriodicNotesPlugin from "./main";
 import { applyTemplateToFile } from "./template";
 import type { CacheEntry, Granularity } from "./types";
 
 export type { CacheEntry };
-
-function pathWithoutExtension(file: TFile): string {
-  const extLen = file.extension.length + 1;
-  return file.path.slice(0, -extLen);
-}
-
-function getDateInput(
-  file: TFile,
-  format: string,
-  granularity: Granularity,
-): string {
-  if (validateFormatComplexity(format, granularity) === "fragile-basename") {
-    const fileName = pathWithoutExtension(file);
-    const strippedFormat = removeEscapedCharacters(format);
-    const nestingLvl = (strippedFormat.match(/\//g)?.length ?? 0) + 1;
-    const pathParts = fileName.split("/");
-    return pathParts.slice(-nestingLvl).join("/");
-  }
-  return file.basename;
-}
 
 export class NoteCache extends Component {
   private index = new CacheIndex();
@@ -176,7 +155,11 @@ export class NoteCache extends Component {
       if (!file.path.startsWith(folder === "/" ? "" : `${folder}/`)) continue;
 
       const formats = getPossibleFormats(settings, granularity);
-      const dateInputStr = getDateInput(file, formats[0], granularity);
+      const dateInputStr = extractDateStringFromPath(
+        file,
+        formats[0],
+        granularity,
+      );
       const date = window.moment(dateInputStr, formats, true);
       if (date.isValid()) {
         const entry: CacheEntry = {

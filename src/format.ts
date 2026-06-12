@@ -106,6 +106,28 @@ export function validateFormatComplexity(
   return "valid";
 }
 
+// Structural subset of TFile, so this module stays importable in tests.
+export type PathParts = {
+  path: string;
+  basename: string;
+  extension: string;
+};
+
+export function extractDateStringFromPath(
+  file: PathParts,
+  format: string,
+  granularity: Granularity,
+): string {
+  if (validateFormatComplexity(format, granularity) === "fragile-basename") {
+    const withoutExtension = file.path.slice(0, -(file.extension.length + 1));
+    const strippedFormat = removeEscapedCharacters(format);
+    const nestingLvl = (strippedFormat.match(/\//g)?.length ?? 0) + 1;
+    const pathParts = withoutExtension.split("/");
+    return pathParts.slice(-nestingLvl).join("/");
+  }
+  return file.basename;
+}
+
 export function isIsoFormat(format: string): boolean {
   const cleanFormat = removeEscapedCharacters(format);
   return /w{1,2}/.test(cleanFormat);

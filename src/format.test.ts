@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { DEFAULT_SETTINGS } from "./constants";
 import {
+  extractDateStringFromPath,
   getFormat,
   getPossibleFormats,
   isIsoFormat,
@@ -131,5 +132,38 @@ describe("join", () => {
 
   test("preserves leading slash", () => {
     expect(join("/a", "b")).toBe("/a/b");
+  });
+});
+
+describe("extractDateStringFromPath", () => {
+  const file = (path: string) => {
+    const basename = path.split("/").pop()?.replace(/\.md$/, "") ?? "";
+    return { path, basename, extension: "md" };
+  };
+
+  test("returns basename for a simple format", () => {
+    expect(
+      extractDateStringFromPath(
+        file("daily/2026-06-12.md"),
+        "YYYY-MM-DD",
+        "day",
+      ),
+    ).toBe("2026-06-12");
+  });
+
+  test("returns trailing path segments for a fragile nested format", () => {
+    expect(
+      extractDateStringFromPath(
+        file("journal/2026/06/12.md"),
+        "YYYY/MM/DD",
+        "day",
+      ),
+    ).toBe("2026/06/12");
+  });
+
+  test("ignores escaped slashes when counting nesting", () => {
+    expect(
+      extractDateStringFromPath(file("notes/2026/12.md"), "YYYY/[d/]DD", "day"),
+    ).toBe("2026/12");
   });
 });
