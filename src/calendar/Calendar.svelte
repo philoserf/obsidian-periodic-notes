@@ -32,19 +32,18 @@
   const displayedMonth = new DisplayedMonth();
   setContext(DISPLAYED_MONTH, displayedMonth);
 
-  let month: Month = $state.raw(getMonth(window.moment()));
-  let showWeeks: boolean = $state(false);
-  let fileMap: FileMap = $state.raw(new Map());
+  const month: Month = $derived(getMonth(displayedMonth.current));
 
-  $effect(() => {
-    month = getMonth(displayedMonth.current);
+  const showWeeks: boolean = $derived.by(() => {
+    // Track fileStore.version so mutations re-derive.
+    void fileStore.version;
+    return fileStore.isGranularityEnabled("week");
   });
 
-  $effect(() => {
-    // Track fileStore.version so mutations re-run this effect.
+  const fileMap: FileMap = $derived.by(() => {
+    // Track fileStore.version so mutations re-derive.
     void fileStore.version;
-    showWeeks = fileStore.isGranularityEnabled("week");
-    fileMap = computeFileMap(
+    return computeFileMap(
       month,
       (date, granularity) => fileStore.getFile(date, granularity),
       fileStore.getEnabledGranularities(),
