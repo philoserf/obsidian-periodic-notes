@@ -1,5 +1,22 @@
 # Changelog
 
+## 2.2.0
+
+### Fixed
+
+- `openAdjacentNote` awaits `openPeriodicNote` (#150)
+- `periodic-notes:resolve` fires after template application on the create path, so listeners can safely read file contents (#148)
+
+### Changed
+
+- Extract pure `resolveEntry` into `cacheResolve.ts` with direct tests (#147)
+- Move date-input extraction to `format.ts` as `extractDateStringFromPath` (#151)
+- Extract locale configuration to `locale.ts` (#154)
+- Settings: validated-text helper removes Format/Folder/Template duplication (#149)
+- Calendar: `$derived` replaces `$effect`-with-assignment (#153)
+- Remove runtime check for Calendar.svelte exports (#155)
+- Update dependencies (obsidian 1.13 typings: `declare settings`)
+
 ## 2.1.1
 
 ### Fixed
