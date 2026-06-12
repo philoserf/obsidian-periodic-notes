@@ -6,6 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Obsidian plugin to create and manage daily, weekly, monthly, and yearly notes. Built with Svelte 5 (calendar only) and Vite.
 
+The current next step for this repo is tracked in the workspace backlog at `../NEXT.md` (the `obsidian-periodic-notes` row). Read it when starting work; update it when that step ships.
+
 ## Development Commands
 
 ```bash
@@ -30,13 +32,15 @@ bun test src/format.test.ts   # Run a single test file
 
 - `src/main.ts` — Plugin lifecycle, settings load/save, ribbon, commands
 - `src/settings.ts` — Native Obsidian `Setting` API settings tab
-- `src/cache.ts` — Obsidian-coupled orchestration: vault/metadata events, resolve logic, template-apply trigger (depends on obsidian)
+- `src/cache.ts` — Obsidian-coupled orchestration: vault/metadata events, resolve dispatch, template-apply trigger (depends on obsidian)
+- `src/cacheResolve.ts` — Pure resolve core: `resolveEntry(file, settings, existing)` computes the CacheEntry or null (directly testable)
 - `src/cacheIndex.ts` — Pure dual-index state (byPath + byKey) with dirty-flag sorted-key cache (directly testable)
 - `src/cacheSearch.ts` — Pure cache helpers: `canonicalKey` and `findAdjacentKey` binary search (directly testable)
 - `src/template.ts` — Template I/O: reading from vault, applying to file, creating notes (depends on obsidian)
 - `src/templateRender.ts` — Pure template token replacement (directly testable)
 - `src/format.ts` — Pure functions: format helpers, validation, path utils (directly testable)
 - `src/commands.ts` — Command factory + context menu
+- `src/locale.ts` — Obsidian-language-to-moment-locale mapping, `configureLocale()`
 - `src/constants.ts` — All constants (DEFAULT_FORMAT, WEEKDAYS, VIEW_TYPE_CALENDAR, etc.)
 - `src/types.ts` — All shared types (Granularity, NoteConfig, Settings, CacheEntry)
 - `src/platform.ts` — Platform detection helpers (isMetaPressed)
@@ -71,6 +75,7 @@ bun test src/format.test.ts   # Run a single test file
 - `getPeriodicNote` is O(1) via byKey lookup; `findAdjacent` is O(log n) warm, O(m log m) cold rebuild (m = entries in one granularity)
 - Resolves files by exact filename format or frontmatter — no loose/date-prefix matching
 - `CacheEntry`: filePath, date, granularity, match ("filename" | "frontmatter")
+- `periodic-notes:resolve` fires after the entry is indexed and — on the create path — after the template has been applied, so listeners may read file contents
 
 ### Calendar View (`src/calendar/`)
 
@@ -82,7 +87,7 @@ bun test src/format.test.ts   # Run a single test file
 ### Testing
 
 - `bunfig.toml` preload (`src/test-preload.ts`) provides `window.moment` globally
-- Pure modules — import directly in tests: `format.ts`, `cacheIndex.ts`, `cacheSearch.ts`, `templateRender.ts`, `calendar/store.ts`, `calendar/utils.ts`
+- Pure modules — import directly in tests: `format.ts`, `cacheResolve.ts`, `cacheIndex.ts`, `cacheSearch.ts`, `templateRender.ts`, `calendar/store.ts`, `calendar/utils.ts`
 - Modules that CANNOT be imported in tests (import obsidian at top level): `cache.ts`, `template.ts`, `settings.ts`, `platform.ts`, `main.ts`, `commands.ts`
 
 ### Deploy to Local Vault
