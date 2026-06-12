@@ -88,6 +88,8 @@ export class NoteCache extends Component {
 
   private initialize(): void {
     const settings = this.plugin.settings;
+    // Shared across granularities: when configured folders overlap (e.g.
+    // day in "/" and week in "daily/"), each folder is walked only once.
     const visited = new Set<TFolder>();
     const recurseChildren = (
       folder: TFolder,
