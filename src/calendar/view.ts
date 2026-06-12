@@ -46,7 +46,8 @@ export class CalendarView extends ItemView {
   async onOpen(): Promise<void> {
     const fileStore = new CalendarStore(this, this.plugin);
 
-    const cal = mount(Calendar, {
+    // svelte-check verifies Calendar.svelte's exports match this shape.
+    this.calendar = mount(Calendar, {
       target: this.contentEl,
       props: {
         fileStore,
@@ -54,11 +55,7 @@ export class CalendarView extends ItemView {
         onClick: this.onClick.bind(this),
         onContextMenu: this.onContextMenu.bind(this),
       },
-    });
-    if (!("tick" in cal && "setActiveFilePath" in cal)) {
-      throw new Error("Calendar component missing expected exports");
-    }
-    this.calendar = cal as CalendarExports;
+    }) as CalendarExports;
   }
 
   private onHover(
