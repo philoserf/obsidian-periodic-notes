@@ -1,4 +1,14 @@
 {
+  "permissions": {
+    "allow": [
+      "Bash(pdftotext *)",
+      "Bash(uvx showboat verify *)",
+      "Bash(gh label list *)",
+      "Bash(claude --version)",
+      "Bash(claude mcp list *)",
+      "mcp__apple-eventkit__calendar_list_events"
+    ]
+  },
   "hooks": {
     "PostToolUse": [
       {
