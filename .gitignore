@@ -3,6 +3,7 @@
 
 # Dependencies
 node_modules/
+.svelte-check/
 
 # Bun
 .bun/
