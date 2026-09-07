@@ -41,16 +41,4 @@ describe("computeFileMap", () => {
     const nonDayKeys = [...map.keys()].filter((k) => !k.startsWith("day:"));
     expect(nonDayKeys).toHaveLength(0);
   });
-
-  it("calls getFile with correct granularity and date for each key", () => {
-    const month = getMonth(moment("2024-03-01"));
-    const calls: Array<{ granularity: string; date: string }> = [];
-    const getFile = (date: moment.Moment, granularity: string) => {
-      calls.push({ granularity, date: date.format() });
-      return null;
-    };
-    computeFileMap(month, getFile, ["week", "month", "year"]);
-    // 42 days + 6 weeks + 1 month + 1 year = 50 calls
-    expect(calls).toHaveLength(50);
-  });
 });

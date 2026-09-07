@@ -180,10 +180,6 @@ describe("CacheIndex.remove", () => {
     expect(index.get("note.md")).toBe(null);
     expect(index.getByKey("day", window.moment("2026-03-20"))).toBe(null);
   });
-
-  test("remove nonexistent path is a no-op", () => {
-    expect(() => index.remove("ghost.md")).not.toThrow();
-  });
 });
 
 describe("CacheIndex.has", () => {

@@ -72,6 +72,35 @@ describe("findAdjacentKey", () => {
 });
 
 describe("canonicalKey", () => {
+  test("day keys differ by day", () => {
+    const k1 = canonicalKey("day", window.moment("2026-03-20"));
+    const k2 = canonicalKey("day", window.moment("2026-03-21"));
+    expect(k1).not.toBe(k2);
+  });
+
+  test("week keys match for same week", () => {
+    const k1 = canonicalKey("week", window.moment("2026-03-16"));
+    const k2 = canonicalKey("week", window.moment("2026-03-18"));
+    expect(k1).toBe(k2);
+  });
+
+  test("month keys match for same month", () => {
+    const k1 = canonicalKey("month", window.moment("2026-03-01"));
+    const k2 = canonicalKey("month", window.moment("2026-03-31"));
+    expect(k1).toBe(k2);
+  });
+
+  // Load-bearing: CacheIndex.findAdjacent sorts these keys as plain strings to
+  // walk to the neighbouring note, so chronological order has to survive the
+  // string comparison.
+  test("keys sort chronologically", () => {
+    const k20 = canonicalKey("day", window.moment("2026-03-20"));
+    const k21 = canonicalKey("day", window.moment("2026-03-21"));
+    const k22 = canonicalKey("day", window.moment("2026-03-22"));
+    const sorted = [k22, k20, k21].sort();
+    expect(sorted).toEqual([k20, k21, k22]);
+  });
+
   test("builds a key from a valid date", () => {
     expect(canonicalKey("day", window.moment("2026-03-20"))).toContain("day:");
   });

@@ -1,5 +1,5 @@
 import type { Moment } from "moment";
-import type { Component, TAbstractFile, TFile } from "obsidian";
+import type { Component, TFile } from "obsidian";
 
 import { getEnabledGranularities } from "src/format";
 import type PeriodicNotesPlugin from "src/main";
@@ -26,38 +26,25 @@ export default class CalendarStore {
     plugin.app.workspace.onLayoutReady(() => {
       if (closed) return;
       const { vault, metadataCache, workspace } = plugin.app;
-      component.registerEvent(vault.on("create", this.bump, this));
-      // Delete and rename fire after NoteCache's handler, which already
-      // removed the old entry from the index. isPeriodic(path) can return
-      // false even for a file that was just a periodic note, so bump
-      // unconditionally — every NoteCache read path self-heals stale entries.
-      component.registerEvent(
-        vault.on("delete", this.bumpUnconditionally, this),
-      );
-      component.registerEvent(
-        vault.on("rename", this.bumpUnconditionally, this),
-      );
+      component.registerEvent(vault.on("delete", this.bump, this));
+      component.registerEvent(vault.on("rename", this.bump, this));
       component.registerEvent(metadataCache.on("changed", this.bump, this));
       component.registerEvent(
-        workspace.on("periodic-notes:resolve", this.bumpUnconditionally, this),
+        workspace.on("periodic-notes:resolve", this.bump, this),
       );
       component.registerEvent(
-        workspace.on(
-          "periodic-notes:settings-updated",
-          this.bumpUnconditionally,
-          this,
-        ),
+        workspace.on("periodic-notes:settings-updated", this.bump, this),
       );
       this.bump();
     });
   }
 
-  private bump(file?: TAbstractFile): void {
-    if (file && !this.plugin.cache.isPeriodic(file.path)) return;
-    this.version++;
-  }
-
-  private bumpUnconditionally(): void {
+  // Unguarded, and every registration uses it. Filtering on
+  // cache.isPeriodic(file.path) only skipped a re-derive of computeFileMap — a
+  // 50-entry Map of Map.get lookups — and cost a second method, four lines of
+  // comment, and a read of NoteCache's index that made this store's correctness
+  // depend on NoteCache having wired its own listeners first (#178).
+  private bump(): void {
     this.version++;
   }
 
