@@ -11,12 +11,16 @@
   let {
     fileMap,
     today,
-    eventHandlers,
+    onHover,
+    onClick,
+    onContextMenu,
     activeFilePath = null,
   }: {
     fileMap: FileMap;
     today: Moment;
-    eventHandlers: EventHandlers;
+    onHover: EventHandlers["onHover"];
+    onClick: EventHandlers["onClick"];
+    onContextMenu: EventHandlers["onContextMenu"];
     activeFilePath: string | null;
   } = $props();
 
@@ -51,7 +55,14 @@
 </script>
 
 <div class="nav">
-  <Month {fileMap} {resetDisplayedMonth} {activeFilePath} {...eventHandlers} />
+  <Month
+    {fileMap}
+    {resetDisplayedMonth}
+    {activeFilePath}
+    {onHover}
+    {onClick}
+    {onContextMenu}
+  />
   <div class="right-nav">
     <Arrow
       direction="left"

@@ -52,12 +52,6 @@
     ),
   );
 
-  let eventHandlers: EventHandlers = $derived({
-    onHover,
-    onClick,
-    onContextMenu,
-  });
-
   const daysOfWeek: string[] = window.moment.weekdaysShort(true);
 
   export function tick() {
@@ -73,7 +67,7 @@
 </script>
 
 <div id="calendar-container" class="container">
-  <Nav {fileMap} {today} {eventHandlers} {activeFilePath} />
+  <Nav {fileMap} {today} {onHover} {onClick} {onContextMenu} {activeFilePath} />
   <table class="calendar">
     <colgroup>
       {#if showWeeks}
@@ -101,7 +95,9 @@
               {fileMap}
               {activeFilePath}
               {...week}
-              {...eventHandlers}
+              {onHover}
+              {onClick}
+              {onContextMenu}
             />
           {/if}
           {#each week.days as day (day.format())}
@@ -111,7 +107,9 @@
               {today}
               {activeFilePath}
               {dayEnabled}
-              {...eventHandlers}
+              {onHover}
+              {onClick}
+              {onContextMenu}
             />
           {/each}
         </tr>

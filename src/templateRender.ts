@@ -12,23 +12,6 @@ const WEEKDAY_TOKEN = new RegExp(
   "gi",
 );
 
-function getDaysOfWeek(): string[] {
-  const { moment } = window;
-  let weekStart = moment.localeData().firstDayOfWeek();
-  const daysOfWeek = [...WEEKDAYS];
-  while (weekStart) {
-    const day = daysOfWeek.shift();
-    if (day) daysOfWeek.push(day);
-    weekStart--;
-  }
-  return daysOfWeek;
-}
-
-function getDayOfWeekNumericalValue(dayOfWeekName: string): number {
-  const index = getDaysOfWeek().indexOf(dayOfWeekName.toLowerCase());
-  return Math.max(0, index);
-}
-
 function replaceGranularityTokens(
   contents: string,
   date: Moment,
@@ -101,7 +84,14 @@ export function applyTemplate(
 
   if (granularity === "week") {
     contents = contents.replace(WEEKDAY_TOKEN, (_, dayOfWeek, momentFormat) => {
-      const day = getDayOfWeekNumericalValue(dayOfWeek);
+      // WEEKDAYS is Sunday-first but .weekday() counts from the locale's
+      // first day, so the name's position has to be rotated back by it. The
+      // token regex is built from WEEKDAYS, so indexOf cannot miss.
+      const day =
+        (WEEKDAYS.indexOf(dayOfWeek.toLowerCase()) -
+          window.moment.localeData().firstDayOfWeek() +
+          7) %
+        7;
       // .weekday() mutates and returns the same instance. `date` may be the
       // Moment held by a CacheEntry, whose canonical key would then no longer
       // match the key it is indexed under.

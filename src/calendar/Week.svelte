@@ -29,12 +29,12 @@
 
   function handleContextmenu(event: MouseEvent) {
     event.preventDefault();
-    onContextMenu?.("week", startOfWeek, file, event);
+    onContextMenu(file, event);
   }
 
   function handleHover(event: PointerEvent) {
     if (event.target) {
-      onHover?.("week", startOfWeek, file, event.target, isMetaPressed(event));
+      onHover("week", startOfWeek, file, event.target, isMetaPressed(event));
     }
   }
 </script>
@@ -45,10 +45,8 @@
     tabindex="0"
     class="week-num"
     class:active={file !== null && file.path === activeFilePath}
-    onclick={onClick &&
-      ((e) => onClick("week", startOfWeek, file, isMetaPressed(e)))}
-    onkeydown={onClick &&
-      activateOnKey(() => onClick("week", startOfWeek, file, false))}
+    onclick={(e) => onClick("week", startOfWeek, isMetaPressed(e))}
+    onkeydown={activateOnKey(() => onClick("week", startOfWeek, false))}
     oncontextmenu={handleContextmenu}
     onpointerenter={handleHover}
   >

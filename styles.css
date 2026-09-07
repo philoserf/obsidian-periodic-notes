@@ -1,8 +1,3 @@
 .has-error {
   color: var(--text-error);
 }
-
-input.has-error {
-  color: var(--text-error);
-  border-color: var(--text-error);
-}

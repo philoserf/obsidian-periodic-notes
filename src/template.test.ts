@@ -1,8 +1,15 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, test } from "bun:test";
 
 import { applyTemplate } from "./templateRender";
 
 describe("applyTemplate", () => {
+  // moment's locale is global and test-preload.ts shares one instance across
+  // every file, so a leaked locale changes firstDayOfWeek() for whatever runs
+  // next and the failure surfaces somewhere unrelated.
+  afterEach(() => {
+    window.moment.locale("en");
+  });
+
   test("replaces date token", () => {
     const result = applyTemplate(
       "2026-03-20",
@@ -47,6 +54,37 @@ describe("applyTemplate", () => {
       "Mon: {{monday:YYYY-MM-DD}}",
     );
     expect(result).toMatch(/^\w+: \d{4}-\d{2}-\d{2}$/);
+  });
+
+  test("weekday tokens resolve to the right day of the displayed week", () => {
+    // The shape assertion above passes for any date in any week, which is not
+    // enough to catch an off-by-one in the weekday index. 2026-03-16 is itself
+    // a Monday, so a Sunday-first week runs 03-15 to 03-21.
+    const result = applyTemplate(
+      "2026-W12",
+      "week",
+      window.moment("2026-03-16"),
+      "gggg-[W]ww",
+      "{{sunday:YYYY-MM-DD}} {{monday:YYYY-MM-DD}} {{friday:YYYY-MM-DD}}",
+    );
+    expect(result).toBe("2026-03-15 2026-03-16 2026-03-20");
+  });
+
+  test("weekday tokens follow the locale's first day of the week", () => {
+    // The whole point of mapping a weekday name to a moment weekday index is
+    // that the index is relative to firstDayOfWeek(). test-preload.ts sets no
+    // locale, so every other test runs Sunday-first and never exercises it.
+    // Under a Monday-first locale the same week runs 03-16 to 03-22, which
+    // moves Sunday to the far end.
+    window.moment.locale("en-gb");
+    const result = applyTemplate(
+      "2026-W12",
+      "week",
+      window.moment("2026-03-16"),
+      "gggg-[W]ww",
+      "{{sunday:YYYY-MM-DD}} {{monday:YYYY-MM-DD}} {{friday:YYYY-MM-DD}}",
+    );
+    expect(result).toBe("2026-03-22 2026-03-16 2026-03-20");
   });
 
   test("leaves the caller's date untouched", () => {

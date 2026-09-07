@@ -68,7 +68,11 @@ export default class PeriodicNotesPlugin extends Plugin {
     this.addSettingTab(new SettingsTab(this.app, this));
 
     this.configureRibbonIcons();
-    this.configureCommands();
+    for (const granularity of granularities) {
+      getCommands(this.app, this, granularity).forEach(
+        this.addCommand.bind(this),
+      );
+    }
 
     this.registerView(
       VIEW_TYPE_CALENDAR,
@@ -143,14 +147,6 @@ export default class PeriodicNotesPlugin extends Plugin {
         showContextMenu(this, { x: e.pageX, y: e.pageY });
       });
       this.ribbonEls.push(el);
-    }
-  }
-
-  private configureCommands(): void {
-    for (const granularity of granularities) {
-      getCommands(this.app, this, granularity).forEach(
-        this.addCommand.bind(this),
-      );
     }
   }
 
