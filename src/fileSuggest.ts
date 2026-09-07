@@ -5,62 +5,32 @@ import {
   type TFolder,
 } from "obsidian";
 
-export class FileSuggest extends AbstractInputSuggest<TFile> {
-  private onSelectCallback?: (value: string) => void;
-
+/**
+ * One suggester for both the Folder and Template fields — they differ only in
+ * which vault lookup supplies the candidates. Selection is handled by the
+ * caller through AbstractInputSuggest.onSelect: overriding selectSuggestion to
+ * call setValue persists nothing, because setValue assigns inputEl.value
+ * without dispatching the "input" event that Setting.addText listens for.
+ */
+export class PathSuggest<
+  T extends TFile | TFolder,
+> extends AbstractInputSuggest<T> {
   constructor(
     app: App,
     inputEl: HTMLInputElement,
-    onSelectCallback?: (value: string) => void,
+    private readonly getAll: () => T[],
   ) {
     super(app, inputEl);
-    this.onSelectCallback = onSelectCallback;
   }
 
-  getSuggestions(query: string): TFile[] {
+  getSuggestions(query: string): T[] {
     const lowerQuery = query.toLowerCase();
-    return this.app.vault
-      .getMarkdownFiles()
-      .filter((file) => file.path.toLowerCase().contains(lowerQuery));
+    return this.getAll().filter((item) =>
+      item.path.toLowerCase().contains(lowerQuery),
+    );
   }
 
-  renderSuggestion(file: TFile, el: HTMLElement): void {
-    el.setText(file.path);
-  }
-
-  selectSuggestion(file: TFile): void {
-    this.setValue(file.path);
-    this.onSelectCallback?.(file.path);
-    this.close();
-  }
-}
-
-export class FolderSuggest extends AbstractInputSuggest<TFolder> {
-  private onSelectCallback?: (value: string) => void;
-
-  constructor(
-    app: App,
-    inputEl: HTMLInputElement,
-    onSelectCallback?: (value: string) => void,
-  ) {
-    super(app, inputEl);
-    this.onSelectCallback = onSelectCallback;
-  }
-
-  getSuggestions(query: string): TFolder[] {
-    const lowerQuery = query.toLowerCase();
-    return this.app.vault
-      .getAllFolders()
-      .filter((folder) => folder.path.toLowerCase().contains(lowerQuery));
-  }
-
-  renderSuggestion(folder: TFolder, el: HTMLElement): void {
-    el.setText(folder.path);
-  }
-
-  selectSuggestion(folder: TFolder): void {
-    this.setValue(folder.path);
-    this.onSelectCallback?.(folder.path);
-    this.close();
+  renderSuggestion(item: T, el: HTMLElement): void {
+    el.setText(item.path);
   }
 }
