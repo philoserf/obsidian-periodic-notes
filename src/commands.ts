@@ -45,10 +45,10 @@ async function jumpToAdjacentNote(
 ): Promise<void> {
   const activeFile = app.workspace.getActiveFile();
   if (!activeFile) return;
-  const meta = plugin.findInCache(activeFile.path);
+  const meta = plugin.cache.find(activeFile.path);
   if (!meta) return;
 
-  const adjacent = plugin.findAdjacent(activeFile.path, direction);
+  const adjacent = plugin.cache.findAdjacent(activeFile.path, direction);
   if (adjacent) {
     const file = app.vault.getAbstractFileByPath(adjacent.filePath);
     if (file && file instanceof TFile) {
@@ -70,7 +70,7 @@ async function openAdjacentNote(
 ): Promise<void> {
   const activeFile = app.workspace.getActiveFile();
   if (!activeFile) return;
-  const meta = plugin.findInCache(activeFile.path);
+  const meta = plugin.cache.find(activeFile.path);
   if (!meta) return;
 
   const offset = direction === "forwards" ? 1 : -1;
@@ -93,7 +93,7 @@ export function getCommands(
       const activeFile = app.workspace.getActiveFile();
       if (checking) {
         if (!activeFile) return false;
-        return plugin.isPeriodic(activeFile.path, granularity);
+        return plugin.cache.isPeriodic(activeFile.path, granularity);
       }
       run();
     },

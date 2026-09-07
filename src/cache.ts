@@ -178,11 +178,11 @@ export class NoteCache extends Component {
     );
   }
 
-  public getPeriodicNote(
-    granularity: Granularity,
-    targetDate: Moment,
-  ): TFile | null {
-    const entry = this.index.getByKey(granularity, targetDate);
+  // The index can outlive the file it points at — a delete event missed or
+  // arriving out of order is enough. Every read path resolves the entry against
+  // the vault and drops it if the file is gone, so the cache heals itself no
+  // matter which method the caller reached for.
+  private fileFor(entry: CacheEntry | null): TFile | null {
     if (!entry) return null;
     const file = this.app.vault.getAbstractFileByPath(entry.filePath);
     if (file instanceof TFile) return file;
@@ -190,18 +190,40 @@ export class NoteCache extends Component {
     return null;
   }
 
+  private verify(entry: CacheEntry | null): CacheEntry | null {
+    return this.fileFor(entry) ? entry : null;
+  }
+
+  public getPeriodicNote(
+    granularity: Granularity,
+    targetDate: Moment,
+  ): TFile | null {
+    return this.fileFor(this.index.getByKey(granularity, targetDate));
+  }
+
   public isPeriodic(targetPath: string, granularity?: Granularity): boolean {
-    return this.index.has(targetPath, granularity);
+    const entry = this.verify(this.index.get(targetPath));
+    if (!entry) return false;
+    return !granularity || entry.granularity === granularity;
   }
 
   public find(filePath: string | undefined): CacheEntry | null {
-    return this.index.get(filePath);
+    return this.verify(this.index.get(filePath));
   }
 
   public findAdjacent(
     filePath: string,
     direction: "forwards" | "backwards",
   ): CacheEntry | null {
-    return this.index.findAdjacent(filePath, direction);
+    // A stale neighbour must not end the search: the note after it may well
+    // exist, and returning null here is how "jump forwards" fails silently.
+    // Each miss removes one entry, which dirties the sorted keys, so the next
+    // pass sees a shorter list and the loop terminates.
+    for (;;) {
+      const entry = this.index.findAdjacent(filePath, direction);
+      if (!entry) return null;
+      const verified = this.verify(entry);
+      if (verified) return verified;
+    }
   }
 }

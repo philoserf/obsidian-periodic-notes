@@ -20,7 +20,7 @@ export default class CalendarStore {
       // Delete and rename fire after NoteCache's handler, which already
       // removed the old entry from the index. isPeriodic(path) can return
       // false even for a file that was just a periodic note, so bump
-      // unconditionally — getPeriodicNote self-heals stale entries.
+      // unconditionally — every NoteCache read path self-heals stale entries.
       component.registerEvent(
         vault.on("delete", this.bumpUnconditionally, this),
       );
@@ -43,7 +43,7 @@ export default class CalendarStore {
   }
 
   private bump(file?: TAbstractFile): void {
-    if (file && !this.plugin.isPeriodic(file.path)) return;
+    if (file && !this.plugin.cache.isPeriodic(file.path)) return;
     this.version++;
   }
 
@@ -52,7 +52,7 @@ export default class CalendarStore {
   }
 
   public getFile(date: Moment, granularity: Granularity): TFile | null {
-    return this.plugin.getPeriodicNote(granularity, date);
+    return this.plugin.cache.getPeriodicNote(granularity, date);
   }
 
   public isGranularityEnabled(granularity: Granularity): boolean {
