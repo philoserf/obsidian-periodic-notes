@@ -1,4 +1,4 @@
-import { type App, Notice, normalizePath, type TFile } from "obsidian";
+import { type App, Notice, normalizePath, type TFile, TFolder } from "obsidian";
 
 import { getFormat } from "./format";
 import { buildNotePath } from "./paths";
@@ -16,7 +16,10 @@ export async function readTemplate(
 
   try {
     const file = metadataCache.getFirstLinkpathDest(normalized, "");
-    return file ? vault.cachedRead(file) : "";
+    // Awaited, not returned: returning the promise completes the try block, so
+    // a later rejection has nothing to catch it and the specific error this
+    // function exists to report is lost.
+    return file ? await vault.cachedRead(file) : "";
   } catch (err) {
     console.error(
       `[Periodic Notes] Failed to read the ${granularity} note template '${normalized}'`,
@@ -72,8 +75,27 @@ async function ensureFolderExists(app: App, path: string): Promise<void> {
   let current = "";
   for (const dir of dirs) {
     current = current ? `${current}/${dir}` : dir;
-    if (!app.vault.getAbstractFileByPath(current)) {
+    const existing = app.vault.getAbstractFileByPath(current);
+    if (existing instanceof TFolder) continue;
+
+    // Asking only whether *something* is here would skip the create and let
+    // note creation fail later with an error naming the leaf path, saying
+    // nothing about the file sitting where a folder belongs.
+    if (existing) {
+      throw new Error(
+        `Cannot create folder "${current}": a file already exists there`,
+      );
+    }
+
+    try {
       await app.vault.createFolder(current);
+    } catch (err) {
+      // A second granularity creating into the same new folder, or Obsidian
+      // Sync, can win the race between the check above and this call. Only a
+      // genuine failure leaves nothing behind.
+      if (!(app.vault.getAbstractFileByPath(current) instanceof TFolder)) {
+        throw err;
+      }
     }
   }
 }
