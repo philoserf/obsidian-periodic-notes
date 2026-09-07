@@ -1,8 +1,6 @@
 <script lang="ts">
-  import type { TFile } from "obsidian";
   import { getContext } from "svelte";
 
-  import type { Granularity } from "src/types";
   import { isMetaPressed } from "src/platform";
   import { DISPLAYED_MONTH } from "src/constants";
   import { canonicalKey } from "src/cacheSearch";
@@ -28,106 +26,80 @@
 
   const displayedMonth = getContext<DisplayedMonth>(DISPLAYED_MONTH);
 
-  let monthKey = $derived(canonicalKey("month", displayedMonth.current));
-  let yearKey = $derived(canonicalKey("year", displayedMonth.current));
-  let monthEnabled = $derived(fileMap.has(monthKey));
-  let yearEnabled = $derived(fileMap.has(yearKey));
-  let monthFile = $derived(fileMap.get(monthKey) ?? null);
-  let yearFile = $derived(fileMap.get(yearKey) ?? null);
-  let monthActive = $derived(
-    monthFile !== null && monthFile.path === activeFilePath,
-  );
-  let yearActive = $derived(
-    yearFile !== null && yearFile.path === activeFilePath,
-  );
+  // "MMM" and "YYYY" are the two titles; everything else about them is the
+  // same shape, so it is derived once per granularity rather than twice by
+  // hand. Keyed by granularity so the each block reuses the spans.
+  const TITLES = [
+    { granularity: "month", format: "MMM" },
+    { granularity: "year", format: "YYYY" },
+  ] as const;
 
-  // A disabled title has no note to open, so both fall back to jumping the
-  // calendar home. The year branch used to do nothing, which was the only
-  // inconsistency between the two.
-  function activate(granularity: Granularity) {
-    const enabled = granularity === "month" ? monthEnabled : yearEnabled;
-    if (!enabled) {
-      resetDisplayedMonth();
-      return;
-    }
-    onClick(granularity, displayedMonth.current, false);
-  }
+  const titles = $derived(
+    TITLES.map(({ granularity, format }) => {
+      const key = canonicalKey(granularity, displayedMonth.current);
+      // Presence in the map is the enabled signal for month and year, where a
+      // day cell gets an explicit prop — see THEORY.md on the two signals.
+      const enabled = fileMap.has(key);
+      const file = fileMap.get(key) ?? null;
 
-  function makeHandlers(
-    granularity: Granularity,
-    getEnabled: () => boolean,
-    getFile: () => TFile | null,
-  ) {
-    return {
-      click: (event: MouseEvent) => {
-        if (getEnabled()) {
-          onClick(granularity, displayedMonth.current, isMetaPressed(event));
-        } else {
+      // A disabled title has no note to open, so both fall back to jumping the
+      // calendar home. The year branch used to do nothing, which was the only
+      // inconsistency between the two.
+      const open = (inNewSplit: boolean) => {
+        if (!enabled) {
           resetDisplayedMonth();
+          return;
         }
-      },
-      hover: (event: PointerEvent) => {
-        if (!getEnabled() || !event.target) return;
-        onHover(
-          granularity,
-          displayedMonth.current,
-          getFile(),
-          event.target,
-          isMetaPressed(event),
-        );
-      },
-      context: (event: MouseEvent) => {
-        const f = getFile();
-        if (!getEnabled() || !f) return;
-        // Otherwise the native menu can appear alongside the custom one.
-        event.preventDefault();
-        onContextMenu(f, event);
-      },
-    };
-  }
+        onClick(granularity, displayedMonth.current, inNewSplit);
+      };
 
-  const monthH = makeHandlers(
-    "month",
-    () => monthEnabled,
-    () => monthFile,
-  );
-  const yearH = makeHandlers(
-    "year",
-    () => yearEnabled,
-    () => yearFile,
+      return {
+        granularity,
+        label: displayedMonth.current.format(format),
+        enabled,
+        active: file !== null && file.path === activeFilePath,
+        click: (event: MouseEvent) => open(isMetaPressed(event)),
+        key: activateOnKey(() => open(false)),
+        hover: (event: PointerEvent) => {
+          if (!enabled || !event.target) return;
+          onHover(
+            granularity,
+            displayedMonth.current,
+            file,
+            event.target,
+            isMetaPressed(event),
+          );
+        },
+        context: (event: MouseEvent) => {
+          if (!enabled || !file) return;
+          // Otherwise the native menu can appear alongside the custom one.
+          event.preventDefault();
+          onContextMenu(file, event);
+        },
+      };
+    }),
   );
 </script>
 
 <div>
   <span class="title">
-    <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-    <span
-      class="month"
-      class:clickable={monthEnabled}
-      class:active={monthActive}
-      role={monthEnabled ? "button" : undefined}
-      tabindex={monthEnabled ? 0 : undefined}
-      onclick={monthH.click}
-      onkeydown={activateOnKey(() => activate("month"))}
-      oncontextmenu={monthH.context}
-      onpointerenter={monthH.hover}
-    >
-      {displayedMonth.current.format("MMM")}
-    </span>
-    <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-    <span
-      class="year"
-      class:clickable={yearEnabled}
-      class:active={yearActive}
-      role={yearEnabled ? "button" : undefined}
-      tabindex={yearEnabled ? 0 : undefined}
-      onclick={yearH.click}
-      onkeydown={activateOnKey(() => activate("year"))}
-      oncontextmenu={yearH.context}
-      onpointerenter={yearH.hover}
-    >
-      {displayedMonth.current.format("YYYY")}
-    </span>
+    {#each titles as title (title.granularity)}
+      <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+      <span
+        class:month={title.granularity === "month"}
+        class:year={title.granularity === "year"}
+        class:clickable={title.enabled}
+        class:active={title.active}
+        role={title.enabled ? "button" : undefined}
+        tabindex={title.enabled ? 0 : undefined}
+        onclick={title.click}
+        onkeydown={title.key}
+        oncontextmenu={title.context}
+        onpointerenter={title.hover}
+      >
+        {title.label}
+      </span>
+    {/each}
   </span>
 </div>
 
