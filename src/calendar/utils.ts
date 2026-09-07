@@ -1,16 +1,8 @@
 import type { Moment } from "moment";
 import type { Month, Week } from "./types";
 
-export function getWeekdayLabels(): string[] {
-  return window.moment.weekdaysShort(true);
-}
-
 export function isWeekend(date: Moment): boolean {
   return date.isoWeekday() === 6 || date.isoWeekday() === 7;
-}
-
-export function getStartOfWeek(days: Moment[]): Moment {
-  return days[0].clone();
 }
 
 export function getMonth(displayedMonth: Moment): Month {

@@ -60,7 +60,7 @@ export async function getNoteCreationPath(
   filename: string,
   config: NoteConfig,
 ): Promise<string> {
-  const directory = config.folder ?? "";
+  const directory = config.folder;
   const filenameWithExt = !filename.endsWith(".md")
     ? `${filename}.md`
     : filename;

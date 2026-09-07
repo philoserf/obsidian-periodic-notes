@@ -1,13 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import moment from "moment";
 
-import {
-  activateOnKey,
-  getMonth,
-  getStartOfWeek,
-  getWeekdayLabels,
-  isWeekend,
-} from "./utils";
+import { activateOnKey, getMonth, isWeekend } from "./utils";
 
 describe("getMonth", () => {
   it("always returns exactly 6 weeks (42 days)", () => {
@@ -72,26 +66,6 @@ describe("isWeekend", () => {
   it("returns false for a weekday", () => {
     expect(isWeekend(moment("2024-02-26"))).toBe(false);
     expect(isWeekend(moment("2024-02-22"))).toBe(false);
-  });
-});
-
-describe("getStartOfWeek", () => {
-  it("returns a clone of the first day in the array", () => {
-    const days = [moment("2024-02-26"), moment("2024-02-27")];
-    const start = getStartOfWeek(days);
-    expect(start.isSame(days[0], "day")).toBe(true);
-    expect(start).not.toBe(days[0]);
-  });
-});
-
-describe("getWeekdayLabels", () => {
-  it("returns 7 abbreviated day names", () => {
-    const names = getWeekdayLabels();
-    expect(names).toHaveLength(7);
-    for (const name of names) {
-      expect(typeof name).toBe("string");
-      expect(name.length).toBeGreaterThan(0);
-    }
   });
 });
 

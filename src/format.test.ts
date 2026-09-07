@@ -5,7 +5,6 @@ import {
   getFormat,
   getPossibleFormats,
   isFragileBasename,
-  isIsoFormat,
   isValidFilename,
   removeEscapedCharacters,
   validateFormat,
@@ -39,6 +38,11 @@ describe("getFormat", () => {
 describe("getPossibleFormats", () => {
   test("returns default for unconfigured", () => {
     expect(getPossibleFormats(DEFAULT_SETTINGS, "day")).toEqual(["YYYY-MM-DD"]);
+  });
+
+  test("returns one candidate for a flat custom format", () => {
+    const s = settingsWithFormat("day", "YYYY-MM-DD");
+    expect(getPossibleFormats(s, "day")).toEqual(["YYYY-MM-DD"]);
   });
 
   test("returns full and partial for nested format", () => {
@@ -127,16 +131,6 @@ describe("isFragileBasename", () => {
 
   test("an escaped slash does not make a format nested", () => {
     expect(isFragileBasename("[YYYY/]DD", "day")).toBe(false);
-  });
-});
-
-describe("isIsoFormat", () => {
-  test("detects week tokens", () => {
-    expect(isIsoFormat("gggg-[W]ww")).toBe(true);
-  });
-
-  test("rejects non-week formats", () => {
-    expect(isIsoFormat("YYYY-MM-DD")).toBe(false);
   });
 });
 

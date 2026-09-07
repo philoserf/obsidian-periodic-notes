@@ -5,7 +5,7 @@ import { NoteCache } from "./cache";
 import { CalendarView } from "./calendar/view";
 import { getCommands, granularityLabels, showContextMenu } from "./commands";
 import { VIEW_TYPE_CALENDAR } from "./constants";
-import { getConfig, getEnabledGranularities, getFormat } from "./format";
+import { getEnabledGranularities, getFormat } from "./format";
 import {
   calendarDayIcon,
   calendarMonthIcon,
@@ -65,7 +65,6 @@ export default class PeriodicNotesPlugin extends Plugin {
     // disabled plugin goes on applying templates to newly created files.
     this.cache = this.addChild(new NoteCache(this.app, this));
 
-    this.openPeriodicNote = this.openPeriodicNote.bind(this);
     this.addSettingTab(new SettingsTab(this.app, this));
 
     this.configureRibbonIcons();
@@ -179,7 +178,7 @@ export default class PeriodicNotesPlugin extends Plugin {
     granularity: Granularity,
     date: Moment,
   ): Promise<TFile> {
-    const config = getConfig(this.settings, granularity);
+    const config = this.settings.granularities[granularity];
     const format = getFormat(this.settings, granularity);
     const filename = date.format(format);
     const destPath = await getNoteCreationPath(this.app, filename, config);

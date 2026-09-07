@@ -12,29 +12,24 @@ import type { Granularity } from "./types";
 
 interface GranularityLabel {
   periodicity: string;
-  relativeUnit: string;
   labelOpenPresent: string;
 }
 
 export const granularityLabels: Record<Granularity, GranularityLabel> = {
   day: {
     periodicity: "daily",
-    relativeUnit: "today",
     labelOpenPresent: "Open today's daily note",
   },
   week: {
     periodicity: "weekly",
-    relativeUnit: "this week",
     labelOpenPresent: "Open this week's note",
   },
   month: {
     periodicity: "monthly",
-    relativeUnit: "this month",
     labelOpenPresent: "Open this month's note",
   },
   year: {
     periodicity: "yearly",
-    relativeUnit: "this year",
     labelOpenPresent: "Open this year's note",
   },
 };

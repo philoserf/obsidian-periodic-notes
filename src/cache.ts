@@ -18,8 +18,6 @@ import type PeriodicNotesPlugin from "./main";
 import { applyTemplateToFile } from "./template";
 import type { CacheEntry, Granularity } from "./types";
 
-export type { CacheEntry };
-
 export class NoteCache extends Component {
   private index = new CacheIndex();
 
@@ -223,7 +221,7 @@ export class NoteCache extends Component {
     return !granularity || entry.granularity === granularity;
   }
 
-  public find(filePath: string | undefined): CacheEntry | null {
+  public find(filePath: string): CacheEntry | null {
     return this.verify(this.index.get(filePath));
   }
 

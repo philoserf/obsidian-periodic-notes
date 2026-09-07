@@ -76,8 +76,7 @@ export class CacheIndex {
     this.dirtyGranularities = new Set(granularities);
   }
 
-  get(filePath: string | undefined): CacheEntry | null {
-    if (!filePath) return null;
+  get(filePath: string): CacheEntry | null {
     return this.byPath.get(filePath) ?? null;
   }
 

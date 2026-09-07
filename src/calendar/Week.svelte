@@ -4,7 +4,7 @@
   import { isMetaPressed } from "src/platform";
   import { canonicalKey } from "src/cacheSearch";
   import type { FileMap, EventHandlers } from "./types";
-  import { activateOnKey, getStartOfWeek } from "./utils";
+  import { activateOnKey } from "./utils";
 
   let {
     weekNum,
@@ -24,7 +24,7 @@
     activeFilePath: string | null;
   } = $props();
 
-  let startOfWeek = $derived(getStartOfWeek(days));
+  let startOfWeek = $derived(days[0].clone());
   let file = $derived(fileMap.get(canonicalKey("week", startOfWeek)) ?? null);
 
   function handleContextmenu(event: MouseEvent) {
