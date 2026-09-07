@@ -168,6 +168,17 @@ export class NoteCache extends Component {
           `Periodic Notes: failed to apply template to "${file.path}". See console for details.`,
         );
       }
+
+      // index.set above was synchronous, but the delete and rename handlers
+      // run on this same file while the template write is suspended. Telling
+      // listeners a file resolved when it has since been deleted, or binding
+      // the pre-rename granularity to a post-rename file, is worse than
+      // staying quiet: the handler that moved the file has already reindexed
+      // it, and will announce it itself.
+      if (!this.index.get(entry.filePath)) return; // deleted mid-write
+      if (this.app.vault.getAbstractFileByPath(entry.filePath) !== file) {
+        return; // renamed mid-write
+      }
     }
 
     // Fires after template application, so listeners may read file contents.

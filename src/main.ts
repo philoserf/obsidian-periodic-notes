@@ -1,5 +1,5 @@
 import type { Moment } from "moment";
-import { addIcon, Notice, normalizePath, Plugin, type TFile } from "obsidian";
+import { addIcon, Notice, normalizePath, Plugin, TFile } from "obsidian";
 
 import { NoteCache } from "./cache";
 import { CalendarView } from "./calendar/view";
@@ -19,7 +19,12 @@ import { SettingsTab } from "./settings";
 import { sanitizeSettings } from "./settingsLoad";
 import { getNoteCreationPath, readTemplate } from "./template";
 import { applyTemplate } from "./templateRender";
-import { type Granularity, granularities, type Settings } from "./types";
+import {
+  type Granularity,
+  granularities,
+  type NoteConfig,
+  type Settings,
+} from "./types";
 
 interface OpenOpts {
   inNewSplit?: boolean;
@@ -35,6 +40,11 @@ export default class PeriodicNotesPlugin extends Plugin {
   // The settings the cache index is built from, as last persisted. Compared on
   // save so only a change that actually affects indexing costs a vault rescan.
   private indexingSnapshot = "";
+  // Creations in progress, keyed by destination path. The index only learns of
+  // a file from the vault's "create" event, so two callers racing to open the
+  // same note both see a cache miss; without this the second reaches
+  // vault.create and throws for a note that was created correctly.
+  private creating = new Map<string, Promise<TFile>>();
 
   async onload(): Promise<void> {
     addIcon("calendar-day", calendarDayIcon);
@@ -142,6 +152,8 @@ export default class PeriodicNotesPlugin extends Plugin {
     }
   }
 
+  // Get-or-create: returning a note that already exists is the right answer for
+  // every caller, all of which are opening it.
   public async createPeriodicNote(
     granularity: Granularity,
     date: Moment,
@@ -149,6 +161,36 @@ export default class PeriodicNotesPlugin extends Plugin {
     const config = getConfig(this.settings, granularity);
     const format = getFormat(this.settings, granularity);
     const filename = date.format(format);
+    const destPath = await getNoteCreationPath(this.app, filename, config);
+
+    // Covers a note created since the caller checked the cache — by a second
+    // click, by another device, or outside Obsidian entirely.
+    const existing = this.app.vault.getAbstractFileByPath(destPath);
+    if (existing instanceof TFile) return existing;
+
+    const inFlight = this.creating.get(destPath);
+    if (inFlight) return inFlight;
+
+    const creation = this.writeNote(
+      destPath,
+      filename,
+      granularity,
+      date,
+      config,
+      format,
+    ).finally(() => this.creating.delete(destPath));
+    this.creating.set(destPath, creation);
+    return creation;
+  }
+
+  private async writeNote(
+    destPath: string,
+    filename: string,
+    granularity: Granularity,
+    date: Moment,
+    config: NoteConfig,
+    format: string,
+  ): Promise<TFile> {
     const templateContents = await readTemplate(
       this.app,
       config.templatePath,
@@ -161,7 +203,6 @@ export default class PeriodicNotesPlugin extends Plugin {
       format,
       templateContents,
     );
-    const destPath = await getNoteCreationPath(this.app, filename, config);
     return this.app.vault.create(destPath, rendered);
   }
 
@@ -187,8 +228,13 @@ export default class PeriodicNotesPlugin extends Plugin {
         `[Periodic Notes] failed to open ${granularity} note "${label}"`,
         err,
       );
+      // Carry the message: the folder-collision error from ensureFolderExists
+      // says exactly what is wrong and where, which is no use in a console the
+      // user does not have open.
       new Notice(
-        `Periodic Notes: failed to open ${granularity} note "${label}". See console for details.`,
+        err instanceof Error
+          ? `Periodic Notes: failed to open ${granularity} note "${label}" — ${err.message}`
+          : `Periodic Notes: failed to open ${granularity} note "${label}". See console for details.`,
       );
     }
   }
