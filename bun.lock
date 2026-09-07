@@ -13,7 +13,7 @@
         "@tsconfig/svelte": "^5.0.8",
         "@types/bun": "^1.4.1",
         "@types/node": "^26.4.1",
-        "@typescript/native": "npm:typescript@7.0.2",
+        "@typescript/native": "npm:typescript@7",
         "moment": "^2.30.1",
         "obsidian": "^1.13.1",
         "svelte-check": "^4.7.6",
