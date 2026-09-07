@@ -62,7 +62,6 @@ test-preload.ts
 types.ts
 
 src/calendar:
-Arrow.svelte
 Calendar.svelte
 calendarStore.svelte.ts
 CLAUDE.md
@@ -244,7 +243,11 @@ sed -n '/^  async onload/,/^  }$/p' src/main.ts
     this.addSettingTab(new SettingsTab(this.app, this));
 
     this.configureRibbonIcons();
-    this.configureCommands();
+    for (const granularity of granularities) {
+      getCommands(this.app, this, granularity).forEach(
+        this.addCommand.bind(this),
+      );
+    }
 
     this.registerView(
       VIEW_TYPE_CALENDAR,
@@ -254,14 +257,29 @@ sed -n '/^  async onload/,/^  }$/p' src/main.ts
     this.addCommand({
       id: "show-calendar",
       name: "Show calendar",
-      checkCallback: (checking: boolean) => {
-        if (checking) {
-          return (
-            this.app.workspace.getLeavesOfType(VIEW_TYPE_CALENDAR).length === 0
+      // No checkCallback: gating on "no leaf exists yet" made the command
+      // disappear from the palette the moment one did, which is exactly when
+      // the user wants it — the sidebar is collapsed and they are reaching for
+      // the command to show it. Revealing an existing leaf is the obvious
+      // thing, and matches how Obsidian's own sidebar commands behave.
+      callback: () => {
+        void (async () => {
+          const { workspace } = this.app;
+          const existing = workspace.getLeavesOfType(VIEW_TYPE_CALENDAR)[0];
+          const leaf = existing ?? workspace.getRightLeaf(false);
+          if (!leaf) return;
+          // Awaited, unlike before: a view that fails to construct was an
+          // unhandled rejection with no Notice, and revealing the leaf before
+          // it has a view shows an empty pane.
+          if (!existing) {
+            await leaf.setViewState({ type: VIEW_TYPE_CALENDAR });
+          }
+          await workspace.revealLeaf(leaf);
+        })().catch((err) => {
+          console.error("[Periodic Notes] failed to show the calendar", err);
+          new Notice(
+            "Periodic Notes: failed to show the calendar. See console for details.",
           );
-        }
-        this.app.workspace.getRightLeaf(false)?.setViewState({
-          type: VIEW_TYPE_CALENDAR,
         });
       },
     });
@@ -472,9 +490,17 @@ function validateFolder(app: App, folder: string): Validation {
   if (hasDotOnlySegment(normalized)) {
     return reject("Folder segments cannot be only dots");
   }
-  return app.vault.getAbstractFileByPath(normalized)
-    ? valid
-    : warn("Folder not found in vault");
+  // getAbstractFileByPath returns a TFile just as happily as a TFolder, so a
+  // bare truthiness check reports a file sitting where the folder should be as
+  // perfectly fine — and the problem only surfaces later, as a folder-collision
+  // error at note creation, far from the field that caused it. A file in the
+  // way is not a traversal risk, so this warns rather than blocking.
+  const existing = app.vault.getAbstractFileByPath(normalized);
+  if (!existing) return warn("Folder not found in vault");
+  if (!(existing instanceof TFolder)) {
+    return warn("That path is a file, not a folder");
+  }
+  return valid;
 }
 ```
 
@@ -484,7 +510,7 @@ way to a rejected one may itself be acceptable. Typing `../escape` passes throug
 field on a rejected value also restores whatever was stored when the edit began:
 
 ```bash
-sed -n '108,125p' src/settings.ts
+sed -n '117,134p' src/settings.ts
 ```
 
 ```output
@@ -514,7 +540,7 @@ This is the heart of the plugin. Three questions have to be O(1) or near it,
 because the calendar asks them fifty times per rendered month:
 
 - Is there a note for *this* period? — `getPeriodicNote`
-- Is *this file* a periodic note? — `isPeriodic`, `find`
+- Is *this file* a periodic note? — `find`
 - What is the next or previous note in this granularity? — `findAdjacent`
 
 ### The key scheme — `src/cacheSearch.ts`
@@ -618,8 +644,17 @@ sed -n '/^  set(entry: CacheEntry)/,/^  }$/p' src/cacheIndex.ts
       if (oldKey !== newKey) {
         this.byKey.delete(oldKey);
         this.dirtyGranularities.add(oldByPath.granularity);
+        // This is the other way a winner stops claiming a key: not removed,
+        // but re-dated by a frontmatter edit. The key is just as free as it is
+        // after remove(), so a contender has to be offered it here too.
+        this.promote(oldKey);
       }
     }
+
+    // Unconditional, and before the collision check below: a prior entry for
+    // this path may have been a loser, which never reaches byPath, so the
+    // oldByPath cleanup above cannot have found it.
+    this.dropContender(entry.filePath);
 
     const incumbent = this.byKey.get(newKey);
     if (incumbent && incumbent.filePath !== entry.filePath) {
@@ -629,9 +664,11 @@ sed -n '/^  set(entry: CacheEntry)/,/^  }$/p' src/cacheIndex.ts
         `[Periodic Notes] "${winner.filePath}" and "${loser.filePath}" are both ${entry.granularity} notes for the same date (${newKey}); indexing "${winner.filePath}" and ignoring "${loser.filePath}"`,
       );
       // The loser is not a periodic note as far as the rest of the plugin is
-      // concerned: byPath backs get/has/findAdjacent, so leaving it there would
-      // report a note the calendar and nav commands cannot act on.
+      // concerned: byPath backs get and findAdjacent, so leaving it there would
+      // report a note the calendar and nav commands cannot act on. It is kept
+      // as a contender instead, so freeing the key brings it back.
       this.byPath.delete(loser.filePath);
+      this.addContender(newKey, loser);
       if (winner === incumbent) return incumbent;
     }
 
@@ -793,7 +830,7 @@ sed -n '/^  onload(): void {/,/^  }$/p' src/cache.ts
       this.initialize();
       this.registerEvent(
         this.app.vault.on("create", (file) => {
-          if (file instanceof TFile) void this.resolve(file, "create");
+          if (file instanceof TFile) void this.resolve(file, true);
         }),
       );
       this.registerEvent(
@@ -829,10 +866,7 @@ sed -n '/^  private async resolve(/,/^  }$/p' src/cache.ts
 ```
 
 ```output
-  private async resolve(
-    file: TFile,
-    reason: "create" | "rename" | "initialize" | "metadata" = "create",
-  ): Promise<void> {
+  private async resolve(file: TFile, isCreate: boolean): Promise<void> {
     const settings = this.plugin.settings;
     const entry = resolveEntry(file, settings, this.index.get(file.path));
     if (!entry) return;
@@ -842,7 +876,7 @@ sed -n '/^  private async resolve(/,/^  }$/p' src/cache.ts
     // file resolved when it did not.
     if (this.index.set(entry).filePath !== file.path) return;
 
-    if (reason === "create" && file.stat.size === 0) {
+    if (isCreate && file.stat.size === 0) {
       try {
         await applyTemplateToFile(this.app, file, settings, entry);
       } catch (err) {
@@ -911,7 +945,7 @@ sed -n '/^  private onRename/,/^  }$/p' src/cache.ts
       return;
     }
 
-    void this.resolve(file, "rename");
+    void this.resolve(file, false);
   }
 ```
 
@@ -948,7 +982,7 @@ sed -n '/^  private resolveFrontmatter/,/^  }$/p' src/cache.ts
     const existing = this.index.get(file.path);
     if (existing?.match === "frontmatter") {
       this.index.remove(file.path);
-      void this.resolve(file, "metadata");
+      void this.resolve(file, false);
     }
   }
 ```
@@ -1040,7 +1074,14 @@ export function applyTemplate(
 
   if (granularity === "week") {
     contents = contents.replace(WEEKDAY_TOKEN, (_, dayOfWeek, momentFormat) => {
-      const day = getDayOfWeekNumericalValue(dayOfWeek);
+      // WEEKDAYS is Sunday-first but .weekday() counts from the locale's
+      // first day, so the name's position has to be rotated back by it. The
+      // token regex is built from WEEKDAYS, so indexOf cannot miss.
+      const day =
+        (WEEKDAYS.indexOf(dayOfWeek.toLowerCase()) -
+          window.moment.localeData().firstDayOfWeek() +
+          7) %
+        7;
       // .weekday() mutates and returns the same instance. `date` may be the
       // Moment held by a CacheEntry, whose canonical key would then no longer
       // match the key it is indexed under.
@@ -1137,7 +1178,14 @@ export async function applyTemplateToFile(
     format,
     templateContents,
   );
-  await app.vault.modify(file, rendered);
+  // The caller checked the file was empty before awaiting readTemplate above,
+  // so anything Obsidian Sync, another plugin or an external editor wrote in
+  // the meantime would be destroyed by an unconditional modify. process runs
+  // the transform under the vault's own lock, which closes the window rather
+  // than narrowing it — and content arriving is a reason to leave the file
+  // alone, not an error: a note that already says something does not want a
+  // template stamped over it.
+  await app.vault.process(file, (data) => (data === "" ? rendered : data));
 }
 ```
 
@@ -1313,7 +1361,7 @@ sed -n '/^  const navCommand = /,/^  });$/p' src/commands.ts
       const activeFile = app.workspace.getActiveFile();
       if (checking) {
         if (!activeFile) return false;
-        return plugin.cache.isPeriodic(activeFile.path, granularity);
+        return plugin.cache.find(activeFile.path)?.granularity === granularity;
       }
       run();
     },
@@ -1445,12 +1493,7 @@ sed -n '/^  private onContextMenu/,/^  }$/p' src/calendar/view.ts
 ```
 
 ```output
-  private onContextMenu(
-    _granularity: Granularity,
-    _date: Moment,
-    file: TFile | null,
-    event: MouseEvent,
-  ): void {
+  private onContextMenu(file: TFile | null, event: MouseEvent): void {
     if (!file) return;
     // No custom items: Obsidian's own file-menu handlers contribute Delete —
     // with its confirmation and the vault's "Deleted files" preference — plus
@@ -1528,11 +1571,11 @@ export default class CalendarStore {
     });
   }
 
-  // Unguarded, and every registration uses it. Filtering on
-  // cache.isPeriodic(file.path) only skipped a re-derive of computeFileMap — a
-  // 50-entry Map of Map.get lookups — and cost a second method, four lines of
-  // comment, and a read of NoteCache's index that made this store's correctness
-  // depend on NoteCache having wired its own listeners first (#178).
+  // Unguarded, and every registration uses it. Filtering on whether the file
+  // is already indexed only skipped a re-derive of computeFileMap — a 50-entry
+  // Map of Map.get lookups — and cost a read of NoteCache's index that made
+  // this store's correctness depend on NoteCache having wired its own
+  // listeners first (#178).
   private bump(): void {
     this.version++;
   }
@@ -1555,12 +1598,12 @@ torn down again, so the callback checks first.
 
 **There is no `create` listener, and `bump` is unguarded.** A create already
 reaches `NoteCache.resolve`, which indexes synchronously and fires
-`periodic-notes:resolve` — bound just below. And a guard on
-`cache.isPeriodic(file.path)` cannot work for a delete or rename anyway: by then
-the entry is gone from the index, so it returns false for a file that *was* a
-periodic note. Since every `NoteCache` read path self-heals, an occasional
-unnecessary re-derive of a 50-entry map is cheaper than the second method and the
-ordering dependency the guard created.
+`periodic-notes:resolve` — bound just below. And a guard on whether
+the file is already indexed cannot work for a delete or rename anyway: by then
+the entry is gone from the index, so the check reports false for a file that
+*was* a periodic note. Since every `NoteCache` read path self-heals, an
+occasional unnecessary re-derive of a 50-entry map is cheaper than the read of
+`NoteCache`'s index and the ordering dependency the guard created.
 
 ### The FileMap — `calendar/store.ts`
 
@@ -1789,7 +1832,7 @@ echo "test files: $(ls src/*.test.ts src/calendar/*.test.ts | wc -l | tr -d ' ')
 
 ```output
 test files: 11
-test cases: 146
+test cases: 157
 ```
 
 That count is the whole automated safety net, and it only covers the pure side of
@@ -1824,4 +1867,3 @@ the calendar:
 
 Every step after the click is either a pure function with tests, or four lines of
 Obsidian wiring around one.
-

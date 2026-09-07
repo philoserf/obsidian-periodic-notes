@@ -6,5 +6,6 @@ Guidance for the Svelte 5 sidebar calendar in `src/calendar/`.
 
 - Svelte 5 components mounted in an Obsidian `ItemView` sidebar panel
 - **Reactivity bridge**: `CalendarView` communicates to Svelte via exported functions (`tick()`, `setActiveFilePath()`); Svelte communicates back via callback props (`onHover`, `onClick`, `onContextMenu`)
-- **FileMap pattern**: Single subscription in `Calendar.svelte` pre-computes a `Map<string, TFile | null>` via `computeFileMap()`. Child components do `$derived` lookups via `fileMapKey()`
-- **CalendarStore**: `$state` version counter in `calendarStore.svelte.ts`; bumped on vault/metadata events, read inside `$effect` in `Calendar.svelte` to re-derive the FileMap
+- **FileMap pattern**: `Calendar.svelte` pre-computes one `Map<string, TFile | null>` per rendered month via `computeFileMap()`; child components do `$derived` lookups into it, keyed by `canonicalKey()` from `src/cacheSearch.ts`
+- **CalendarStore**: `$state` version counter in `calendarStore.svelte.ts`; bumped on vault/metadata events and read as `void fileStore.version` inside a `$derived.by` in `Calendar.svelte`, which is the whole subscription
+- **Enabled signals differ by granularity, deliberately**: month and year read presence in the FileMap; day cells take an explicit `dayEnabled` prop, because `Day.svelte` needs an absent key and a `null` value to mean different things. See THEORY.md before unifying them
