@@ -14,6 +14,7 @@ import { CacheIndex } from "./cacheIndex";
 import { resolveEntry } from "./cacheResolve";
 import { getEnabledGranularities, getFormat } from "./format";
 import type PeriodicNotesPlugin from "./main";
+import { isInFolder } from "./paths";
 import { applyTemplateToFile } from "./template";
 import type { CacheEntry, Granularity } from "./types";
 
@@ -104,8 +105,8 @@ export class NoteCache extends Component {
     if (active.length === 0) return;
 
     for (const granularity of active) {
-      const folder = settings.granularities[granularity].folder || "/";
-      if (!file.path.startsWith(folder === "/" ? "" : `${folder}/`)) continue;
+      const folder = settings.granularities[granularity].folder;
+      if (!isInFolder(file.path, folder)) continue;
       const frontmatterEntry = parseFrontMatterEntry(
         cache.frontmatter,
         granularity,

@@ -1,10 +1,10 @@
 import type { Moment } from "moment";
-import { addIcon, Notice, Plugin, type TFile } from "obsidian";
+import { addIcon, Notice, normalizePath, Plugin, type TFile } from "obsidian";
 
 import { NoteCache } from "./cache";
 import { CalendarView } from "./calendar/view";
 import { getCommands, granularityLabels, showContextMenu } from "./commands";
-import { DEFAULT_SETTINGS, VIEW_TYPE_CALENDAR } from "./constants";
+import { VIEW_TYPE_CALENDAR } from "./constants";
 import { getConfig, getFormat } from "./format";
 import {
   calendarDayIcon,
@@ -13,8 +13,10 @@ import {
   calendarYearIcon,
 } from "./icons";
 import { configureLocale } from "./locale";
+import { canonicalFolder } from "./paths";
 import { isMetaPressed } from "./platform";
 import { SettingsTab } from "./settings";
+import { sanitizeSettings } from "./settingsLoad";
 import { getNoteCreationPath, readTemplate } from "./template";
 import { applyTemplate } from "./templateRender";
 import {
@@ -108,18 +110,9 @@ export default class PeriodicNotesPlugin extends Plugin {
 
   async loadSettings(): Promise<void> {
     const saved = await this.loadData();
-    const settings = structuredClone(DEFAULT_SETTINGS);
-    if (saved?.granularities) {
-      for (const g of granularities) {
-        if (saved.granularities[g]) {
-          settings.granularities[g] = {
-            ...settings.granularities[g],
-            ...saved.granularities[g],
-          };
-        }
-      }
-    }
-    this.settings = settings;
+    this.settings = sanitizeSettings(saved, (folder) =>
+      canonicalFolder(normalizePath(folder)),
+    );
   }
 
   public async saveSettings(): Promise<void> {
