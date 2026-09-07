@@ -1,5 +1,61 @@
 # Changelog
 
+## 2.3.0
+
+Fifty issues closed across seven milestones. The calendar and the settings tab
+both change visibly; the cache changes underneath everything.
+
+### Added
+
+- One ribbon icon per enabled granularity, each opening that period's note. Right-click any of them for a menu of all enabled granularities (#223)
+
+### Fixed
+
+**Calendar**
+
+- Day cells honour the Daily Notes setting. With daily notes disabled, clicking a day no longer created a note in the vault root from a config the user had turned off (#225)
+- The active-note highlight now appears when the calendar is opened beside a note that is already open, and follows that note through a rename (#224)
+- `today` stays current past midnight instead of pinning to the day the calendar was opened (#226)
+- Deleting a note from the calendar defers to Obsidian's own Delete, so it confirms first and honours the vault's "Deleted files" preference. The previous item hard-coded the system trash and reported nothing on failure (#226)
+- Meta-hovering a month or year header shows "September 2026", not "9/1/2026" (#226)
+- No native context menu behind the custom one; Space on a week number opens the note without scrolling the pane; month and year titles highlight when their note is open (#227)
+- Paging forward and back through a short month returns to the month you started on (#227)
+
+**Settings**
+
+- A rejected value no longer overwrites the stored setting, and leaving the field restores what was there when the edit began — typing `../escape` passes through valid-looking prefixes on the way (#215)
+- Folder and format values that would place notes outside the vault are refused, at the field, at load, and again before the file is written (#210, #213)
+- Picking a folder or template from the suggester now persists (#213)
+
+**Notes and the index**
+
+- Frontmatter dates are indexed for every granularity, not just the first, and a frontmatter match survives a rename (#216)
+- Opening the same note twice in quick succession no longer errors — creation is idempotent, and a note that moved mid-write is no longer announced under its old path (#221)
+- Disabling the plugin now stops the cache. It previously kept its vault listeners and went on applying templates to newly created files; moment's locale is also restored (#222)
+- Template rendering no longer corrupts the cached date, misreads `{{month-1m}}` as minutes, or mangles a filename containing `$` (#220)
+- Two notes claiming the same period resolve deterministically — frontmatter wins, then the shorter path — and the console says which file was ignored (#217)
+- Failures to open or create a note now surface the underlying reason in the notice, rather than pointing at the console (#213, #221)
+
+### Changed
+
+- Editing a template path no longer triggers a full vault rescan; only `enabled`, `format` and `folder` do (#212)
+- Every cache read verifies its entry against the vault, so a stale index heals itself rather than reporting a note that is gone (#218)
+- Indexing drops a per-file moment round-trip that did nothing (#219)
+
+### Internal
+
+- Code-reduction pass: dead exports, unreachable branches, type widenings and single-use wrappers removed (#228, #229)
+- Four pure modules extracted from Obsidian-facing code, taking the directly tested surface from three modules to eleven
+
+### Dependencies
+
+- TypeScript 7 adopted through svelte-check's dual-install path. `typescript` stays pinned at `~6` because svelte-check requires both majors; TS 7 arrives aliased as `@typescript/native` and does the type checking (#233)
+- biome 2.5.12, `@types/bun` 1.4.1, `@types/node` 26.4.1
+
+### Documentation
+
+- `walkthrough.md` and `THEORY.md` rebuilt against current `main` (#231, #232)
+
 ## 2.2.0
 
 ### Fixed
