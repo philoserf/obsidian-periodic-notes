@@ -28,7 +28,12 @@ export class NoteCache extends Component {
     readonly plugin: PeriodicNotesPlugin,
   ) {
     super();
+  }
 
+  // Wiring lives here rather than in the constructor so it happens only for a
+  // component that was actually loaded — and so Component.unload() tears every
+  // registration down again when the plugin is disabled.
+  onload(): void {
     this.app.workspace.onLayoutReady(() => {
       console.info("[Periodic Notes] initializing cache");
       this.initialize();

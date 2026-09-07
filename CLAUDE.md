@@ -32,7 +32,7 @@ The current next step for this repo is tracked in the workspace backlog at `../N
 ### Testing
 
 - `bunfig.toml` preload (`src/test-preload.ts`) provides `window.moment` globally
-- Pure modules — import directly in tests: `format.ts`, `paths.ts`, `settingsLoad.ts`, `cacheResolve.ts`, `cacheFrontmatter.ts`, `cacheIndex.ts`, `cacheSearch.ts`, `templateRender.ts`, `calendar/store.ts`, `calendar/utils.ts`
+- Pure modules — import directly in tests: `format.ts`, `paths.ts`, `locale.ts`, `settingsLoad.ts`, `cacheResolve.ts`, `cacheFrontmatter.ts`, `cacheIndex.ts`, `cacheSearch.ts`, `templateRender.ts`, `calendar/store.ts`, `calendar/utils.ts`
 - Modules that CANNOT be imported in tests (import obsidian at top level): `cache.ts`, `template.ts`, `settings.ts`, `platform.ts`, `main.ts`, `commands.ts`
 
 ### Release Process
