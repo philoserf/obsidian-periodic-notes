@@ -1,5 +1,11 @@
 import type { Moment } from "moment";
-import { ItemView, Menu, type TFile, type WorkspaceLeaf } from "obsidian";
+import {
+  ItemView,
+  Menu,
+  type TAbstractFile,
+  type TFile,
+  type WorkspaceLeaf,
+} from "obsidian";
 import { VIEW_TYPE_CALENDAR } from "src/constants";
 import type PeriodicNotesPlugin from "src/main";
 import type { Granularity } from "src/types";
@@ -15,6 +21,12 @@ interface CalendarExports {
 export class CalendarView extends ItemView {
   private calendar!: CalendarExports;
   private plugin: PeriodicNotesPlugin;
+  // Mirrors what the calendar was last told, so a rename can tell whether the
+  // file that moved is the one being highlighted.
+  private activeFilePath: string | null = null;
+  // The layout-ready sync below is deferred, so it can fire after the leaf has
+  // been closed and the component unmounted.
+  private closed = false;
 
   constructor(leaf: WorkspaceLeaf, plugin: PeriodicNotesPlugin) {
     super(leaf);
@@ -23,6 +35,10 @@ export class CalendarView extends ItemView {
     this.registerEvent(
       this.app.workspace.on("file-open", this.onFileOpen.bind(this)),
     );
+    // A pure rename changes the leaf's file without the file "opening", so
+    // file-open does not fire and the tracked path would keep pointing at a
+    // path nothing matches any more.
+    this.registerEvent(this.app.vault.on("rename", this.onRename.bind(this)));
   }
 
   getViewType(): string {
@@ -38,6 +54,7 @@ export class CalendarView extends ItemView {
   }
 
   async onClose(): Promise<void> {
+    this.closed = true;
     if (this.calendar) {
       unmount(this.calendar);
     }
@@ -56,6 +73,13 @@ export class CalendarView extends ItemView {
         onContextMenu: this.onContextMenu.bind(this),
       },
     }) as CalendarExports;
+
+    // No file-open fires for a file that is already open, so a calendar
+    // revealed next to an open periodic note would render with nothing
+    // highlighted until the user switched away and back. Deferred because
+    // onFileOpen returns early until layout is ready — which is exactly the
+    // case when the sidebar is restored at startup with a note already active.
+    this.app.workspace.onLayoutReady(() => this.onFileOpen(null));
   }
 
   private onHover(
@@ -116,11 +140,19 @@ export class CalendarView extends ItemView {
   }
 
   private onFileOpen(_file: TFile | null): void {
-    if (!this.app.workspace.layoutReady) return;
+    if (this.closed || !this.app.workspace.layoutReady) return;
     if (this.calendar) {
       const path = this.app.workspace.getActiveFile()?.path ?? null;
+      this.activeFilePath = path;
       this.calendar.setActiveFilePath(path);
       this.calendar.tick();
     }
+  }
+
+  private onRename(file: TAbstractFile, oldPath: string): void {
+    if (this.closed || !this.calendar) return;
+    if (this.activeFilePath === null || oldPath !== this.activeFilePath) return;
+    this.activeFilePath = file.path;
+    this.calendar.setActiveFilePath(file.path);
   }
 }
