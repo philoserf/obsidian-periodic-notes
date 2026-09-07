@@ -5,7 +5,7 @@ import { NoteCache } from "./cache";
 import { CalendarView } from "./calendar/view";
 import { getCommands, granularityLabels, showContextMenu } from "./commands";
 import { VIEW_TYPE_CALENDAR } from "./constants";
-import { getConfig, getFormat } from "./format";
+import { getConfig, getEnabledGranularities, getFormat } from "./format";
 import {
   calendarDayIcon,
   calendarMonthIcon,
@@ -32,7 +32,10 @@ interface OpenOpts {
 
 export default class PeriodicNotesPlugin extends Plugin {
   public declare settings: Settings;
-  private ribbonEl!: HTMLElement | null;
+  // One icon per enabled granularity, in canonical order. Rebuilt only when
+  // that set changes — see configureRibbonIcons.
+  private ribbonEls: HTMLElement[] = [];
+  private ribbonKey = "";
   // Public because commands and the calendar read the index directly: a
   // forwarder here would only pass the call along. Not `readonly` — it is
   // built in onload, not in the constructor.
@@ -56,7 +59,6 @@ export default class PeriodicNotesPlugin extends Plugin {
     // moment's locale is global to the app, so put it back on unload.
     this.register(configureLocale());
 
-    this.ribbonEl = null;
     // addChild, not a bare field: Component.registerEvent only arranges teardown
     // during the component's own unload, and nothing else would ever unload the
     // cache. Without this its five vault listeners survive a disable, and a
@@ -91,14 +93,24 @@ export default class PeriodicNotesPlugin extends Plugin {
   }
 
   private configureRibbonIcons(): void {
-    this.ribbonEl?.detach();
+    const enabled = getEnabledGranularities(this.settings);
+    const key = enabled.join(",");
+    // saveSettings calls this on every save, and saves are debounced per
+    // keystroke burst across three text fields. Only the Enabled toggle can
+    // change what the ribbon shows, so everything else returns here — which is
+    // also what bounds addRibbonIcon's own per-call unload registration, since
+    // detach() does not undo it.
+    if (key === this.ribbonKey) return;
+    this.ribbonKey = key;
 
-    const granularity = granularities.find(
-      (g) => this.settings.granularities[g].enabled,
-    );
-    if (granularity) {
+    // Cleared before the loop, so a throw partway through cannot leave the
+    // array pointing at elements that are no longer on screen.
+    for (const el of this.ribbonEls) el.detach();
+    this.ribbonEls = [];
+
+    for (const granularity of enabled) {
       const label = granularityLabels[granularity];
-      this.ribbonEl = this.addRibbonIcon(
+      const el = this.addRibbonIcon(
         `calendar-${granularity}`,
         label.labelOpenPresent,
         (e: MouseEvent) => {
@@ -109,10 +121,14 @@ export default class PeriodicNotesPlugin extends Plugin {
           }
         },
       );
-      this.ribbonEl.addEventListener("contextmenu", (e: MouseEvent) => {
+      // registerDomEvent, not addEventListener: the listener closes over `this`
+      // and would otherwise keep a detached element reachable for the life of
+      // the app.
+      this.registerDomEvent(el, "contextmenu", (e: MouseEvent) => {
         e.preventDefault();
         showContextMenu(this, { x: e.pageX, y: e.pageY });
       });
+      this.ribbonEls.push(el);
     }
   }
 
