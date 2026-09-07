@@ -168,3 +168,31 @@ describe("applyTemplate replacement patterns", () => {
     expect(result).toBe("$& $` $'");
   });
 });
+
+describe("applyTemplate with a nested format", () => {
+  // main.ts renders the filename from the format before creating the note, so
+  // for a nested format that string is a path. It passes the basename here,
+  // matching applyTemplateToFile, which passes TFile.basename. Both tokens
+  // resolve to the same argument, so both are pinned.
+  test("title and date use the basename, not the path", () => {
+    const result = applyTemplate(
+      "12",
+      "day",
+      window.moment("2026-06-12"),
+      "YYYY/MM/DD",
+      "# {{title}}\n{{date}}",
+    );
+    expect(result).toBe("# 12\n12");
+  });
+
+  test("a date offset still formats with the full nested format", () => {
+    const result = applyTemplate(
+      "12",
+      "day",
+      window.moment("2026-06-12"),
+      "YYYY/MM/DD",
+      "{{date+1d}}",
+    );
+    expect(result).toBe("2026/06/13");
+  });
+});
