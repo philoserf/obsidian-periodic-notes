@@ -53,10 +53,15 @@ export default class PeriodicNotesPlugin extends Plugin {
     addIcon("calendar-year", calendarYearIcon);
 
     await this.loadSettings();
-    configureLocale();
+    // moment's locale is global to the app, so put it back on unload.
+    this.register(configureLocale());
 
     this.ribbonEl = null;
-    this.cache = new NoteCache(this.app, this);
+    // addChild, not a bare field: Component.registerEvent only arranges teardown
+    // during the component's own unload, and nothing else would ever unload the
+    // cache. Without this its five vault listeners survive a disable, and a
+    // disabled plugin goes on applying templates to newly created files.
+    this.cache = this.addChild(new NoteCache(this.app, this));
 
     this.openPeriodicNote = this.openPeriodicNote.bind(this);
     this.addSettingTab(new SettingsTab(this.app, this));
