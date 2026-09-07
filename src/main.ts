@@ -34,6 +34,9 @@ export default class PeriodicNotesPlugin extends Plugin {
   public declare settings: Settings;
   private ribbonEl!: HTMLElement | null;
   private cache!: NoteCache;
+  // The settings the cache index is built from, as last persisted. Compared on
+  // save so only a change that actually affects indexing costs a vault rescan.
+  private indexingSnapshot = "";
 
   async onload(): Promise<void> {
     addIcon("calendar-day", calendarDayIcon);
@@ -113,12 +116,32 @@ export default class PeriodicNotesPlugin extends Plugin {
     this.settings = sanitizeSettings(saved, (folder) =>
       canonicalFolder(normalizePath(folder)),
     );
+    this.indexingSnapshot = this.indexingSnapshotOf(this.settings);
+  }
+
+  // Only `enabled`, `format` and `folder` decide what the cache indexes;
+  // templatePath does not, so editing it must not trigger a rescan.
+  private indexingSnapshotOf(settings: Settings): string {
+    return JSON.stringify(
+      granularities.map((g) => {
+        const { enabled, format, folder } = settings.granularities[g];
+        return [enabled, format, folder];
+      }),
+    );
   }
 
   public async saveSettings(): Promise<void> {
     await this.saveData(this.settings);
     this.configureRibbonIcons();
-    this.app.workspace.trigger("periodic-notes:settings-updated");
+
+    // NoteCache.reset() re-walks every configured folder and re-parses every
+    // filename, so firing this on each debounce tick meant a full vault scan
+    // per typing pause — including for fields the index never reads.
+    const snapshot = this.indexingSnapshotOf(this.settings);
+    if (snapshot !== this.indexingSnapshot) {
+      this.indexingSnapshot = snapshot;
+      this.app.workspace.trigger("periodic-notes:settings-updated");
+    }
   }
 
   public async createPeriodicNote(
