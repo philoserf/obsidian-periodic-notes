@@ -3,13 +3,30 @@ import type { Moment } from "moment";
 import { canonicalKey, findAdjacentKey } from "./cacheSearch";
 import { type CacheEntry, type Granularity, granularities } from "./types";
 
+/**
+ * Which of two entries claiming one canonical key keeps it. Frontmatter is an
+ * explicit statement about the note's date, so it beats a filename that merely
+ * parses; otherwise the smaller path wins, which is arbitrary but stable —
+ * unlike the vault walk order that used to decide.
+ */
+function preferred(a: CacheEntry, b: CacheEntry): CacheEntry {
+  if (a.match !== b.match) return a.match === "frontmatter" ? a : b;
+  return a.filePath <= b.filePath ? a : b;
+}
+
 export class CacheIndex {
   private byPath = new Map<string, CacheEntry>();
   private byKey = new Map<string, CacheEntry>();
   private sortedByGranularity = new Map<Granularity, string[]>();
   private dirtyGranularities = new Set<Granularity>(granularities);
 
-  set(entry: CacheEntry): void {
+  /**
+   * Index an entry, returning whichever entry now holds its canonical key —
+   * which is not always the one passed in. One file per key is what keeps
+   * getPeriodicNote O(1), so a collision still evicts, but the loser is chosen
+   * by `preferred` rather than by whoever was written last.
+   */
+  set(entry: CacheEntry): CacheEntry {
     const newKey = canonicalKey(entry.granularity, entry.date);
     const oldByPath = this.byPath.get(entry.filePath);
     if (oldByPath) {
@@ -19,17 +36,28 @@ export class CacheIndex {
         this.dirtyGranularities.add(oldByPath.granularity);
       }
     }
-    // Evict any other file that claims the same canonical key
-    const oldByKey = this.byKey.get(newKey);
-    if (oldByKey && oldByKey.filePath !== entry.filePath) {
-      this.byPath.delete(oldByKey.filePath);
+
+    const incumbent = this.byKey.get(newKey);
+    if (incumbent && incumbent.filePath !== entry.filePath) {
+      const winner = preferred(incumbent, entry);
+      const loser = winner === incumbent ? entry : incumbent;
+      console.warn(
+        `[Periodic Notes] "${winner.filePath}" and "${loser.filePath}" are both ${entry.granularity} notes for the same date (${newKey}); indexing "${winner.filePath}" and ignoring "${loser.filePath}"`,
+      );
+      // The loser is not a periodic note as far as the rest of the plugin is
+      // concerned: byPath backs get/has/findAdjacent, so leaving it there would
+      // report a note the calendar and nav commands cannot act on.
+      this.byPath.delete(loser.filePath);
+      if (winner === incumbent) return incumbent;
     }
+
     const isNewKey = !this.byKey.has(newKey);
     this.byPath.set(entry.filePath, entry);
     this.byKey.set(newKey, entry);
     if (isNewKey) {
       this.dirtyGranularities.add(entry.granularity);
     }
+    return entry;
   }
 
   remove(filePath: string): void {
@@ -54,6 +82,10 @@ export class CacheIndex {
   }
 
   getByKey(granularity: Granularity, date: Moment): CacheEntry | null {
+    // The one read path that takes a date from outside the index, so it is
+    // where an unvalidated Moment is turned away rather than let into
+    // canonicalKey, which throws on one.
+    if (!date.isValid()) return null;
     return this.byKey.get(canonicalKey(granularity, date)) ?? null;
   }
 
