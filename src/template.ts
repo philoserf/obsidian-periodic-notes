@@ -52,7 +52,14 @@ export async function applyTemplateToFile(
     format,
     templateContents,
   );
-  await app.vault.modify(file, rendered);
+  // The caller checked the file was empty before awaiting readTemplate above,
+  // so anything Obsidian Sync, another plugin or an external editor wrote in
+  // the meantime would be destroyed by an unconditional modify. process runs
+  // the transform under the vault's own lock, which closes the window rather
+  // than narrowing it — and content arriving is a reason to leave the file
+  // alone, not an error: a note that already says something does not want a
+  // template stamped over it.
+  await app.vault.process(file, (data) => (data === "" ? rendered : data));
 }
 
 export async function getNoteCreationPath(
