@@ -212,12 +212,6 @@ export class NoteCache extends Component {
     return this.fileFor(this.index.getByKey(granularity, targetDate));
   }
 
-  public isPeriodic(targetPath: string, granularity?: Granularity): boolean {
-    const entry = this.verify(this.index.get(targetPath));
-    if (!entry) return false;
-    return !granularity || entry.granularity === granularity;
-  }
-
   public find(filePath: string): CacheEntry | null {
     return this.verify(this.index.get(filePath));
   }

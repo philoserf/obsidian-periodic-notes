@@ -39,11 +39,11 @@ export default class CalendarStore {
     });
   }
 
-  // Unguarded, and every registration uses it. Filtering on
-  // cache.isPeriodic(file.path) only skipped a re-derive of computeFileMap — a
-  // 50-entry Map of Map.get lookups — and cost a second method, four lines of
-  // comment, and a read of NoteCache's index that made this store's correctness
-  // depend on NoteCache having wired its own listeners first (#178).
+  // Unguarded, and every registration uses it. Filtering on whether the file
+  // is already indexed only skipped a re-derive of computeFileMap — a 50-entry
+  // Map of Map.get lookups — and cost a read of NoteCache's index that made
+  // this store's correctness depend on NoteCache having wired its own
+  // listeners first (#178).
   private bump(): void {
     this.version++;
   }
