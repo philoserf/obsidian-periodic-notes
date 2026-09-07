@@ -78,14 +78,29 @@ export default class PeriodicNotesPlugin extends Plugin {
     this.addCommand({
       id: "show-calendar",
       name: "Show calendar",
-      checkCallback: (checking: boolean) => {
-        if (checking) {
-          return (
-            this.app.workspace.getLeavesOfType(VIEW_TYPE_CALENDAR).length === 0
+      // No checkCallback: gating on "no leaf exists yet" made the command
+      // disappear from the palette the moment one did, which is exactly when
+      // the user wants it — the sidebar is collapsed and they are reaching for
+      // the command to show it. Revealing an existing leaf is the obvious
+      // thing, and matches how Obsidian's own sidebar commands behave.
+      callback: () => {
+        void (async () => {
+          const { workspace } = this.app;
+          const existing = workspace.getLeavesOfType(VIEW_TYPE_CALENDAR)[0];
+          const leaf = existing ?? workspace.getRightLeaf(false);
+          if (!leaf) return;
+          // Awaited, unlike before: a view that fails to construct was an
+          // unhandled rejection with no Notice, and revealing the leaf before
+          // it has a view shows an empty pane.
+          if (!existing) {
+            await leaf.setViewState({ type: VIEW_TYPE_CALENDAR });
+          }
+          await workspace.revealLeaf(leaf);
+        })().catch((err) => {
+          console.error("[Periodic Notes] failed to show the calendar", err);
+          new Notice(
+            "Periodic Notes: failed to show the calendar. See console for details.",
           );
-        }
-        this.app.workspace.getRightLeaf(false)?.setViewState({
-          type: VIEW_TYPE_CALENDAR,
         });
       },
     });
