@@ -89,7 +89,7 @@ export function getCommands(
       const activeFile = app.workspace.getActiveFile();
       if (checking) {
         if (!activeFile) return false;
-        return plugin.cache.isPeriodic(activeFile.path, granularity);
+        return plugin.cache.find(activeFile.path)?.granularity === granularity;
       }
       run();
     },
