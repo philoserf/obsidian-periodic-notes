@@ -15,6 +15,11 @@ describe("hasDotDotSegment", () => {
     expect(hasDotDotSegment("..")).toBe(true);
   });
 
+  test("treats a backslash as a separator", () => {
+    expect(hasDotDotSegment("..\\x")).toBe(true);
+    expect(hasDotDotSegment("daily\\..\\outside")).toBe(true);
+  });
+
   test("allows dots inside a segment", () => {
     expect(hasDotDotSegment("2026.03.20")).toBe(false);
     expect(hasDotDotSegment("daily/..hidden")).toBe(false);
@@ -27,8 +32,8 @@ describe("literalizeFormat", () => {
     expect(literalizeFormat("[..]/YYYY")).toBe("../YYYY");
   });
 
-  test("renders backslash escapes", () => {
-    expect(literalizeFormat("\\.\\./YYYY")).toBe("../YYYY");
+  test("leaves backslashes intact for the separator check", () => {
+    expect(literalizeFormat("[..]\\YYYY")).toBe("..\\YYYY");
   });
 
   test("leaves an ordinary format alone", () => {
@@ -96,5 +101,11 @@ describe("buildNotePath", () => {
   test("throws rather than escaping the vault", () => {
     expect(() => buildNotePath("../outside", "2026-03-20.md")).toThrow();
     expect(() => buildNotePath("daily", "../../outside/leak.md")).toThrow();
+  });
+
+  test("throws on a backslash-separated escape", () => {
+    // normalizePath would turn this back into "../../outside/leak.md", so it
+    // has to be refused before it looks like one harmless segment.
+    expect(() => buildNotePath("", "..\\..\\outside\\leak.md")).toThrow();
   });
 });

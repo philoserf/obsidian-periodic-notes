@@ -97,6 +97,13 @@ describe("sanitizeSettings", () => {
     expect(settings.granularities.week.format).toBe("");
   });
 
+  test("refuses a backslash-separated format escape", () => {
+    const settings = sanitize({
+      granularities: { day: { format: "..\\..\\outside" } },
+    });
+    expect(settings.granularities.day.format).toBe("");
+  });
+
   test("keeps a nested format with dots in a segment", () => {
     const settings = sanitize({
       granularities: { day: { format: "YYYY/MM/YYYY.MM.DD" } },
