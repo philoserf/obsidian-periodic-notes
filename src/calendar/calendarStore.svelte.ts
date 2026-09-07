@@ -1,6 +1,7 @@
 import type { Moment } from "moment";
 import type { Component, TAbstractFile, TFile } from "obsidian";
 
+import { getEnabledGranularities } from "src/format";
 import type PeriodicNotesPlugin from "src/main";
 import type { Granularity } from "src/types";
 
@@ -14,7 +15,16 @@ export default class CalendarStore {
   constructor(component: Component, plugin: PeriodicNotesPlugin) {
     this.plugin = plugin;
 
+    // onLayoutReady is deferred, and the leaf can be closed before it runs.
+    // component.registerEvent on an already-unloaded component would never be
+    // torn down again.
+    let closed = false;
+    component.register(() => {
+      closed = true;
+    });
+
     plugin.app.workspace.onLayoutReady(() => {
+      if (closed) return;
       const { vault, metadataCache, workspace } = plugin.app;
       component.registerEvent(vault.on("create", this.bump, this));
       // Delete and rename fire after NoteCache's handler, which already
@@ -55,16 +65,7 @@ export default class CalendarStore {
     return this.plugin.cache.getPeriodicNote(granularity, date);
   }
 
-  public isGranularityEnabled(granularity: Granularity): boolean {
-    return (
-      this.plugin.settings.granularities[granularity]?.enabled ??
-      granularity === "day"
-    );
-  }
-
   public getEnabledGranularities(): Granularity[] {
-    return (["week", "month", "year"] as Granularity[]).filter(
-      (g) => this.plugin.settings.granularities[g]?.enabled,
-    );
+    return getEnabledGranularities(this.plugin.settings);
   }
 }

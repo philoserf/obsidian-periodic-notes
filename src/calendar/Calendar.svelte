@@ -4,6 +4,7 @@
 
   import { DISPLAYED_MONTH } from "src/constants";
   import { canonicalKey } from "src/cacheSearch";
+  import type { Granularity } from "src/types";
   import type CalendarStore from "./calendarStore.svelte";
   import Day from "./Day.svelte";
   import { DisplayedMonth } from "./displayedMonth.svelte";
@@ -34,21 +35,22 @@
 
   const month: Month = $derived(getMonth(displayedMonth.current));
 
-  const showWeeks: boolean = $derived.by(() => {
+  const enabledGranularities: Granularity[] = $derived.by(() => {
     // Track fileStore.version so mutations re-derive.
     void fileStore.version;
-    return fileStore.isGranularityEnabled("week");
+    return fileStore.getEnabledGranularities();
   });
 
-  const fileMap: FileMap = $derived.by(() => {
-    // Track fileStore.version so mutations re-derive.
-    void fileStore.version;
-    return computeFileMap(
+  const showWeeks: boolean = $derived(enabledGranularities.includes("week"));
+  const dayEnabled: boolean = $derived(enabledGranularities.includes("day"));
+
+  const fileMap: FileMap = $derived.by(() =>
+    computeFileMap(
       month,
       (date, granularity) => fileStore.getFile(date, granularity),
-      fileStore.getEnabledGranularities(),
-    );
-  });
+      enabledGranularities,
+    ),
+  );
 
   let eventHandlers: EventHandlers = $derived({
     onHover,
@@ -108,6 +110,7 @@
               {fileMap}
               {today}
               {activeFilePath}
+              {dayEnabled}
               {...eventHandlers}
             />
           {/each}

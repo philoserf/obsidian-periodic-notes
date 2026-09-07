@@ -16,6 +16,7 @@
     onContextMenu,
     today,
     activeFilePath = null,
+    dayEnabled = true,
   }: {
     date: Moment;
     fileMap: FileMap;
@@ -24,39 +25,47 @@
     onContextMenu: EventHandlers["onContextMenu"];
     today: Moment;
     activeFilePath: string | null;
+    dayEnabled: boolean;
   } = $props();
 
   const displayedMonth = getContext<DisplayedMonth>(DISPLAYED_MONTH);
 
   let file = $derived(fileMap.get(canonicalKey("day", date)) ?? null);
 
+  // With daily notes off, a cell is a date label and nothing more. Clicking one
+  // used to call openPeriodicNote("day", ...), which fell through to
+  // createPeriodicNote with the disabled config — writing a note the user had
+  // explicitly turned off to the vault root.
   function handleClick(event: MouseEvent) {
+    if (!dayEnabled) return;
     onClick?.("day", date, file, isMetaPressed(event));
   }
 
   function handleHover(event: PointerEvent) {
-    if (event.target) {
-      onHover?.("day", date, file, event.target, isMetaPressed(event));
-    }
+    if (!dayEnabled || !event.target) return;
+    onHover?.("day", date, file, event.target, isMetaPressed(event));
   }
 
   function handleContextmenu(event: MouseEvent) {
+    if (!dayEnabled) return;
     onContextMenu?.("day", date, file, event);
   }
 </script>
 
 <td>
+  <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
   <div
-    role="button"
-    tabindex="0"
+    role={dayEnabled ? "button" : undefined}
+    tabindex={dayEnabled ? 0 : undefined}
     class="day"
+    class:clickable={dayEnabled}
     class:active={file !== null && file.path === activeFilePath}
     class:adjacent-month={!date.isSame(displayedMonth.current, "month")}
     class:has-note={file !== null}
     class:today={date.isSame(today, "day")}
     onclick={handleClick}
     onkeydown={(e) => {
-      if (e.key === "Enter" || e.key === " ") {
+      if (dayEnabled && (e.key === "Enter" || e.key === " ")) {
         e.preventDefault();
         onClick?.("day", date, file, false);
       }
@@ -73,7 +82,7 @@
     background-color: var(--color-background-day);
     border-radius: 4px;
     color: var(--color-text-day);
-    cursor: pointer;
+    cursor: default;
     font-size: 0.8em;
     height: 100%;
     padding: 4px;
@@ -84,7 +93,11 @@
       color 0.1s ease-in;
     vertical-align: baseline;
   }
-  .day:hover {
+  .day.clickable {
+    cursor: pointer;
+  }
+
+  .day.clickable:hover {
     background-color: var(--interactive-hover);
   }
 
@@ -115,7 +128,7 @@
     font-weight: 600;
   }
 
-  .day:active,
+  .day.clickable:active,
   .active,
   .active.today {
     color: var(--text-on-accent);
