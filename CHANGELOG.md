@@ -1,10 +1,28 @@
 # Changelog
 
-## Unreleased
+## 2.4.0
+
+Six fixes across note creation, the settings tab and the calendar command. One
+of them was destroying note content; another left a period looking empty while
+its note sat in the vault.
+
+### Fixed
+
+- A template no longer overwrites content that arrives while it loads. The emptiness check and the write are now a single `vault.process` transform under the vault's own lock. Previously anything written between the two — Obsidian Sync streaming content in behind the create event, another plugin populating a note it just made, an external editor writing right after a touch — was silently and unrecoverably destroyed (#253)
+- A canonical-key collision no longer strands the losing note. The index keeps the loser as a contender and promotes it when the winner frees the key, so a period no longer reads as empty while a file that parses for it is still in the vault. Recovering from this previously took a full cache reset (#252)
+- `{{title}}` renders the note's basename on both creation paths. With a nested daily format such as `YYYY/MM/DD`, `# {{title}}` produced `# 2026/09/07` when the ribbon or the calendar created the note, and `# 07` when the cache applied the template to a file created empty. Flat formats were never affected (#254)
+- "Show calendar" reveals the calendar, every time. With the right sidebar collapsed — the usual reason to reach for the command — the view was constructed off screen, so the command appeared to do nothing and then disappeared from the palette. It now reveals the leaf and reports a view that fails to construct. Existing hotkeys survive; the command id is unchanged (#257)
+- The Folder setting warns when the path points at a file. `Journal/index.md` previously reported no problem at all, and the mistake surfaced much later as a folder-collision error at note creation, after indexing had silently matched nothing (#255)
+- The Template setting normalizes the path before validating it. A leading slash, a doubled separator or a backslash made settings report a template as missing while loading it worked — `Templates//daily.md` was reported missing and loaded fine (#255)
+
+### Documentation
+
+- The parameterized `{{date:…}}` and `{{time:…}}` tokens are documented as day-granularity only, with `{{month:…}}` and `{{year:…}}` as the equivalents for those periods. The scoping was deliberate but undocumented, and a monthly template containing `{{date:YYYY}}` writes those characters verbatim (#256)
 
 ### Dependencies
 
 - `typescript` is no longer declared in `devDependencies`. TS 6 is `svelte-check`'s peer, not the plugin's compiler — `@typescript/native` (TS 7) is — so bun installs it from that peer range and `bun.lock` pins it. The redundant declaration made `bun outdated` report the plugin as behind on a major it had already adopted (#265)
+- `@types/node` 26.5.0 (#264)
 
 ## 2.3.0
 
