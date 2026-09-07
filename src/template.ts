@@ -42,7 +42,10 @@ export async function applyTemplateToFile(
   const rendered = applyTemplate(
     file.basename,
     entry.granularity,
-    entry.date,
+    // The index holds this entry by reference, so the cached Moment never
+    // crosses into rendering code — a token that mutates its argument would
+    // otherwise corrupt the key the entry is indexed under.
+    entry.date.clone(),
     format,
     templateContents,
   );
