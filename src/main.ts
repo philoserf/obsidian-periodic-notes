@@ -19,12 +19,7 @@ import { SettingsTab } from "./settings";
 import { sanitizeSettings } from "./settingsLoad";
 import { getNoteCreationPath, readTemplate } from "./template";
 import { applyTemplate } from "./templateRender";
-import {
-  type CacheEntry,
-  type Granularity,
-  granularities,
-  type Settings,
-} from "./types";
+import { type Granularity, granularities, type Settings } from "./types";
 
 interface OpenOpts {
   inNewSplit?: boolean;
@@ -33,7 +28,10 @@ interface OpenOpts {
 export default class PeriodicNotesPlugin extends Plugin {
   public declare settings: Settings;
   private ribbonEl!: HTMLElement | null;
-  private cache!: NoteCache;
+  // Public because commands and the calendar read the index directly: a
+  // forwarder here would only pass the call along. Not `readonly` — it is
+  // built in onload, not in the constructor.
+  public cache!: NoteCache;
   // The settings the cache index is built from, as last persisted. Compared on
   // save so only a change that actually affects indexing costs a vault rescan.
   private indexingSnapshot = "";
@@ -165,25 +163,6 @@ export default class PeriodicNotesPlugin extends Plugin {
     );
     const destPath = await getNoteCreationPath(this.app, filename, config);
     return this.app.vault.create(destPath, rendered);
-  }
-
-  public getPeriodicNote(granularity: Granularity, date: Moment): TFile | null {
-    return this.cache.getPeriodicNote(granularity, date);
-  }
-
-  public isPeriodic(filePath: string, granularity?: Granularity): boolean {
-    return this.cache.isPeriodic(filePath, granularity);
-  }
-
-  public findAdjacent(
-    filePath: string,
-    direction: "forwards" | "backwards",
-  ): CacheEntry | null {
-    return this.cache.findAdjacent(filePath, direction);
-  }
-
-  public findInCache(filePath: string): CacheEntry | null {
-    return this.cache.find(filePath);
   }
 
   public async openPeriodicNote(
