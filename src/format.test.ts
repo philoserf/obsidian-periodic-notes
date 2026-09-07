@@ -4,11 +4,11 @@ import {
   extractDateStringFromPath,
   getFormat,
   getPossibleFormats,
+  isFragileBasename,
   isIsoFormat,
   isValidFilename,
   removeEscapedCharacters,
   validateFormat,
-  validateFormatComplexity,
 } from "./format";
 import type { Settings } from "./types";
 
@@ -105,17 +105,28 @@ describe("validateFormat", () => {
   });
 });
 
-describe("validateFormatComplexity", () => {
-  test("valid for standard format", () => {
-    expect(validateFormatComplexity("YYYY-MM-DD", "day")).toBe("valid");
+describe("isFragileBasename", () => {
+  test("a flat format is not fragile", () => {
+    expect(isFragileBasename("YYYY-MM-DD", "day")).toBe(false);
   });
 
-  test("fragile-basename for missing month in basename", () => {
-    expect(validateFormatComplexity("YYYY/DD", "day")).toBe("fragile-basename");
+  test("a nested format whose basename lacks tokens is fragile", () => {
+    expect(isFragileBasename("YYYY/DD", "day")).toBe(true);
+    expect(isFragileBasename("YYYY/MM/DD", "day")).toBe(true);
   });
 
-  test("valid for nested with complete basename", () => {
-    expect(validateFormatComplexity("YYYY/YYYY-MM-DD", "day")).toBe("valid");
+  test("a nested format with a complete basename is not fragile", () => {
+    expect(isFragileBasename("YYYY/YYYY-MM-DD", "day")).toBe(false);
+  });
+
+  test("only daily formats can be fragile", () => {
+    // Week, month and year notes are read from the basename regardless.
+    expect(isFragileBasename("YYYY/DD", "week")).toBe(false);
+    expect(isFragileBasename("YYYY/MM", "month")).toBe(false);
+  });
+
+  test("an escaped slash does not make a format nested", () => {
+    expect(isFragileBasename("[YYYY/]DD", "day")).toBe(false);
   });
 });
 

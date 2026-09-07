@@ -96,21 +96,24 @@ function isMissingRequiredTokens(format: string): boolean {
   );
 }
 
-export function validateFormatComplexity(
+/**
+ * True when a nested daily format leaves too little in the last path segment
+ * to identify a date on its own — "YYYY/MM/DD" gives a basename of "DD", so
+ * the date has to be read back out of the surrounding directories.
+ *
+ * Deliberately does no moment work. This is called once per file per enabled
+ * granularity during NoteCache.initialize's folder walk, which re-runs on
+ * every settings change that touches indexing.
+ */
+export function isFragileBasename(
   format: string,
   granularity: Granularity,
-): "valid" | "fragile-basename" | "loose-parsing" {
-  const testFormattedDate = window.moment().format(format);
-  const parsedDate = window.moment(testFormattedDate, format, true);
-  if (!parsedDate.isValid()) return "loose-parsing";
-
-  const strippedFormat = removeEscapedCharacters(format);
-  if (strippedFormat.includes("/")) {
-    if (granularity === "day" && isMissingRequiredTokens(format)) {
-      return "fragile-basename";
-    }
-  }
-  return "valid";
+): boolean {
+  return (
+    granularity === "day" &&
+    removeEscapedCharacters(format).includes("/") &&
+    isMissingRequiredTokens(format)
+  );
 }
 
 // Structural subset of TFile, so this module stays importable in tests.
@@ -125,8 +128,13 @@ export function extractDateStringFromPath(
   format: string,
   granularity: Granularity,
 ): string {
-  if (validateFormatComplexity(format, granularity) === "fragile-basename") {
-    const withoutExtension = file.path.slice(0, -(file.extension.length + 1));
+  if (isFragileBasename(format, granularity)) {
+    // TFile.extension is "" for an extensionless file, and initialize()'s walk
+    // does not filter by extension — slicing -(0 + 1) would eat a real
+    // character of the path rather than a separator.
+    const withoutExtension = file.extension
+      ? file.path.slice(0, -(file.extension.length + 1))
+      : file.path;
     const strippedFormat = removeEscapedCharacters(format);
     const nestingLvl = (strippedFormat.match(/\//g)?.length ?? 0) + 1;
     const pathParts = withoutExtension.split("/");
