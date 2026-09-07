@@ -6,7 +6,7 @@ import {
   type TFile,
   type WorkspaceLeaf,
 } from "obsidian";
-import { VIEW_TYPE_CALENDAR } from "src/constants";
+import { HUMANIZE_FORMAT, VIEW_TYPE_CALENDAR } from "src/constants";
 import type PeriodicNotesPlugin from "src/main";
 import type { Granularity } from "src/types";
 import { mount, unmount } from "svelte";
@@ -74,6 +74,15 @@ export class CalendarView extends ItemView {
       },
     }) as CalendarExports;
 
+    // `today` was only ever reassigned from a file-open, so the highlight and
+    // Nav's showingCurrentMonth stayed pinned to yesterday when the app sat
+    // open overnight. An interval rather than a timer to midnight: a timeout
+    // fires late after the machine sleeps and never reschedules. tick() no-ops
+    // unless the day actually changed.
+    this.registerInterval(
+      window.setInterval(() => this.calendar?.tick(), 60_000),
+    );
+
     // No file-open fires for a file that is already open, so a calendar
     // revealed next to an open periodic note would render with nothing
     // highlighted until the user switched away and back. Deferred because
@@ -90,10 +99,10 @@ export class CalendarView extends ItemView {
     metaPressed: boolean,
   ): void {
     if (!metaPressed) return;
+    // The locale short date ("9/1/2026") describes a day, so using it for a
+    // month or year header labelled the wrong thing entirely.
     const formattedDate = date.format(
-      granularity === "day"
-        ? "YYYY-MM-DD"
-        : date.localeData().longDateFormat("L"),
+      HUMANIZE_FORMAT[granularity] ?? "YYYY-MM-DD",
     );
     this.app.workspace.trigger(
       "link-hover",
@@ -120,15 +129,12 @@ export class CalendarView extends ItemView {
     event: MouseEvent,
   ): void {
     if (!file) return;
+    // No custom items: Obsidian's own file-menu handlers contribute Delete —
+    // with its confirmation and the vault's "Deleted files" preference — plus
+    // Rename and whatever other plugins add. The item that used to be here
+    // called vault.trash(file, true), which hard-coded the *system* trash,
+    // asked nothing, and dropped the promise so a failure was invisible.
     const menu = new Menu();
-    menu.addItem((item) =>
-      item
-        .setTitle("Delete")
-        .setIcon("trash")
-        .onClick(() => {
-          this.app.vault.trash(file, true);
-        }),
-    );
     this.app.workspace.trigger(
       "file-menu",
       menu,
