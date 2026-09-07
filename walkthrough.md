@@ -1765,7 +1765,7 @@ sed -n '/"scripts"/,/}/p' package.json
     "dev": "vite build --watch",
     "build": "bun run check && vite build",
     "check": "bun run typecheck && biome check . && svelte-check --tsgo",
-    "typecheck": "node ./node_modules/typescript/bin/tsc --noEmit",
+    "typecheck": "node ./node_modules/@typescript/native/bin/tsc --noEmit",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
@@ -1775,6 +1775,13 @@ sed -n '/"scripts"/,/}/p' package.json
     "deploy": "bun run deploy.ts"
   },
 ```
+
+`typecheck` runs the **native TypeScript 7** compiler, which arrives under an
+alias. `svelte-check` supports TS 7 only when both majors are installed — TS 6
+under the `typescript` name for its own internals, TS 7 aliased as
+`@typescript/native` — and only behind the `--tsgo` flag above. So the
+`typescript` entry in `package.json` stays pinned at `~6` on purpose, and
+`bun outdated` will report it as behind for as long as that requirement holds.
 
 ```bash
 echo "test files: $(ls src/*.test.ts src/calendar/*.test.ts | wc -l | tr -d ' ')" && echo "test cases: $(grep -rhoE '\b(test|it)\(' src/*.test.ts src/calendar/*.test.ts | wc -l | tr -d ' ')"
