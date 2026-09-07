@@ -116,18 +116,12 @@ export class CalendarView extends ItemView {
   private onClick(
     granularity: Granularity,
     date: Moment,
-    _existingFile: TFile | null,
     inNewSplit: boolean,
   ): void {
     this.plugin.openPeriodicNote(granularity, date, { inNewSplit });
   }
 
-  private onContextMenu(
-    _granularity: Granularity,
-    _date: Moment,
-    file: TFile | null,
-    event: MouseEvent,
-  ): void {
+  private onContextMenu(file: TFile | null, event: MouseEvent): void {
     if (!file) return;
     // No custom items: Obsidian's own file-menu handlers contribute Delete —
     // with its confirmation and the vault's "Deleted files" preference — plus

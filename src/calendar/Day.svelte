@@ -39,19 +39,19 @@
   // explicitly turned off to the vault root.
   function handleClick(event: MouseEvent) {
     if (!dayEnabled) return;
-    onClick?.("day", date, file, isMetaPressed(event));
+    onClick("day", date, isMetaPressed(event));
   }
 
   function handleHover(event: PointerEvent) {
     if (!dayEnabled || !event.target) return;
-    onHover?.("day", date, file, event.target, isMetaPressed(event));
+    onHover("day", date, file, event.target, isMetaPressed(event));
   }
 
   function handleContextmenu(event: MouseEvent) {
     if (!dayEnabled) return;
     // Otherwise the native menu can appear alongside the custom one.
     event.preventDefault();
-    onContextMenu?.("day", date, file, event);
+    onContextMenu(file, event);
   }
 </script>
 
@@ -68,7 +68,7 @@
     class:today={date.isSame(today, "day")}
     onclick={handleClick}
     onkeydown={dayEnabled
-      ? activateOnKey(() => onClick?.("day", date, file, false))
+      ? activateOnKey(() => onClick("day", date, false))
       : undefined}
     oncontextmenu={handleContextmenu}
     onpointerenter={handleHover}

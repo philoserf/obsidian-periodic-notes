@@ -50,8 +50,7 @@
       resetDisplayedMonth();
       return;
     }
-    const file = granularity === "month" ? monthFile : yearFile;
-    onClick?.(granularity, displayedMonth.current, file, false);
+    onClick(granularity, displayedMonth.current, false);
   }
 
   function makeHandlers(
@@ -62,19 +61,14 @@
     return {
       click: (event: MouseEvent) => {
         if (getEnabled()) {
-          onClick?.(
-            granularity,
-            displayedMonth.current,
-            getFile(),
-            isMetaPressed(event),
-          );
+          onClick(granularity, displayedMonth.current, isMetaPressed(event));
         } else {
           resetDisplayedMonth();
         }
       },
       hover: (event: PointerEvent) => {
         if (!getEnabled() || !event.target) return;
-        onHover?.(
+        onHover(
           granularity,
           displayedMonth.current,
           getFile(),
@@ -87,7 +81,7 @@
         if (!getEnabled() || !f) return;
         // Otherwise the native menu can appear alongside the custom one.
         event.preventDefault();
-        onContextMenu?.(granularity, displayedMonth.current, f, event);
+        onContextMenu(f, event);
       },
     };
   }

@@ -33,8 +33,6 @@ export const WEEKDAYS = [
   "saturday",
 ] as const;
 
-export type WeekdayName = (typeof WEEKDAYS)[number];
-
 // How a period reads in a hover label, as opposed to how its filename is
 // formatted. Day is absent deliberately: the hover for a day is an ISO date.
 export const HUMANIZE_FORMAT: Partial<Record<Granularity, string>> = {

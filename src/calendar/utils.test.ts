@@ -16,6 +16,7 @@ describe("getMonth", () => {
       expect(grid).toHaveLength(6);
       let total = 0;
       for (const week of grid) {
+        expect(week.days).toHaveLength(7);
         total += week.days.length;
       }
       expect(total).toBe(42);
@@ -36,13 +37,6 @@ describe("getMonth", () => {
     const days = grid.flatMap((w) => w.days);
     for (let i = 1; i < days.length; i++) {
       expect(days[i].valueOf()).toBeGreaterThan(days[i - 1].valueOf());
-    }
-  });
-
-  it("each week has exactly 7 days", () => {
-    const grid = getMonth(moment("2024-02-01"));
-    for (const week of grid) {
-      expect(week.days).toHaveLength(7);
     }
   });
 

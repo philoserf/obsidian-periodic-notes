@@ -101,10 +101,6 @@ describe("canonicalKey", () => {
     expect(sorted).toEqual([k20, k21, k22]);
   });
 
-  test("builds a key from a valid date", () => {
-    expect(canonicalKey("day", window.moment("2026-03-20"))).toContain("day:");
-  });
-
   test('refuses an invalid date rather than aliasing on "null"', () => {
     // #176: toISOString() returns null for an invalid moment, so every invalid
     // date for a granularity used to collapse to "<granularity>:null".

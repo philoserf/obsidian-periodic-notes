@@ -20,15 +20,9 @@ export interface EventHandlers {
   onClick: (
     granularity: Granularity,
     date: Moment,
-    existingFile: TFile | null,
     inNewSplit: boolean,
   ) => void;
-  onContextMenu: (
-    granularity: Granularity,
-    date: Moment,
-    file: TFile | null,
-    event: MouseEvent,
-  ) => void;
+  onContextMenu: (file: TFile | null, event: MouseEvent) => void;
 }
 
 export type FileMap = Map<string, TFile | null>;

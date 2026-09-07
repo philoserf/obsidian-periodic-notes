@@ -37,7 +37,7 @@ export class NoteCache extends Component {
       this.initialize();
       this.registerEvent(
         this.app.vault.on("create", (file) => {
-          if (file instanceof TFile) void this.resolve(file, "create");
+          if (file instanceof TFile) void this.resolve(file, true);
         }),
       );
       this.registerEvent(
@@ -92,7 +92,7 @@ export class NoteCache extends Component {
 
       recurseChildren(rootFolder, (file) => {
         if (file instanceof TFile) {
-          void this.resolve(file, "initialize");
+          void this.resolve(file, false);
           const metadata = this.app.metadataCache.getFileCache(file);
           if (metadata) this.resolveFrontmatter(file, metadata);
         }
@@ -120,7 +120,7 @@ export class NoteCache extends Component {
     const existing = this.index.get(file.path);
     if (existing?.match === "frontmatter") {
       this.index.remove(file.path);
-      void this.resolve(file, "metadata");
+      void this.resolve(file, false);
     }
   }
 
@@ -144,15 +144,12 @@ export class NoteCache extends Component {
       return;
     }
 
-    void this.resolve(file, "rename");
+    void this.resolve(file, false);
   }
 
   // Runs synchronously through index.set and the trigger except on the
   // create-with-template path, where the trigger waits for the template.
-  private async resolve(
-    file: TFile,
-    reason: "create" | "rename" | "initialize" | "metadata" = "create",
-  ): Promise<void> {
+  private async resolve(file: TFile, isCreate: boolean): Promise<void> {
     const settings = this.plugin.settings;
     const entry = resolveEntry(file, settings, this.index.get(file.path));
     if (!entry) return;
@@ -162,7 +159,7 @@ export class NoteCache extends Component {
     // file resolved when it did not.
     if (this.index.set(entry).filePath !== file.path) return;
 
-    if (reason === "create" && file.stat.size === 0) {
+    if (isCreate && file.stat.size === 0) {
       try {
         await applyTemplateToFile(this.app, file, settings, entry);
       } catch (err) {
