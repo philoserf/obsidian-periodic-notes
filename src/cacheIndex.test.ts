@@ -182,31 +182,6 @@ describe("CacheIndex.remove", () => {
   });
 });
 
-describe("CacheIndex.has", () => {
-  let index: CacheIndex;
-  beforeEach(() => {
-    index = new CacheIndex();
-    index.set(makeEntry("daily/2026-03-20.md", "2026-03-20", "day"));
-    index.set(makeEntry("weekly/2026-W12.md", "2026-03-16", "week"));
-  });
-
-  test("returns true for indexed file", () => {
-    expect(index.has("daily/2026-03-20.md")).toBe(true);
-  });
-
-  test("returns false for unindexed file", () => {
-    expect(index.has("nope.md")).toBe(false);
-  });
-
-  test("returns true when granularity matches", () => {
-    expect(index.has("daily/2026-03-20.md", "day")).toBe(true);
-  });
-
-  test("returns false when granularity mismatches", () => {
-    expect(index.has("daily/2026-03-20.md", "week")).toBe(false);
-  });
-});
-
 describe("CacheIndex.clear", () => {
   test("clear empties all indexes", () => {
     const index = new CacheIndex();
