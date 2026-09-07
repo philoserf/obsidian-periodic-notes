@@ -10,11 +10,11 @@ import {
   TFolder,
 } from "obsidian";
 
+import { resolveFrontmatterEntry } from "./cacheFrontmatter";
 import { CacheIndex } from "./cacheIndex";
 import { resolveEntry } from "./cacheResolve";
-import { getEnabledGranularities, getFormat } from "./format";
+import { getEnabledGranularities } from "./format";
 import type PeriodicNotesPlugin from "./main";
-import { isInFolder } from "./paths";
 import { applyTemplateToFile } from "./template";
 import type { CacheEntry, Granularity } from "./types";
 
@@ -44,7 +44,9 @@ export class NoteCache extends Component {
       );
       this.registerEvent(this.app.vault.on("rename", this.onRename, this));
       this.registerEvent(
-        this.app.metadataCache.on("changed", this.onMetadataChanged, this),
+        this.app.metadataCache.on("changed", (file, _data, cache) =>
+          this.resolveFrontmatter(file, cache),
+        ),
       );
       this.registerEvent(
         this.app.workspace.on(
@@ -89,58 +91,64 @@ export class NoteCache extends Component {
         if (file instanceof TFile) {
           void this.resolve(file, "initialize");
           const metadata = this.app.metadataCache.getFileCache(file);
-          if (metadata) this.onMetadataChanged(file, "", metadata);
+          if (metadata) this.resolveFrontmatter(file, metadata);
         }
       });
     }
   }
 
-  private onMetadataChanged(
-    file: TFile,
-    _data: string,
-    cache: CachedMetadata,
-  ): void {
-    const settings = this.plugin.settings;
-    const active = getEnabledGranularities(settings);
-    if (active.length === 0) return;
+  private resolveFrontmatter(file: TFile, cache: CachedMetadata): void {
+    const entry = resolveFrontmatterEntry(
+      file.path,
+      this.plugin.settings,
+      (granularity) => parseFrontMatterEntry(cache.frontmatter, granularity),
+    );
 
-    for (const granularity of active) {
-      const folder = settings.granularities[granularity].folder;
-      if (!isInFolder(file.path, folder)) continue;
-      const frontmatterEntry = parseFrontMatterEntry(
-        cache.frontmatter,
-        granularity,
-      );
-      if (!frontmatterEntry) continue;
+    if (entry) {
+      this.index.set(entry);
+      return;
+    }
 
-      const format = getFormat(settings, granularity);
-      if (typeof frontmatterEntry === "string") {
-        const date = window.moment(frontmatterEntry, format, true);
-        if (date.isValid()) {
-          this.index.set({
-            filePath: file.path,
-            date,
-            granularity,
-            match: "frontmatter",
-          });
-        }
-        return;
-      }
+    // The property that produced a frontmatter entry can be edited away, and
+    // nothing else drops it: resolveEntry refuses to re-resolve a path already
+    // matched by frontmatter. Remove it here, then offer the file to filename
+    // matching — stripping frontmatter from a note whose name still parses
+    // should leave it periodic.
+    const existing = this.index.get(file.path);
+    if (existing?.match === "frontmatter") {
+      this.index.remove(file.path);
+      void this.resolve(file, "metadata");
     }
   }
 
   private onRename(file: TAbstractFile, oldPath: string): void {
-    if (file instanceof TFile) {
-      this.index.remove(oldPath);
-      void this.resolve(file, "rename");
+    if (!(file instanceof TFile)) return;
+
+    const previous = this.index.get(oldPath);
+    this.index.remove(oldPath);
+
+    // A frontmatter match survives a rename — the property that made the file
+    // periodic did not move. Re-resolving cannot preserve it: resolveEntry is
+    // handed the entry for the *new* path, which does not exist yet, so it
+    // would silently fall back to filename matching and drop the note.
+    if (previous?.match === "frontmatter") {
+      this.index.set({ ...previous, filePath: file.path });
+      this.app.workspace.trigger(
+        "periodic-notes:resolve",
+        previous.granularity,
+        file,
+      );
+      return;
     }
+
+    void this.resolve(file, "rename");
   }
 
   // Runs synchronously through index.set and the trigger except on the
   // create-with-template path, where the trigger waits for the template.
   private async resolve(
     file: TFile,
-    reason: "create" | "rename" | "initialize" = "create",
+    reason: "create" | "rename" | "initialize" | "metadata" = "create",
   ): Promise<void> {
     const settings = this.plugin.settings;
     const entry = resolveEntry(file, settings, this.index.get(file.path));
