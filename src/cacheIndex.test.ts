@@ -297,3 +297,107 @@ describe("CacheIndex.findAdjacent", () => {
     expect(rebuilt?.filePath).toBe("2026-03-21.md");
   });
 });
+
+describe("CacheIndex collision contenders", () => {
+  let index: CacheIndex;
+  beforeEach(() => {
+    index = new CacheIndex();
+  });
+
+  test("removing the winner promotes the loser", () => {
+    const winner = makeEntry("daily/2026-03-20.md", "2026-03-20");
+    const loser = makeEntry("daily/notes-2026-03-20.md", "2026-03-20");
+    index.set(winner);
+    silently(() => index.set(loser));
+    expect(index.getByKey("day", window.moment("2026-03-20"))).toBe(winner);
+
+    index.remove(winner.filePath);
+
+    expect(index.getByKey("day", window.moment("2026-03-20"))).toBe(loser);
+    expect(index.get(loser.filePath)).toBe(loser);
+  });
+
+  test("a promoted loser is findable by the nav commands", () => {
+    const winner = makeEntry("daily/2026-03-20.md", "2026-03-20");
+    const loser = makeEntry("daily/notes-2026-03-20.md", "2026-03-20");
+    index.set(makeEntry("daily/2026-03-19.md", "2026-03-19"));
+    index.set(winner);
+    silently(() => index.set(loser));
+    index.remove(winner.filePath);
+
+    expect(index.findAdjacent("daily/2026-03-19.md", "forwards")).toBe(loser);
+  });
+
+  test("removing the loser leaves the winner alone", () => {
+    const winner = makeEntry("daily/2026-03-20.md", "2026-03-20");
+    const loser = makeEntry("daily/notes-2026-03-20.md", "2026-03-20");
+    index.set(winner);
+    silently(() => index.set(loser));
+
+    index.remove(loser.filePath);
+    index.remove(winner.filePath);
+
+    expect(index.getByKey("day", window.moment("2026-03-20"))).toBe(null);
+  });
+
+  test("a frontmatter loser is promoted over a filename one", () => {
+    const winner = makeEntry("a.md", "2026-03-20", "day", "frontmatter");
+    const byName = makeEntry("b.md", "2026-03-20");
+    const byFrontmatter = makeEntry("c.md", "2026-03-20", "day", "frontmatter");
+    index.set(winner);
+    silently(() => index.set(byName));
+    silently(() => index.set(byFrontmatter));
+
+    index.remove("a.md");
+
+    expect(index.getByKey("day", window.moment("2026-03-20"))).toBe(
+      byFrontmatter,
+    );
+  });
+
+  test("re-indexing a loser at a new date drops its old contender record", () => {
+    const winner = makeEntry("daily/2026-03-20.md", "2026-03-20");
+    const loser = makeEntry("daily/other.md", "2026-03-20");
+    index.set(winner);
+    silently(() => index.set(loser));
+
+    // The loser's frontmatter now claims a different day.
+    index.set(makeEntry("daily/other.md", "2026-03-21"));
+    index.remove(winner.filePath);
+
+    expect(index.getByKey("day", window.moment("2026-03-20"))).toBe(null);
+    expect(index.getByKey("day", window.moment("2026-03-21"))?.filePath).toBe(
+      "daily/other.md",
+    );
+  });
+
+  test("clear forgets contenders", () => {
+    const winner = makeEntry("daily/2026-03-20.md", "2026-03-20");
+    index.set(winner);
+    silently(() => index.set(makeEntry("daily/other.md", "2026-03-20")));
+
+    index.clear();
+    index.set(winner);
+    index.remove(winner.filePath);
+
+    expect(index.getByKey("day", window.moment("2026-03-20"))).toBe(null);
+  });
+});
+
+describe("CacheIndex contenders when a winner is re-dated", () => {
+  test("re-dating the winner promotes the loser to the key it left", () => {
+    const index = new CacheIndex();
+    const winner = makeEntry("daily/a.md", "2026-03-20", "day", "frontmatter");
+    const loser = makeEntry("daily/b.md", "2026-03-20");
+    index.set(winner);
+    silently(() => index.set(loser));
+
+    // The winner's frontmatter now claims a different day.
+    const redated = makeEntry("daily/a.md", "2026-03-25", "day", "frontmatter");
+    index.set(redated);
+
+    expect(index.getByKey("day", window.moment("2026-03-20"))).toBe(loser);
+    expect(index.getByKey("day", window.moment("2026-03-25"))).toBe(redated);
+    expect(index.get("daily/b.md")).toBe(loser);
+  });
+});
