@@ -6,8 +6,9 @@ import {
   type Point,
   TFile,
 } from "obsidian";
+import { getEnabledGranularities } from "./format";
 import type PeriodicNotesPlugin from "./main";
-import { type Granularity, granularities } from "./types";
+import type { Granularity } from "./types";
 
 interface GranularityLabel {
   periodicity: string;
@@ -137,9 +138,7 @@ export function showContextMenu(
   position: Point,
 ): void {
   const menu = new Menu();
-  const enabled = granularities.filter(
-    (g) => plugin.settings.granularities[g].enabled,
-  );
+  const enabled = getEnabledGranularities(plugin.settings);
 
   for (const granularity of enabled) {
     const label = granularityLabels[granularity];

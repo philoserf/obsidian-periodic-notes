@@ -6,6 +6,10 @@ import { computeFileMap } from "./store";
 import { getMonth } from "./utils";
 
 describe("computeFileMap", () => {
+  // Load-bearing for #188: day cells are gated on a `dayEnabled` prop, not on
+  // presence in the map. Month.svelte reads `fileMap.has(key)` as its enabled
+  // signal, so dropping day keys here would leave Day.svelte unable to tell
+  // "disabled" from "enabled but no note" — both would be an absent key.
   it("generates keys for all 42 days in the month grid", () => {
     const month = getMonth(moment("2024-03-01"));
     const getFile = () => null;
