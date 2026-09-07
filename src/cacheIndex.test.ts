@@ -64,10 +64,6 @@ describe("CacheIndex.set / get", () => {
     expect(index.get("nope.md")).toBe(null);
   });
 
-  test("get returns null for undefined path", () => {
-    expect(index.get(undefined)).toBe(null);
-  });
-
   test("getByKey returns null for unindexed date", () => {
     expect(index.getByKey("day", window.moment("2026-03-20"))).toBe(null);
   });

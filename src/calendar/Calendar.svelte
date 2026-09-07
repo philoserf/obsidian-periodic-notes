@@ -11,7 +11,7 @@
   import { computeFileMap } from "./store";
   import Nav from "./Nav.svelte";
   import type { FileMap, EventHandlers, Month } from "./types";
-  import { getMonth, getWeekdayLabels, isWeekend } from "./utils";
+  import { getMonth, isWeekend } from "./utils";
   import Week from "./Week.svelte";
 
   let {
@@ -58,7 +58,7 @@
     onContextMenu,
   });
 
-  const daysOfWeek: string[] = getWeekdayLabels();
+  const daysOfWeek: string[] = window.moment.weekdaysShort(true);
 
   export function tick() {
     const now = window.moment();

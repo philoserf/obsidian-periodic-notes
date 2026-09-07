@@ -1,11 +1,6 @@
 import { DEFAULT_FORMAT } from "./constants";
 import { hasDotDotSegment } from "./paths";
-import {
-  type Granularity,
-  granularities,
-  type NoteConfig,
-  type Settings,
-} from "./types";
+import { type Granularity, granularities, type Settings } from "./types";
 
 export function getFormat(
   settings: Settings,
@@ -23,19 +18,11 @@ export function getPossibleFormats(
   const format = settings.granularities[granularity].format;
   if (!format) return [DEFAULT_FORMAT[granularity]];
 
-  const partialFormatExp = /[^/]*$/.exec(format);
-  if (partialFormatExp) {
-    const partialFormat = partialFormatExp[0];
-    return [format, partialFormat];
-  }
-  return [format];
-}
-
-export function getConfig(
-  settings: Settings,
-  granularity: Granularity,
-): NoteConfig {
-  return settings.granularities[granularity];
+  // `[^/]*` matches the empty string at minimum, so exec never returns null.
+  // For a format with no "/" the partial equals the format, and handing moment
+  // the same candidate twice is only noise.
+  const partialFormat = /[^/]*$/.exec(format)?.[0] ?? format;
+  return partialFormat === format ? [format] : [format, partialFormat];
 }
 
 export function getEnabledGranularities(settings: Settings): Granularity[] {
@@ -141,9 +128,4 @@ export function extractDateStringFromPath(
     return pathParts.slice(-nestingLvl).join("/");
   }
   return file.basename;
-}
-
-export function isIsoFormat(format: string): boolean {
-  const cleanFormat = removeEscapedCharacters(format);
-  return /w{1,2}/.test(cleanFormat);
 }
