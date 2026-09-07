@@ -1,6 +1,6 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it, test } from "bun:test";
 
-import { findAdjacentKey } from "./cacheSearch";
+import { canonicalKey, findAdjacentKey } from "./cacheSearch";
 
 describe("findAdjacentKey", () => {
   const sorted = [
@@ -68,5 +68,19 @@ describe("findAdjacentKey", () => {
     expect(findAdjacentKey(big, big[500], "backwards")).toBe(big[499]);
     expect(findAdjacentKey(big, big[0], "backwards")).toBe(null);
     expect(findAdjacentKey(big, big[999], "forwards")).toBe(null);
+  });
+});
+
+describe("canonicalKey", () => {
+  test("builds a key from a valid date", () => {
+    expect(canonicalKey("day", window.moment("2026-03-20"))).toContain("day:");
+  });
+
+  test('refuses an invalid date rather than aliasing on "null"', () => {
+    // #176: toISOString() returns null for an invalid moment, so every invalid
+    // date for a granularity used to collapse to "<granularity>:null".
+    expect(() =>
+      canonicalKey("day", window.moment("nonsense", "YYYY", true)),
+    ).toThrow();
   });
 });

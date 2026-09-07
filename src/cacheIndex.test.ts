@@ -17,6 +17,31 @@ function makeEntry(
   };
 }
 
+function collectWarnings(run: () => void): string[] {
+  const original = console.warn;
+  const warnings: string[] = [];
+  console.warn = (message: string) => {
+    warnings.push(message);
+  };
+  try {
+    run();
+    return warnings;
+  } finally {
+    console.warn = original;
+  }
+}
+
+// A collision is expected in these tests; keep its warning out of the output.
+function silently<T>(run: () => T): T {
+  const original = console.warn;
+  console.warn = () => {};
+  try {
+    return run();
+  } finally {
+    console.warn = original;
+  }
+}
+
 describe("CacheIndex.set / get", () => {
   let index: CacheIndex;
   beforeEach(() => {
@@ -73,14 +98,67 @@ describe("CacheIndex.set — dual-index invariants", () => {
     expect(index.get("note.md")).toBe(updated);
   });
 
-  test("key collision evicts old file from byPath", () => {
-    const first = makeEntry("a.md", "2026-03-20");
-    const second = makeEntry("b.md", "2026-03-20");
-    index.set(first);
-    index.set(second);
-    expect(index.get("a.md")).toBe(null);
-    expect(index.get("b.md")).toBe(second);
-    expect(index.getByKey("day", window.moment("2026-03-20"))).toBe(second);
+  test("key collision keeps the same winner in either insertion order", () => {
+    // #191: the winner used to be whichever file was written last, i.e. vault
+    // walk order. The smaller path now wins regardless.
+    const a = makeEntry("a.md", "2026-03-20");
+    const b = makeEntry("b.md", "2026-03-20");
+
+    const forwards = new CacheIndex();
+    silently(() => {
+      forwards.set(a);
+      forwards.set(b);
+    });
+    expect(forwards.get("b.md")).toBe(null);
+    expect(forwards.get("a.md")).toBe(a);
+    expect(forwards.getByKey("day", window.moment("2026-03-20"))).toBe(a);
+
+    const backwards = new CacheIndex();
+    silently(() => {
+      backwards.set(b);
+      backwards.set(a);
+    });
+    expect(backwards.get("b.md")).toBe(null);
+    expect(backwards.get("a.md")).toBe(a);
+  });
+
+  test("key collision prefers a frontmatter match over a filename one", () => {
+    const byName = makeEntry("a.md", "2026-03-20", "day", "filename");
+    const byFrontmatter = makeEntry("z.md", "2026-03-20", "day", "frontmatter");
+
+    const forwards = new CacheIndex();
+    silently(() => {
+      forwards.set(byName);
+      forwards.set(byFrontmatter);
+    });
+    expect(forwards.get("z.md")).toBe(byFrontmatter);
+    expect(forwards.get("a.md")).toBe(null);
+
+    const backwards = new CacheIndex();
+    silently(() => {
+      backwards.set(byFrontmatter);
+      backwards.set(byName);
+    });
+    expect(backwards.get("z.md")).toBe(byFrontmatter);
+    expect(backwards.get("a.md")).toBe(null);
+  });
+
+  test("set returns the entry that holds the key", () => {
+    const a = makeEntry("a.md", "2026-03-20");
+    const b = makeEntry("b.md", "2026-03-20");
+    expect(index.set(a)).toBe(a);
+    expect(silently(() => index.set(b))).toBe(a);
+  });
+
+  test("a collision says which file it ignored", () => {
+    const warnings = collectWarnings(() => {
+      index.set(makeEntry("a.md", "2026-03-20"));
+      index.set(makeEntry("b.md", "2026-03-20"));
+    });
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain("a.md");
+    expect(warnings[0]).toContain("b.md");
+    expect(warnings[0]).toContain("day:");
   });
 
   test("setting the same file with same date does not leave dangling keys", () => {

@@ -154,7 +154,10 @@ export class NoteCache extends Component {
     const entry = resolveEntry(file, settings, this.index.get(file.path));
     if (!entry) return;
 
-    this.index.set(entry);
+    // A canonical-key collision can leave this file unindexed in favour of
+    // another note for the same date. Nothing downstream should be told the
+    // file resolved when it did not.
+    if (this.index.set(entry).filePath !== file.path) return;
 
     if (reason === "create" && file.stat.size === 0) {
       try {
