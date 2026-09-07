@@ -1822,9 +1822,9 @@ sed -n '/"scripts"/,/}/p' package.json
 `typecheck` runs the **native TypeScript 7** compiler, which arrives under an
 alias. `svelte-check` supports TS 7 only when both majors are installed — TS 6
 under the `typescript` name for its own internals, TS 7 aliased as
-`@typescript/native` — and only behind the `--tsgo` flag above. So the
-`typescript` entry in `package.json` stays pinned at `~6` on purpose, and
-`bun outdated` will report it as behind for as long as that requirement holds.
+`@typescript/native` — and only behind the `--tsgo` flag above. TS 6 belongs to
+`svelte-check`, not to the plugin, so `package.json` does not declare it: bun
+installs it from that peer range and `bun.lock` pins the version it resolved.
 
 ```bash
 echo "test files: $(ls src/*.test.ts src/calendar/*.test.ts | wc -l | tr -d ' ')" && echo "test cases: $(grep -rhoE '\b(test|it)\(' src/*.test.ts src/calendar/*.test.ts | wc -l | tr -d ' ')"

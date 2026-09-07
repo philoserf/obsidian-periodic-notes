@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Dependencies
+
+- `typescript` is no longer declared in `devDependencies`. TS 6 is `svelte-check`'s peer, not the plugin's compiler — `@typescript/native` (TS 7) is — so bun installs it from that peer range and `bun.lock` pins it. The redundant declaration made `bun outdated` report the plugin as behind on a major it had already adopted (#265)
+
 ## 2.3.0
 
 Fifty issues closed across seven milestones. The calendar and the settings tab
