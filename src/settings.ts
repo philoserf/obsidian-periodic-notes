@@ -4,25 +4,40 @@ import {
   normalizePath,
   PluginSettingTab,
   Setting,
+  type TextComponent,
 } from "obsidian";
 import { DEFAULT_FORMAT } from "./constants";
-import { FileSuggest, FolderSuggest } from "./fileSuggest";
+import { PathSuggest } from "./fileSuggest";
 import { validateFormat } from "./format";
 import type PeriodicNotesPlugin from "./main";
-import { canonicalFolder } from "./paths";
+import { canonicalFolder, hasDotDotSegment } from "./paths";
 import { type Granularity, granularities } from "./types";
 
-function validateTemplate(app: App, template: string): string {
-  if (!template) return "";
+// A field's verdict. A `blocking` value is never written to plugin.settings —
+// it would corrupt note resolution or escape the vault. Everything else is
+// advisory: the field warns but persists, so a folder that does not exist yet
+// can still be configured ahead of the note that creates it.
+type Validation = { error: string; blocking: boolean };
+
+const valid: Validation = { error: "", blocking: false };
+const warn = (error: string): Validation => ({ error, blocking: false });
+const reject = (error: string): Validation => ({ error, blocking: true });
+
+function validateTemplate(app: App, template: string): Validation {
+  if (!template) return valid;
   const file = app.metadataCache.getFirstLinkpathDest(template, "");
-  return file ? "" : "Template file not found";
+  return file ? valid : warn("Template file not found");
 }
 
-function validateFolder(app: App, folder: string): string {
-  if (!folder || folder === "/") return "";
-  return app.vault.getAbstractFileByPath(normalizePath(folder))
-    ? ""
-    : "Folder not found in vault";
+function validateFolder(app: App, folder: string): Validation {
+  if (!folder || folder === "/") return valid;
+  const normalized = normalizePath(folder);
+  if (hasDotDotSegment(normalized)) {
+    return reject("Folder would place notes outside the vault");
+  }
+  return app.vault.getAbstractFileByPath(normalized)
+    ? valid
+    : warn("Folder not found in vault");
 }
 
 const labels: Record<Granularity, string> = {
@@ -34,7 +49,8 @@ const labels: Record<Granularity, string> = {
 
 // How a validated periodic-note text field binds to settings: validate on
 // change, show the error (or the default description), flag the field, then
-// store the raw value and save.
+// store the value and save — unless the error is a blocking one, in which case
+// the previously stored value stands.
 function addValidatedTextSetting(
   containerEl: HTMLElement,
   opts: {
@@ -42,9 +58,12 @@ function addValidatedTextSetting(
     defaultDesc: string;
     placeholder?: string;
     value: string;
-    validate: (value: string) => string;
+    validate: (value: string) => Validation;
     onChange: (value: string) => void;
-    attachSuggest?: (inputEl: HTMLInputElement) => void;
+    attachSuggest?: (
+      text: TextComponent,
+      applyChange: (value: string) => void,
+    ) => void;
   },
 ): void {
   const setting = new Setting(containerEl)
@@ -52,13 +71,18 @@ function addValidatedTextSetting(
     .setDesc(opts.defaultDesc)
     .addText((text) => {
       if (opts.placeholder) text.setPlaceholder(opts.placeholder);
-      text.setValue(opts.value).onChange((value) => {
-        const error = opts.validate(value);
+
+      // Shared by typing and by picking from the suggester, so a selection
+      // gets the same validation, description update and save as a keystroke.
+      const applyChange = (value: string) => {
+        const { error, blocking } = opts.validate(value);
         setting.descEl.setText(error || opts.defaultDesc);
         setting.descEl.toggleClass("has-error", !!error);
-        opts.onChange(value);
-      });
-      opts.attachSuggest?.(text.inputEl);
+        if (!blocking) opts.onChange(value);
+      };
+
+      text.setValue(opts.value).onChange(applyChange);
+      opts.attachSuggest?.(text, applyChange);
     });
 }
 
@@ -101,7 +125,10 @@ export class SettingsTab extends PluginSettingTab {
       defaultDesc: "Moment.js date format string",
       placeholder: DEFAULT_FORMAT[granularity],
       value: config.format,
-      validate: (value) => validateFormat(value, granularity),
+      validate: (value) => {
+        const error = validateFormat(value, granularity);
+        return error ? reject(error) : valid;
+      },
       onChange: (value) => {
         this.plugin.settings.granularities[granularity].format = value;
         this.debouncedSave();
@@ -118,7 +145,13 @@ export class SettingsTab extends PluginSettingTab {
           canonicalFolder(normalizePath(value));
         this.debouncedSave();
       },
-      attachSuggest: (inputEl) => new FolderSuggest(this.app, inputEl),
+      attachSuggest: (text, applyChange) =>
+        new PathSuggest(this.app, text.inputEl, () =>
+          this.app.vault.getAllFolders(),
+        ).onSelect((folder) => {
+          text.setValue(folder.path);
+          applyChange(folder.path);
+        }),
     });
 
     addValidatedTextSetting(containerEl, {
@@ -131,7 +164,13 @@ export class SettingsTab extends PluginSettingTab {
           value || undefined;
         this.debouncedSave();
       },
-      attachSuggest: (inputEl) => new FileSuggest(this.app, inputEl),
+      attachSuggest: (text, applyChange) =>
+        new PathSuggest(this.app, text.inputEl, () =>
+          this.app.vault.getMarkdownFiles(),
+        ).onSelect((file) => {
+          text.setValue(file.path);
+          applyChange(file.path);
+        }),
     });
   }
 }
