@@ -47,7 +47,7 @@ Tokens are replaced when a new note is created from a template.
 
 | Token                   | Replaced with                |
 | ----------------------- | ---------------------------- |
-| `{{date}}`, `{{title}}` | The new note's filename.     |
+| `{{date}}`, `{{title}}` | The new note's basename.     |
 | `{{time}}`              | The current time as `HH:mm`. |
 
 ### Daily notes

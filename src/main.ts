@@ -5,7 +5,7 @@ import { NoteCache } from "./cache";
 import { CalendarView } from "./calendar/view";
 import { getCommands, granularityLabels, showContextMenu } from "./commands";
 import { VIEW_TYPE_CALENDAR } from "./constants";
-import { getEnabledGranularities, getFormat } from "./format";
+import { getBasename, getEnabledGranularities, getFormat } from "./format";
 import {
   calendarDayIcon,
   calendarMonthIcon,
@@ -217,7 +217,11 @@ export default class PeriodicNotesPlugin extends Plugin {
       granularity,
     );
     const rendered = applyTemplate(
-      filename,
+      // The basename, not the formatted path: a nested format makes `filename`
+      // "2026/09/07", and {{title}} means the note's title everywhere else in
+      // Obsidian. applyTemplateToFile passes TFile.basename for the same
+      // reason, and the two paths must agree.
+      getBasename(filename),
       granularity,
       date,
       format,
