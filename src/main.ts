@@ -31,7 +31,7 @@ interface OpenOpts {
 }
 
 export default class PeriodicNotesPlugin extends Plugin {
-  public declare settings: Settings;
+  declare public settings: Settings;
   // One icon per enabled granularity, in canonical order. Rebuilt only when
   // that set changes — see configureRibbonIcons.
   private ribbonEls: HTMLElement[] = [];
