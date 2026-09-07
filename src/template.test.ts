@@ -168,3 +168,70 @@ describe("applyTemplate replacement patterns", () => {
     expect(result).toBe("$& $` $'");
   });
 });
+
+describe("applyTemplate with a nested format", () => {
+  // main.ts renders the filename from the format before creating the note, so
+  // for a nested format that string is a path. It passes the basename here,
+  // matching applyTemplateToFile, which passes TFile.basename. Both tokens
+  // resolve to the same argument, so both are pinned.
+  test("title and date use the basename, not the path", () => {
+    const result = applyTemplate(
+      "12",
+      "day",
+      window.moment("2026-06-12"),
+      "YYYY/MM/DD",
+      "# {{title}}\n{{date}}",
+    );
+    expect(result).toBe("# 12\n12");
+  });
+
+  test("a date offset still formats with the full nested format", () => {
+    const result = applyTemplate(
+      "12",
+      "day",
+      window.moment("2026-06-12"),
+      "YYYY/MM/DD",
+      "{{date+1d}}",
+    );
+    expect(result).toBe("2026/06/13");
+  });
+});
+
+describe("token scoping is a limit", () => {
+  // The parameterized date/time forms run only in the day branch. That is
+  // deliberate — {{month:...}} and {{year:...}} are the tokens for those
+  // granularities — but nothing pinned it, so a reader could not tell the
+  // scoping from an oversight. The README's token tables say the same thing.
+  test("does not replace a parameterized date token for month granularity", () => {
+    const result = applyTemplate(
+      "2026-06",
+      "month",
+      window.moment("2026-06-01"),
+      "YYYY-MM",
+      "{{date:YYYY}}",
+    );
+    expect(result).toBe("{{date:YYYY}}");
+  });
+
+  test("does not replace a parameterized time token for year granularity", () => {
+    const result = applyTemplate(
+      "2026",
+      "year",
+      window.moment("2026-01-01"),
+      "YYYY",
+      "{{time:HH}}",
+    );
+    expect(result).toBe("{{time:HH}}");
+  });
+
+  test("still replaces the bare tokens for a non-day granularity", () => {
+    const result = applyTemplate(
+      "2026-06",
+      "month",
+      window.moment("2026-06-01"),
+      "YYYY-MM",
+      "{{title}}",
+    );
+    expect(result).toBe("2026-06");
+  });
+});

@@ -5,6 +5,7 @@ import {
   PluginSettingTab,
   Setting,
   type TextComponent,
+  TFolder,
 } from "obsidian";
 import { DEFAULT_FORMAT } from "./constants";
 import { PathSuggest } from "./fileSuggest";
@@ -38,9 +39,17 @@ function validateFolder(app: App, folder: string): Validation {
   if (hasDotOnlySegment(normalized)) {
     return reject("Folder segments cannot be only dots");
   }
-  return app.vault.getAbstractFileByPath(normalized)
-    ? valid
-    : warn("Folder not found in vault");
+  // getAbstractFileByPath returns a TFile just as happily as a TFolder, so a
+  // bare truthiness check reports a file sitting where the folder should be as
+  // perfectly fine — and the problem only surfaces later, as a folder-collision
+  // error at note creation, far from the field that caused it. A file in the
+  // way is not a traversal risk, so this warns rather than blocking.
+  const existing = app.vault.getAbstractFileByPath(normalized);
+  if (!existing) return warn("Folder not found in vault");
+  if (!(existing instanceof TFolder)) {
+    return warn("That path is a file, not a folder");
+  }
+  return valid;
 }
 
 const labels: Record<Granularity, string> = {
@@ -201,6 +210,12 @@ export class SettingsTab extends PluginSettingTab {
       name: "Template",
       defaultDesc: "",
       value: config.templatePath ?? "",
+      // readTemplate normalizes before resolving, so without this the field
+      // and the reader disagree on any value normalizePath would change and
+      // "Templates//daily.md" reads as missing while loading works fine.
+      // Normalizing here rather than in validateTemplate settles it once, so
+      // the verdict, the stored value and the form shown on blur all agree.
+      normalize: (value) => (value ? normalizePath(value) : ""),
       validate: (value) => validateTemplate(this.app, value),
       onChange: (value) => {
         this.plugin.settings.granularities[granularity].templatePath =
