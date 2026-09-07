@@ -7,6 +7,7 @@
   import { canonicalKey } from "src/cacheSearch";
   import type { DisplayedMonth } from "./displayedMonth.svelte";
   import type { FileMap, EventHandlers } from "./types";
+  import { activateOnKey } from "./utils";
 
   let {
     date,
@@ -48,6 +49,8 @@
 
   function handleContextmenu(event: MouseEvent) {
     if (!dayEnabled) return;
+    // Otherwise the native menu can appear alongside the custom one.
+    event.preventDefault();
     onContextMenu?.("day", date, file, event);
   }
 </script>
@@ -64,12 +67,9 @@
     class:has-note={file !== null}
     class:today={date.isSame(today, "day")}
     onclick={handleClick}
-    onkeydown={(e) => {
-      if (dayEnabled && (e.key === "Enter" || e.key === " ")) {
-        e.preventDefault();
-        onClick?.("day", date, file, false);
-      }
-    }}
+    onkeydown={dayEnabled
+      ? activateOnKey(() => onClick?.("day", date, file, false))
+      : undefined}
     oncontextmenu={handleContextmenu}
     onpointerenter={handleHover}
   >

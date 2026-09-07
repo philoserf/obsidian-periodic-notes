@@ -12,26 +12,37 @@
     fileMap,
     today,
     eventHandlers,
+    activeFilePath = null,
   }: {
     fileMap: FileMap;
     today: Moment;
     eventHandlers: EventHandlers;
+    activeFilePath: string | null;
   } = $props();
 
   const displayedMonth = getContext<DisplayedMonth>(DISPLAYED_MONTH);
 
+  // Normalized first: moment clamps the day when the target month is shorter,
+  // so paging Jan 31 -> Feb 28 -> Mar 28 drifts the day component downward and
+  // never recovers. The grid discards the day, but the drifted moment is what
+  // reaches createPeriodicNote, which formats it as-is — so a custom month or
+  // year format containing a day token would embed the drifted day.
   function incrementDisplayedMonth() {
-    displayedMonth.current = displayedMonth.current.clone().add(1, "month");
+    displayedMonth.current = displayedMonth.current
+      .clone()
+      .startOf("month")
+      .add(1, "month");
   }
 
   function decrementDisplayedMonth() {
     displayedMonth.current = displayedMonth.current
       .clone()
+      .startOf("month")
       .subtract(1, "month");
   }
 
   function resetDisplayedMonth() {
-    displayedMonth.current = today.clone();
+    displayedMonth.current = today.clone().startOf("month");
   }
 
   let showingCurrentMonth = $derived(
@@ -40,7 +51,7 @@
 </script>
 
 <div class="nav">
-  <Month {fileMap} {resetDisplayedMonth} {...eventHandlers} />
+  <Month {fileMap} {resetDisplayedMonth} {activeFilePath} {...eventHandlers} />
   <div class="right-nav">
     <Arrow
       direction="left"

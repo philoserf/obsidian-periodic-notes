@@ -8,6 +8,7 @@
   import { canonicalKey } from "src/cacheSearch";
   import type { DisplayedMonth } from "./displayedMonth.svelte";
   import type { FileMap, EventHandlers } from "./types";
+  import { activateOnKey } from "./utils";
 
   let {
     fileMap,
@@ -15,12 +16,14 @@
     onClick,
     onContextMenu,
     resetDisplayedMonth,
+    activeFilePath = null,
   }: {
     fileMap: FileMap;
     onHover: EventHandlers["onHover"];
     onClick: EventHandlers["onClick"];
     onContextMenu: EventHandlers["onContextMenu"];
     resetDisplayedMonth: () => void;
+    activeFilePath: string | null;
   } = $props();
 
   const displayedMonth = getContext<DisplayedMonth>(DISPLAYED_MONTH);
@@ -31,6 +34,25 @@
   let yearEnabled = $derived(fileMap.has(yearKey));
   let monthFile = $derived(fileMap.get(monthKey) ?? null);
   let yearFile = $derived(fileMap.get(yearKey) ?? null);
+  let monthActive = $derived(
+    monthFile !== null && monthFile.path === activeFilePath,
+  );
+  let yearActive = $derived(
+    yearFile !== null && yearFile.path === activeFilePath,
+  );
+
+  // A disabled title has no note to open, so both fall back to jumping the
+  // calendar home. The year branch used to do nothing, which was the only
+  // inconsistency between the two.
+  function activate(granularity: Granularity) {
+    const enabled = granularity === "month" ? monthEnabled : yearEnabled;
+    if (!enabled) {
+      resetDisplayedMonth();
+      return;
+    }
+    const file = granularity === "month" ? monthFile : yearFile;
+    onClick?.(granularity, displayedMonth.current, file, false);
+  }
 
   function makeHandlers(
     granularity: Granularity,
@@ -46,7 +68,7 @@
             getFile(),
             isMetaPressed(event),
           );
-        } else if (granularity === "month") {
+        } else {
           resetDisplayedMonth();
         }
       },
@@ -62,9 +84,10 @@
       },
       context: (event: MouseEvent) => {
         const f = getFile();
-        if (getEnabled() && f) {
-          onContextMenu?.(granularity, displayedMonth.current, f, event);
-        }
+        if (!getEnabled() || !f) return;
+        // Otherwise the native menu can appear alongside the custom one.
+        event.preventDefault();
+        onContextMenu?.(granularity, displayedMonth.current, f, event);
       },
     };
   }
@@ -87,18 +110,11 @@
     <span
       class="month"
       class:clickable={monthEnabled}
+      class:active={monthActive}
       role={monthEnabled ? "button" : undefined}
       tabindex={monthEnabled ? 0 : undefined}
       onclick={monthH.click}
-      onkeydown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          if (monthEnabled) {
-            onClick?.("month", displayedMonth.current, monthFile, false);
-          } else {
-            resetDisplayedMonth();
-          }
-        }
-      }}
+      onkeydown={activateOnKey(() => activate("month"))}
       oncontextmenu={monthH.context}
       onpointerenter={monthH.hover}
     >
@@ -108,16 +124,11 @@
     <span
       class="year"
       class:clickable={yearEnabled}
+      class:active={yearActive}
       role={yearEnabled ? "button" : undefined}
       tabindex={yearEnabled ? 0 : undefined}
       onclick={yearH.click}
-      onkeydown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          if (yearEnabled) {
-            onClick?.("year", displayedMonth.current, yearFile, false);
-          }
-        }
-      }}
+      onkeydown={activateOnKey(() => activate("year"))}
       oncontextmenu={yearH.context}
       onpointerenter={yearH.hover}
     >
@@ -145,5 +156,13 @@
 
   .clickable {
     cursor: pointer;
+  }
+
+  .month.active,
+  .year.active {
+    background-color: var(--interactive-accent);
+    border-radius: 4px;
+    color: var(--text-on-accent);
+    padding: 0 0.2em;
   }
 </style>

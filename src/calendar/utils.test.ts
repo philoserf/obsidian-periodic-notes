@@ -1,7 +1,13 @@
 import { describe, expect, it } from "bun:test";
 import moment from "moment";
 
-import { getMonth, getStartOfWeek, getWeekdayLabels, isWeekend } from "./utils";
+import {
+  activateOnKey,
+  getMonth,
+  getStartOfWeek,
+  getWeekdayLabels,
+  isWeekend,
+} from "./utils";
 
 describe("getMonth", () => {
   it("always returns exactly 6 weeks (42 days)", () => {
@@ -86,5 +92,31 @@ describe("getWeekdayLabels", () => {
       expect(typeof name).toBe("string");
       expect(name.length).toBeGreaterThan(0);
     }
+  });
+});
+
+describe("activateOnKey", () => {
+  const press = (key: string) => {
+    let prevented = false;
+    let activated = false;
+    activateOnKey(() => {
+      activated = true;
+    })({ key, preventDefault: () => (prevented = true) });
+    return { prevented, activated };
+  };
+
+  it("activates on Enter and suppresses the default", () => {
+    expect(press("Enter")).toEqual({ prevented: true, activated: true });
+  });
+
+  it("activates on Space and suppresses the default", () => {
+    // #195: Space on a focused non-<button> scrolls its container, so a
+    // keyboard user opening a weekly note also jumped the calendar out of view.
+    expect(press(" ")).toEqual({ prevented: true, activated: true });
+  });
+
+  it("ignores any other key without suppressing it", () => {
+    expect(press("a")).toEqual({ prevented: false, activated: false });
+    expect(press("Tab")).toEqual({ prevented: false, activated: false });
   });
 });

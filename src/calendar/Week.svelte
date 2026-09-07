@@ -4,7 +4,7 @@
   import { isMetaPressed } from "src/platform";
   import { canonicalKey } from "src/cacheSearch";
   import type { FileMap, EventHandlers } from "./types";
-  import { getStartOfWeek } from "./utils";
+  import { activateOnKey, getStartOfWeek } from "./utils";
 
   let {
     weekNum,
@@ -27,6 +27,11 @@
   let startOfWeek = $derived(getStartOfWeek(days));
   let file = $derived(fileMap.get(canonicalKey("week", startOfWeek)) ?? null);
 
+  function handleContextmenu(event: MouseEvent) {
+    event.preventDefault();
+    onContextMenu?.("week", startOfWeek, file, event);
+  }
+
   function handleHover(event: PointerEvent) {
     if (event.target) {
       onHover?.("week", startOfWeek, file, event.target, isMetaPressed(event));
@@ -43,11 +48,8 @@
     onclick={onClick &&
       ((e) => onClick("week", startOfWeek, file, isMetaPressed(e)))}
     onkeydown={onClick &&
-      ((e) =>
-        (e.key === "Enter" || e.key === " ") &&
-        onClick("week", startOfWeek, file, false))}
-    oncontextmenu={onContextMenu &&
-      ((e) => onContextMenu("week", startOfWeek, file, e))}
+      activateOnKey(() => onClick("week", startOfWeek, file, false))}
+    oncontextmenu={handleContextmenu}
     onpointerenter={handleHover}
   >
     {weekNum}
