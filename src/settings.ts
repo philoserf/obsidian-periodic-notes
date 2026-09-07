@@ -10,7 +10,7 @@ import { DEFAULT_FORMAT } from "./constants";
 import { PathSuggest } from "./fileSuggest";
 import { validateFormat } from "./format";
 import type PeriodicNotesPlugin from "./main";
-import { canonicalFolder, hasDotDotSegment } from "./paths";
+import { canonicalFolder, hasDotDotSegment, hasDotOnlySegment } from "./paths";
 import { type Granularity, granularities } from "./types";
 
 // A field's verdict. A `blocking` value is never written to plugin.settings —
@@ -35,6 +35,9 @@ function validateFolder(app: App, folder: string): Validation {
   if (hasDotDotSegment(normalized)) {
     return reject("Folder would place notes outside the vault");
   }
+  if (hasDotOnlySegment(normalized)) {
+    return reject("Folder segments cannot be only dots");
+  }
   return app.vault.getAbstractFileByPath(normalized)
     ? valid
     : warn("Folder not found in vault");
@@ -47,10 +50,15 @@ const labels: Record<Granularity, string> = {
   year: "Yearly Notes",
 };
 
-// How a validated periodic-note text field binds to settings: validate on
-// change, show the error (or the default description), flag the field, then
-// store the value and save — unless the error is a blocking one, in which case
-// the previously stored value stands.
+// How a validated periodic-note text field binds to settings: normalize, then
+// validate on change, show the error (or the default description), flag the
+// field, then store the value and save — unless the error is a blocking one.
+//
+// A blocking error only stops *that* value being stored. Because validation
+// runs per keystroke, the value on the way to a rejected one may itself be
+// acceptable — typing "../escape" passes through "." — so leaving the field on
+// a rejected value also restores whatever was stored when the edit began,
+// rather than leaving behind a prefix nobody chose.
 function addValidatedTextSetting(
   containerEl: HTMLElement,
   opts: {
@@ -58,6 +66,7 @@ function addValidatedTextSetting(
     defaultDesc: string;
     placeholder?: string;
     value: string;
+    normalize?: (value: string) => string;
     validate: (value: string) => Validation;
     onChange: (value: string) => void;
     attachSuggest?: (
@@ -66,22 +75,55 @@ function addValidatedTextSetting(
     ) => void;
   },
 ): void {
+  const normalize = opts.normalize ?? ((value: string) => value);
+
   const setting = new Setting(containerEl)
     .setName(opts.name)
     .setDesc(opts.defaultDesc)
     .addText((text) => {
       if (opts.placeholder) text.setPlaceholder(opts.placeholder);
 
-      // Shared by typing and by picking from the suggester, so a selection
-      // gets the same validation, description update and save as a keystroke.
-      const applyChange = (value: string) => {
+      // What is in plugin.settings, and what was there when this edit began.
+      let stored = normalize(opts.value);
+      let beforeEdit = stored;
+
+      const describe = (value: string): boolean => {
         const { error, blocking } = opts.validate(value);
         setting.descEl.setText(error || opts.defaultDesc);
         setting.descEl.toggleClass("has-error", !!error);
-        if (!blocking) opts.onChange(value);
+        return blocking;
       };
 
-      text.setValue(opts.value).onChange(applyChange);
+      // Shared by typing and by picking from the suggester, so a selection
+      // gets the same validation, description update and save as a keystroke.
+      const applyChange = (raw: string) => {
+        const value = normalize(raw);
+        if (describe(value)) return;
+        stored = value;
+        opts.onChange(value);
+      };
+
+      text.setValue(stored).onChange(applyChange);
+
+      text.inputEl.addEventListener("focus", () => {
+        beforeEdit = stored;
+      });
+
+      text.inputEl.addEventListener("blur", () => {
+        const typed = normalize(text.inputEl.value);
+        if (describe(typed)) {
+          // Abandoned on a rejected value: undo the whole edit, not just the
+          // last keystroke.
+          stored = beforeEdit;
+          opts.onChange(beforeEdit);
+          text.setValue(beforeEdit);
+          describe(beforeEdit);
+        } else if (text.inputEl.value !== stored) {
+          // Show the canonical form of what was actually stored.
+          text.setValue(stored);
+        }
+      });
+
       opts.attachSuggest?.(text, applyChange);
     });
 }
@@ -139,10 +181,11 @@ export class SettingsTab extends PluginSettingTab {
       name: "Folder",
       defaultDesc: "",
       value: config.folder,
+      normalize: (value) =>
+        value ? canonicalFolder(normalizePath(value)) : "",
       validate: (value) => validateFolder(this.app, value),
       onChange: (value) => {
-        this.plugin.settings.granularities[granularity].folder =
-          canonicalFolder(normalizePath(value));
+        this.plugin.settings.granularities[granularity].folder = value;
         this.debouncedSave();
       },
       attachSuggest: (text, applyChange) =>

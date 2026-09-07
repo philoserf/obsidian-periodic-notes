@@ -14,6 +14,18 @@ export function hasDotDotSegment(path: string): boolean {
 }
 
 /**
+ * True when any segment is nothing but dots — ".", "..", "..." and so on.
+ * `isValidFilename` already reserves these for filenames; a configured folder
+ * needs the same rule for a different reason. "." and "..." name no vault
+ * folder, so storing one leaves the granularity indexing nothing, and they are
+ * the prefixes a user passes through on the way to typing "../escape" — which
+ * is how such a value gets committed without anyone choosing it.
+ */
+export function hasDotOnlySegment(path: string): boolean {
+  return path.split(SEPARATOR).some((segment) => /^\.+$/.test(segment));
+}
+
+/**
  * Renders a moment format's bracket escapes so a persisted format can be
  * checked for path segments without running moment: `[..]` yields `..`.
  * Backslashes are left alone — moment escapes with brackets only, so a

@@ -4,6 +4,7 @@ import {
   buildNotePath,
   canonicalFolder,
   hasDotDotSegment,
+  hasDotOnlySegment,
   isInFolder,
   literalizeFormat,
 } from "./paths";
@@ -24,6 +25,40 @@ describe("hasDotDotSegment", () => {
     expect(hasDotDotSegment("2026.03.20")).toBe(false);
     expect(hasDotDotSegment("daily/..hidden")).toBe(false);
     expect(hasDotDotSegment("daily/2026-03-20.md")).toBe(false);
+  });
+});
+
+describe("hasDotOnlySegment", () => {
+  test("detects a segment that is only dots", () => {
+    expect(hasDotOnlySegment(".")).toBe(true);
+    expect(hasDotOnlySegment("..")).toBe(true);
+    expect(hasDotOnlySegment("...")).toBe(true);
+    expect(hasDotOnlySegment(".../outside")).toBe(true);
+    expect(hasDotOnlySegment("Journals/./x")).toBe(true);
+  });
+
+  test("allows a leading dot on a named segment", () => {
+    expect(hasDotOnlySegment(".config")).toBe(false);
+    expect(hasDotOnlySegment("..hidden")).toBe(false);
+    expect(hasDotOnlySegment("Journals/2026.03")).toBe(false);
+  });
+
+  test("refuses every prefix of a traversal a user types", () => {
+    // The bug in #214: "." was accepted on the way to "../outside", so the
+    // rejected value still replaced the folder the user had configured.
+    const typed = "../outside";
+    const prefixes = Array.from({ length: typed.length }, (_, i) =>
+      typed.slice(0, i + 1),
+    );
+    expect(prefixes.every((p) => hasDotOnlySegment(p))).toBe(true);
+  });
+
+  test("accepts every prefix of an ordinary folder past the first character", () => {
+    const typed = "Journals/2027";
+    const prefixes = Array.from({ length: typed.length }, (_, i) =>
+      typed.slice(0, i + 1),
+    );
+    expect(prefixes.some((p) => hasDotOnlySegment(p))).toBe(false);
   });
 });
 
