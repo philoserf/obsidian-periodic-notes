@@ -92,7 +92,7 @@ export class CacheIndex {
         `[Periodic Notes] "${winner.filePath}" and "${loser.filePath}" are both ${entry.granularity} notes for the same date (${newKey}); indexing "${winner.filePath}" and ignoring "${loser.filePath}"`,
       );
       // The loser is not a periodic note as far as the rest of the plugin is
-      // concerned: byPath backs get/has/findAdjacent, so leaving it there would
+      // concerned: byPath backs get and findAdjacent, so leaving it there would
       // report a note the calendar and nav commands cannot act on. It is kept
       // as a contender instead, so freeing the key brings it back.
       this.byPath.delete(loser.filePath);
@@ -141,13 +141,6 @@ export class CacheIndex {
     // canonicalKey, which throws on one.
     if (!date.isValid()) return null;
     return this.byKey.get(canonicalKey(granularity, date)) ?? null;
-  }
-
-  has(filePath: string, granularity?: Granularity): boolean {
-    const entry = this.byPath.get(filePath);
-    if (!entry) return false;
-    if (!granularity) return true;
-    return granularity === entry.granularity;
   }
 
   findAdjacent(
