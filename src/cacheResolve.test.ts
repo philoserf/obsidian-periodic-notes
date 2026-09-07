@@ -55,6 +55,13 @@ describe("resolveEntry", () => {
     expect(entry?.granularity).toBe("day");
   });
 
+  test("does not match a sibling folder sharing a prefix", () => {
+    const settings = makeSettings({ day: { enabled: true, folder: "daily" } });
+    expect(
+      resolveEntry(mdFile("daily-archive/2026-06-12.md"), settings, null),
+    ).toBe(null);
+  });
+
   test("returns null for a filename that does not parse", () => {
     const settings = makeSettings({ day: { enabled: true } });
     expect(resolveEntry(mdFile("daily/notes.md"), settings, null)).toBe(null);

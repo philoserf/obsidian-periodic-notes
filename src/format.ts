@@ -1,4 +1,5 @@
 import { DEFAULT_FORMAT } from "./constants";
+import { hasDotDotSegment } from "./paths";
 import {
   type Granularity,
   granularities,
@@ -73,8 +74,14 @@ export function validateFormat(
   if (!format) return "";
   if (!isValidFilename(format)) return "Format contains illegal characters";
 
+  // Checked on the formatted sample, not the format: unrecognized tokens pass
+  // through literally, so "[..]/YYYY" only reveals its ".." once rendered.
+  const testFormattedDate = window.moment().format(format);
+  if (hasDotDotSegment(testFormattedDate)) {
+    return "Format would place notes outside the vault";
+  }
+
   if (granularity === "day") {
-    const testFormattedDate = window.moment().format(format);
     const parsedDate = window.moment(testFormattedDate, format, true);
     if (!parsedDate.isValid()) return "Failed to parse format";
   }
@@ -131,19 +138,4 @@ export function extractDateStringFromPath(
 export function isIsoFormat(format: string): boolean {
   const cleanFormat = removeEscapedCharacters(format);
   return /w{1,2}/.test(cleanFormat);
-}
-
-export function join(...partSegments: string[]): string {
-  let parts: string[] = [];
-  for (let i = 0, l = partSegments.length; i < l; i++) {
-    parts = parts.concat(partSegments[i].split("/"));
-  }
-  const newParts = [];
-  for (let i = 0, l = parts.length; i < l; i++) {
-    const part = parts[i];
-    if (!part || part === ".") continue;
-    else newParts.push(part);
-  }
-  if (parts[0] === "") newParts.unshift("");
-  return newParts.join("/");
 }

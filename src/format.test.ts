@@ -6,7 +6,6 @@ import {
   getPossibleFormats,
   isIsoFormat,
   isValidFilename,
-  join,
   removeEscapedCharacters,
   validateFormat,
   validateFormatComplexity,
@@ -91,6 +90,19 @@ describe("validateFormat", () => {
   test("returns empty for empty format", () => {
     expect(validateFormat("", "day")).toBe("");
   });
+
+  test("rejects a format whose output escapes the vault", () => {
+    const escaped = "Format would place notes outside the vault";
+    expect(validateFormat("[..]/YYYY-MM-DD", "day")).toBe(escaped);
+    expect(validateFormat("../../outside/leak", "day")).toBe(escaped);
+    // Non-day granularities skip the round trip, so they need their own check.
+    expect(validateFormat("[..]/gggg-[W]ww", "week")).toBe(escaped);
+  });
+
+  test("allows dots inside a path segment", () => {
+    expect(validateFormat("YYYY.MM.DD", "day")).toBe("");
+    expect(validateFormat("YYYY/MM/YYYY.MM.DD", "day")).toBe("");
+  });
 });
 
 describe("validateFormatComplexity", () => {
@@ -114,24 +126,6 @@ describe("isIsoFormat", () => {
 
   test("rejects non-week formats", () => {
     expect(isIsoFormat("YYYY-MM-DD")).toBe(false);
-  });
-});
-
-describe("join", () => {
-  test("joins path segments", () => {
-    expect(join("a", "b", "c")).toBe("a/b/c");
-  });
-
-  test("removes empty segments", () => {
-    expect(join("a", "", "b")).toBe("a/b");
-  });
-
-  test("removes dots", () => {
-    expect(join("a", ".", "b")).toBe("a/b");
-  });
-
-  test("preserves leading slash", () => {
-    expect(join("/a", "b")).toBe("/a/b");
   });
 });
 

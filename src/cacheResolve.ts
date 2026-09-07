@@ -4,6 +4,7 @@ import {
   getPossibleFormats,
   type PathParts,
 } from "./format";
+import { isInFolder } from "./paths";
 import type { CacheEntry, Settings } from "./types";
 
 /**
@@ -21,8 +22,8 @@ export function resolveEntry(
   if (existing && existing.match === "frontmatter") return null;
 
   for (const granularity of getEnabledGranularities(settings)) {
-    const folder = settings.granularities[granularity].folder || "/";
-    if (!file.path.startsWith(folder === "/" ? "" : `${folder}/`)) continue;
+    const folder = settings.granularities[granularity].folder;
+    if (!isInFolder(file.path, folder)) continue;
 
     const formats = getPossibleFormats(settings, granularity);
     const dateInput = extractDateStringFromPath(file, formats[0], granularity);

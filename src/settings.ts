@@ -9,6 +9,7 @@ import { DEFAULT_FORMAT } from "./constants";
 import { FileSuggest, FolderSuggest } from "./fileSuggest";
 import { validateFormat } from "./format";
 import type PeriodicNotesPlugin from "./main";
+import { canonicalFolder } from "./paths";
 import { type Granularity, granularities } from "./types";
 
 function validateTemplate(app: App, template: string): string {
@@ -113,7 +114,8 @@ export class SettingsTab extends PluginSettingTab {
       value: config.folder,
       validate: (value) => validateFolder(this.app, value),
       onChange: (value) => {
-        this.plugin.settings.granularities[granularity].folder = value;
+        this.plugin.settings.granularities[granularity].folder =
+          canonicalFolder(normalizePath(value));
         this.debouncedSave();
       },
       attachSuggest: (inputEl) => new FolderSuggest(this.app, inputEl),

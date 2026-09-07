@@ -1,6 +1,7 @@
 import { type App, Notice, normalizePath, type TFile } from "obsidian";
 
-import { getFormat, join } from "./format";
+import { getFormat } from "./format";
+import { buildNotePath } from "./paths";
 import { applyTemplate } from "./templateRender";
 import type { CacheEntry, Granularity, NoteConfig, Settings } from "./types";
 
@@ -57,7 +58,7 @@ export async function getNoteCreationPath(
   const filenameWithExt = !filename.endsWith(".md")
     ? `${filename}.md`
     : filename;
-  const path = normalizePath(join(directory, filenameWithExt));
+  const path = normalizePath(buildNotePath(directory, filenameWithExt));
   await ensureFolderExists(app, path);
   return path;
 }
