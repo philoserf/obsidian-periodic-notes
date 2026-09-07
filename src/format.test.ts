@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { DEFAULT_SETTINGS } from "./constants";
 import {
   extractDateStringFromPath,
+  getBasename,
   getFormat,
   getPossibleFormats,
   isFragileBasename,
@@ -164,5 +165,19 @@ describe("extractDateStringFromPath", () => {
     expect(
       extractDateStringFromPath(file("notes/2026/12.md"), "YYYY/[d/]DD", "day"),
     ).toBe("2026/12");
+  });
+});
+
+describe("getBasename", () => {
+  test("returns a flat name unchanged", () => {
+    expect(getBasename("2026-06-12")).toBe("2026-06-12");
+  });
+
+  test("returns the last segment of a nested name", () => {
+    expect(getBasename("2026/06/12")).toBe("12");
+  });
+
+  test("returns the last segment of a one-level nested name", () => {
+    expect(getBasename("2026/2026-06-12")).toBe("2026-06-12");
   });
 });
