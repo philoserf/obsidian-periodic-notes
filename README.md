@@ -43,6 +43,8 @@ Each granularity is configured independently:
 
 Tokens are replaced when a new note is created from a template.
 
+**The sections below are limits, not just groupings.** A token listed under one granularity is replaced only in that granularity's notes; anywhere else it is left in the note as literal text. In particular the parameterized `{{date:FMT}}` and `{{time:FMT}}` forms are **daily-only** — a monthly template containing `{{date:YYYY}}` writes those characters out verbatim. Use `{{month:YYYY}}` or `{{year:YYYY}}` instead. The unparameterized `{{date}}`, `{{title}}` and `{{time}}` work everywhere.
+
 ### All granularities
 
 | Token                   | Replaced with                |
