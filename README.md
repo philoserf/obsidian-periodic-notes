@@ -19,12 +19,12 @@ If you want something similar, the code is MIT-licensed — fork it and adapt. D
 - Sidebar calendar view. Click any day, week, month, or year to open (or create) that note.
 - Template tokens for date math, including offsets like `{{date+1d:YYYY-MM-DD}}`.
 - Jump forwards or backwards to the closest existing note at the same granularity.
-- Ribbon icon and full command palette integration.
+- Ribbon icons and full command palette integration.
 - Cmd-click (macOS) / Ctrl-click to open in a split.
 
 ## Usage
 
-- **Ribbon icon** — opens today's note for the first enabled granularity. Right-click for a menu of all enabled granularities.
+- **Ribbon icons** — one per enabled granularity, each opening that granularity's note for the current period. Right-click any of them for a menu of all enabled granularities.
 - **Command palette** — `Open today's daily note`, `Jump forwards to closest weekly note`, etc. One set of commands per enabled granularity.
 - **Calendar sidebar** — run `Periodic Notes: Show calendar` to add it to the right panel. Click a day, week number, month, or year to open or create that note. Right-click for delete/file-menu actions.
 
