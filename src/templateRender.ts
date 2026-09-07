@@ -50,7 +50,15 @@ function replaceGranularityTokens(
         second: now.get("second"),
       });
       if (calc) {
-        periodStart.add(parseInt(timeDelta, 10), unit);
+        // Moment's unit aliases are case-sensitive exactly where it hurts:
+        // "M" is month, "m" is minute. The token patterns are case-insensitive
+        // so that {{Month}} works, which means a lowercase "m" arrives
+        // indistinguishable from an uppercase one. A month or year token has
+        // no meaningful minute delta, so read it as months there; a date/time
+        // token keeps moment's own reading, where {{date-30m}} really does
+        // mean thirty minutes.
+        const resolvedUnit = startOfUnit && unit === "m" ? "M" : unit;
+        periodStart.add(parseInt(timeDelta, 10), resolvedUnit);
       }
       if (momentFormat) {
         return periodStart.format(momentFormat.substring(1).trim());
@@ -67,18 +75,22 @@ export function applyTemplate(
   format: string,
   rawTemplateContents: string,
 ): string {
+  // Replacer functions, not strings: a string replacement reads "$&", "$`",
+  // "$\'", "$1"-"$9" and "$$" as patterns, and `filename` comes from the user's
+  // date format, which may legitimately contain "$".
   let contents = rawTemplateContents
-    .replace(/{{\s*date\s*}}/gi, filename)
-    .replace(/{{\s*time\s*}}/gi, window.moment().format("HH:mm"))
-    .replace(/{{\s*title\s*}}/gi, filename);
+    .replace(/{{\s*date\s*}}/gi, () => filename)
+    .replace(/{{\s*time\s*}}/gi, () => window.moment().format("HH:mm"))
+    .replace(/{{\s*title\s*}}/gi, () => filename);
 
   if (granularity === "day") {
     contents = contents
-      .replace(
-        /{{\s*yesterday\s*}}/gi,
+      .replace(/{{\s*yesterday\s*}}/gi, () =>
         date.clone().subtract(1, "day").format(format),
       )
-      .replace(/{{\s*tomorrow\s*}}/gi, date.clone().add(1, "d").format(format));
+      .replace(/{{\s*tomorrow\s*}}/gi, () =>
+        date.clone().add(1, "d").format(format),
+      );
     contents = replaceGranularityTokens(
       contents,
       date,
@@ -90,7 +102,10 @@ export function applyTemplate(
   if (granularity === "week") {
     contents = contents.replace(WEEKDAY_TOKEN, (_, dayOfWeek, momentFormat) => {
       const day = getDayOfWeekNumericalValue(dayOfWeek);
-      return date.weekday(day).format(momentFormat.trim());
+      // .weekday() mutates and returns the same instance. `date` may be the
+      // Moment held by a CacheEntry, whose canonical key would then no longer
+      // match the key it is indexed under.
+      return date.clone().weekday(day).format(momentFormat.trim());
     });
   }
 
