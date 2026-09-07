@@ -73,7 +73,7 @@
 </script>
 
 <div id="calendar-container" class="container">
-  <Nav {fileMap} {today} {eventHandlers} />
+  <Nav {fileMap} {today} {eventHandlers} {activeFilePath} />
   <table class="calendar">
     <colgroup>
       {#if showWeeks}

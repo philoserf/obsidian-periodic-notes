@@ -36,3 +36,22 @@ export function getMonth(displayedMonth: Moment): Month {
 
   return month;
 }
+
+/**
+ * Keydown handler for an element that acts as a button but is not one. Space
+ * on a focused non-`<button>` scrolls its container by default, so a keyboard
+ * user activating a week number would also jump the calendar out of view;
+ * native buttons suppress that for free.
+ *
+ * Typed structurally rather than on KeyboardEvent so it stays testable without
+ * a DOM.
+ */
+export function activateOnKey(
+  activate: () => void,
+): (event: Pick<KeyboardEvent, "key" | "preventDefault">) => void {
+  return (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    activate();
+  };
+}
