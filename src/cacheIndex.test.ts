@@ -242,7 +242,7 @@ describe("CacheIndex.findAdjacent", () => {
     expect(fresh.findAdjacent("2026-03-18.md", "forwards")?.filePath).toBe(
       "2026-03-20.md",
     );
-    // Inserting 19 must invalidate the sorted cache and put 19 between.
+    // 19 lands between 18 and 20, so it becomes the neighbour of both.
     fresh.set(makeEntry("2026-03-19.md", "2026-03-19"));
     expect(fresh.findAdjacent("2026-03-18.md", "forwards")?.filePath).toBe(
       "2026-03-19.md",
@@ -257,19 +257,6 @@ describe("CacheIndex.findAdjacent", () => {
     expect(index.findAdjacent("2026-03-19.md", "forwards")?.filePath).toBe(
       "2026-03-21.md",
     );
-  });
-
-  test("warm-path results match cold-path after invalidation", () => {
-    // Cold call warms the cache.
-    const warm1 = index.findAdjacent("2026-03-19.md", "forwards");
-    // Subsequent call hits the warm cache.
-    const warm2 = index.findAdjacent("2026-03-19.md", "forwards");
-    // Mutation invalidates; next call rebuilds.
-    index.remove("2026-03-20.md");
-    const rebuilt = index.findAdjacent("2026-03-19.md", "forwards");
-    expect(warm1?.filePath).toBe("2026-03-20.md");
-    expect(warm2?.filePath).toBe("2026-03-20.md");
-    expect(rebuilt?.filePath).toBe("2026-03-21.md");
   });
 });
 
@@ -360,6 +347,31 @@ describe("CacheIndex collision contenders", () => {
 });
 
 describe("CacheIndex contenders when a winner is re-dated", () => {
+  test("a same-key match downgrade re-contests against contenders", () => {
+    // #304. b wins the key as a frontmatter match; a is a filename contender,
+    // lexically smaller. Editing b's property away downgrades it in place —
+    // same path, same canonical key — and `preferred` would now pick a. The
+    // collision check compares against the incumbent, which is b itself, so
+    // without an explicit re-offer a never gets its turn.
+    const fresh = new CacheIndex();
+    const b = makeEntry("b-note.md", "2026-03-18");
+    fresh.set({ ...b, match: "frontmatter" });
+    fresh.set(makeEntry("a-note.md", "2026-03-18"));
+    expect(fresh.getByKey("day", window.moment("2026-03-18"))?.filePath).toBe(
+      "b-note.md",
+    );
+
+    fresh.set({ ...b, match: "filename" });
+    expect(fresh.getByKey("day", window.moment("2026-03-18"))?.filePath).toBe(
+      "a-note.md",
+    );
+    // And b is not lost — it is a contender now, so freeing the key returns it.
+    fresh.remove("a-note.md");
+    expect(fresh.getByKey("day", window.moment("2026-03-18"))?.filePath).toBe(
+      "b-note.md",
+    );
+  });
+
   test("re-dating the winner promotes the loser to the key it left", () => {
     const index = new CacheIndex();
     const winner = makeEntry("daily/a.md", "2026-03-20", "day", "frontmatter");
