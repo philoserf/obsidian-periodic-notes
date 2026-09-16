@@ -1,42 +1,41 @@
 <script lang="ts">
-  import type { Moment } from "moment";
+import type { Moment } from "moment";
+import { canonicalKey } from "src/cacheSearch";
+import { isMetaPressed } from "src/platform";
+import type { EventHandlers, FileMap } from "./types";
+import { activateOnKey } from "./utils";
 
-  import { isMetaPressed } from "src/platform";
-  import { canonicalKey } from "src/cacheSearch";
-  import type { FileMap, EventHandlers } from "./types";
-  import { activateOnKey } from "./utils";
+let {
+  weekNum,
+  days,
+  onHover,
+  onClick,
+  onContextMenu,
+  fileMap,
+  activeFilePath = null,
+}: {
+  weekNum: number;
+  days: Moment[];
+  onHover: EventHandlers["onHover"];
+  onClick: EventHandlers["onClick"];
+  onContextMenu: EventHandlers["onContextMenu"];
+  fileMap: FileMap;
+  activeFilePath: string | null;
+} = $props();
 
-  let {
-    weekNum,
-    days,
-    onHover,
-    onClick,
-    onContextMenu,
-    fileMap,
-    activeFilePath = null,
-  }: {
-    weekNum: number;
-    days: Moment[];
-    onHover: EventHandlers["onHover"];
-    onClick: EventHandlers["onClick"];
-    onContextMenu: EventHandlers["onContextMenu"];
-    fileMap: FileMap;
-    activeFilePath: string | null;
-  } = $props();
+let startOfWeek = $derived(days[0].clone());
+let file = $derived(fileMap.get(canonicalKey("week", startOfWeek)) ?? null);
 
-  let startOfWeek = $derived(days[0].clone());
-  let file = $derived(fileMap.get(canonicalKey("week", startOfWeek)) ?? null);
+function handleContextmenu(event: MouseEvent) {
+  event.preventDefault();
+  onContextMenu(file, event);
+}
 
-  function handleContextmenu(event: MouseEvent) {
-    event.preventDefault();
-    onContextMenu(file, event);
+function handleHover(event: PointerEvent) {
+  if (event.target) {
+    onHover("week", startOfWeek, file, event.target, isMetaPressed(event));
   }
-
-  function handleHover(event: PointerEvent) {
-    if (event.target) {
-      onHover("week", startOfWeek, file, event.target, isMetaPressed(event));
-    }
-  }
+}
 </script>
 
 <td>

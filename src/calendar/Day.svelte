@@ -1,58 +1,57 @@
 <script lang="ts">
-  import type { Moment } from "moment";
-  import { getContext } from "svelte";
+import type { Moment } from "moment";
+import { canonicalKey } from "src/cacheSearch";
+import { DISPLAYED_MONTH } from "src/constants";
+import { isMetaPressed } from "src/platform";
+import { getContext } from "svelte";
+import type { DisplayedMonth } from "./displayedMonth.svelte";
+import type { EventHandlers, FileMap } from "./types";
+import { activateOnKey } from "./utils";
 
-  import { isMetaPressed } from "src/platform";
-  import { DISPLAYED_MONTH } from "src/constants";
-  import { canonicalKey } from "src/cacheSearch";
-  import type { DisplayedMonth } from "./displayedMonth.svelte";
-  import type { FileMap, EventHandlers } from "./types";
-  import { activateOnKey } from "./utils";
+let {
+  date,
+  fileMap,
+  onHover,
+  onClick,
+  onContextMenu,
+  today,
+  activeFilePath = null,
+  dayEnabled = true,
+}: {
+  date: Moment;
+  fileMap: FileMap;
+  onHover: EventHandlers["onHover"];
+  onClick: EventHandlers["onClick"];
+  onContextMenu: EventHandlers["onContextMenu"];
+  today: Moment;
+  activeFilePath: string | null;
+  dayEnabled: boolean;
+} = $props();
 
-  let {
-    date,
-    fileMap,
-    onHover,
-    onClick,
-    onContextMenu,
-    today,
-    activeFilePath = null,
-    dayEnabled = true,
-  }: {
-    date: Moment;
-    fileMap: FileMap;
-    onHover: EventHandlers["onHover"];
-    onClick: EventHandlers["onClick"];
-    onContextMenu: EventHandlers["onContextMenu"];
-    today: Moment;
-    activeFilePath: string | null;
-    dayEnabled: boolean;
-  } = $props();
+const displayedMonth = getContext<DisplayedMonth>(DISPLAYED_MONTH);
 
-  const displayedMonth = getContext<DisplayedMonth>(DISPLAYED_MONTH);
+let file = $derived(fileMap.get(canonicalKey("day", date)) ?? null);
 
-  let file = $derived(fileMap.get(canonicalKey("day", date)) ?? null);
+// With daily notes off, a cell is a date label and nothing more. Clicking one
+// used to call openPeriodicNote("day", ...), which fell through to
+// createPeriodicNote with the disabled config — writing a note the user had
+// explicitly turned off to the vault root.
+function handleClick(event: MouseEvent) {
+  if (!dayEnabled) return;
+  onClick("day", date, isMetaPressed(event));
+}
 
-  // With daily notes off, a cell is a date label and nothing more. Clicking one
-  // used to call openPeriodicNote("day", ...), which fell through to
-  // createPeriodicNote with the disabled config — writing a note the user had
-  // explicitly turned off to the vault root.
-  function handleClick(event: MouseEvent) {
-    if (!dayEnabled) return;
-    onClick("day", date, isMetaPressed(event));
-  }
+function handleHover(event: PointerEvent) {
+  if (!dayEnabled || !event.target) return;
+  onHover("day", date, file, event.target, isMetaPressed(event));
+}
 
-  function handleHover(event: PointerEvent) {
-    if (!dayEnabled || !event.target) return;
-    onHover("day", date, file, event.target, isMetaPressed(event));
-  }
-
-  function handleContextmenu(event: MouseEvent) {
-    if (!dayEnabled) return;
-    // Otherwise the native menu can appear alongside the custom one.
-    event.preventDefault();
-    onContextMenu(file, event);
-  }
+function handleContextmenu(event: MouseEvent) {
+  if (!dayEnabled) return;
+  // Otherwise the native menu can appear alongside the custom one.
+  event.preventDefault();
+  onContextMenu(file, event);
+}
 </script>
 
 <td>

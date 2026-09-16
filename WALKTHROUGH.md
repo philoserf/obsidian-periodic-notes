@@ -1,6 +1,6 @@
 # Obsidian Periodic Notes Walkthrough
 
-*2026-09-07T12:11:50Z by Showboat 0.6.1*
+_2026-09-07T12:11:50Z by Showboat 0.6.1_
 <!-- showboat-id: a3141461-4242-4629-8e33-1a32710f38cb -->
 
 ## Overview
@@ -84,7 +84,7 @@ The single organising principle in this codebase is a line drawn between modules
 that import Obsidian's runtime and modules that do not.
 
 Obsidian is not installable as a test dependency — it is the host application,
-available only inside the running app. A module that imports a *value* from it
+available only inside the running app. A module that imports a _value_ from it
 (`Plugin`, `TFile`, `Notice`, `normalizePath`) therefore **cannot be imported by
 a test at all**. Type-only imports are erased at compile time and cost nothing.
 
@@ -92,15 +92,15 @@ So the interesting logic is deliberately pushed out of the Obsidian-facing
 modules into pure ones that take plain data and injected callbacks, leaving the
 wiring thin. Every core/wiring pairing in the tree exists for this reason:
 
-| Obsidian-facing (untestable) | Pure core (tested) | What was extracted |
-| --- | --- | --- |
-| `cache.ts` | `cacheResolve.ts` | does this filename parse as a periodic note? |
-| `cache.ts` | `cacheFrontmatter.ts` | does this frontmatter claim a date? |
-| `cache.ts` | `cacheIndex.ts` + `cacheSearch.ts` | the index and its key scheme |
-| `main.ts` | `settingsLoad.ts` | validating whatever JSON was on disk |
-| `main.ts`, `settings.ts`, `template.ts` | `paths.ts` | vault-relative path arithmetic |
-| `template.ts` | `templateRender.ts` | token substitution |
-| `Calendar.svelte` | `calendar/store.ts` | building the month's file map |
+| Obsidian-facing (untestable)            | Pure core (tested)                 | What was extracted                           |
+| --------------------------------------- | ---------------------------------- | -------------------------------------------- |
+| `cache.ts`                              | `cacheResolve.ts`                  | does this filename parse as a periodic note? |
+| `cache.ts`                              | `cacheFrontmatter.ts`              | does this frontmatter claim a date?          |
+| `cache.ts`                              | `cacheIndex.ts` + `cacheSearch.ts` | the index and its key scheme                 |
+| `main.ts`                               | `settingsLoad.ts`                  | validating whatever JSON was on disk         |
+| `main.ts`, `settings.ts`, `template.ts` | `paths.ts`                         | vault-relative path arithmetic               |
+| `template.ts`                           | `templateRender.ts`                | token substitution                           |
+| `Calendar.svelte`                       | `calendar/store.ts`                | building the month's file map                |
 
 The test files are the ledger of which side each module ended up on — a module
 has a test if and only if it is importable:
@@ -184,7 +184,7 @@ export interface CacheEntry {
 }
 ```
 
-`CacheEntry.match` is the field to watch. It records *why* a file counts as a
+`CacheEntry.match` is the field to watch. It records _why_ a file counts as a
 periodic note — because its filename parses as a date, or because its frontmatter
 says so — and that distinction decides several conflicts later on: which entry
 wins a collision, whether a rename re-resolves, and whether a file that loses its
@@ -296,7 +296,7 @@ undo function, and `register` runs it on unload.
 
 `this.cache = this.addChild(new NoteCache(...))` — `addChild`, not a bare field
 assignment. `Component.registerEvent` only arranges teardown during the
-component's *own* unload, and nothing else would ever unload the cache. Without
+component's _own_ unload, and nothing else would ever unload the cache. Without
 `addChild`, its five vault listeners survive a disable — and a disabled plugin
 goes on applying templates to newly created files.
 
@@ -404,7 +404,7 @@ function sanitizeConfig(
 }
 ```
 
-Formats are deliberately *not* round-tripped through moment here. `loadSettings`
+Formats are deliberately _not_ round-tripped through moment here. `loadSettings`
 runs before `configureLocale`, so parsing under the wrong locale could reject a
 working format and silently reset it on upgrade. Only values that would escape
 the vault are refused.
@@ -539,8 +539,8 @@ sed -n '117,134p' src/settings.ts
 This is the heart of the plugin. Three questions have to be O(1) or near it,
 because the calendar asks them fifty times per rendered month:
 
-- Is there a note for *this* period? — `getPeriodicNote`
-- Is *this file* a periodic note? — `find`
+- Is there a note for _this_ period? — `getPeriodicNote`
+- Is _this file_ a periodic note? — `find`
 - What is the next or previous note in this granularity? — `findAdjacent`
 
 ### The key scheme — `src/cacheSearch.ts`
@@ -950,7 +950,7 @@ sed -n '/^  private onRename/,/^  }$/p' src/cache.ts
 ```
 
 Re-resolving cannot preserve it. `resolveEntry` would be handed the entry for the
-*new* path, which does not exist yet, so it would fall back to filename matching
+_new_ path, which does not exist yet, so it would fall back to filename matching
 and silently drop a note whose date property never moved.
 
 The mirror case is a frontmatter property being edited away. Nothing else would
@@ -1235,7 +1235,7 @@ The **existence check** covers a note created since the caller looked at the
 cache — by a second click, by another device syncing, or outside Obsidian
 entirely.
 
-The **`creating` map** covers two callers racing for the same *new* path. The
+The **`creating` map** covers two callers racing for the same _new_ path. The
 index only learns of a file from the vault's `create` event, so both see a cache
 miss; without single-flighting, the second reaches `vault.create` and throws for
 a note that was created perfectly well.
@@ -1368,7 +1368,7 @@ sed -n '/^  const navCommand = /,/^  });$/p' src/commands.ts
   });
 ```
 
-The nav commands are gated twice over: the granularity must be enabled, *and* the
+The nav commands are gated twice over: the granularity must be enabled, _and_ the
 active file must itself be a periodic note of that granularity — there is no
 "next weekly note" from a file that is not a weekly note.
 
@@ -1455,7 +1455,7 @@ sed -n '/^  async onOpen/,/^  }$/p' src/calendar/view.ts
   yesterday. An interval rather than a timer to midnight: a `setTimeout` fires
   late after the machine sleeps and never reschedules. `tick()` no-ops unless the
   day actually changed, so 1440 calls a day cost nothing.
-- **The deferred initial sync.** No `file-open` fires for a file that is *already*
+- **The deferred initial sync.** No `file-open` fires for a file that is _already_
   open, so a calendar revealed next to an open periodic note rendered with nothing
   highlighted. It is deferred because `onFileOpen` returns early until layout is
   ready — which is exactly the case when the sidebar is restored at startup.
@@ -1515,7 +1515,7 @@ sed -n '/^  private onContextMenu/,/^  }$/p' src/calendar/view.ts
 Triggering `file-menu` and showing the result gets Obsidian's own Delete — with
 its confirmation dialog and the vault's "Deleted files" preference — plus Rename
 and whatever other plugins contribute. The custom item that used to sit here
-called `vault.trash(file, true)`, which hard-coded the *system* trash regardless
+called `vault.trash(file, true)`, which hard-coded the _system_ trash regardless
 of the user's setting, asked nothing first, and dropped the returned promise so a
 failure was invisible.
 
@@ -1601,7 +1601,7 @@ reaches `NoteCache.resolve`, which indexes synchronously and fires
 `periodic-notes:resolve` — bound just below. And a guard on whether
 the file is already indexed cannot work for a delete or rename anyway: by then
 the entry is gone from the index, so the check reports false for a file that
-*was* a periodic note. Since every `NoteCache` read path self-heals, an
+_was_ a periodic note. Since every `NoteCache` read path self-heals, an
 occasional unnecessary re-derive of a 50-entry map is cheaper than the read of
 `NoteCache`'s index and the ordering dependency the guard created.
 
@@ -1659,7 +1659,7 @@ export function computeFileMap(
 
 **Day keys are always present, even when day notes are disabled.** That looks
 inconsistent next to the three gated blocks, and it is load-bearing:
-`Month.svelte` reads `fileMap.has(key)` as its *enabled* signal for month and
+`Month.svelte` reads `fileMap.has(key)` as its _enabled_ signal for month and
 year, while `Day.svelte` reads `fileMap.get(key) ?? null` to decide whether to
 draw a has-note dot. Gating day keys the same way would collapse "disabled" and
 "enabled but no note" into a single absent key, and the dot could no longer tell
@@ -1728,7 +1728,7 @@ export function getMonth(displayedMonth: Moment): Month {
 One shared helper handles keyboard activation for the cells that act as buttons
 but are not `<button>` elements. Space on a focused non-button scrolls its
 container by default, so a keyboard user activating a week number would open the
-note *and* jump the calendar out of view:
+note _and_ jump the calendar out of view:
 
 ```bash
 sed -n '/^export function activateOnKey/,/^}/p' src/calendar/utils.ts

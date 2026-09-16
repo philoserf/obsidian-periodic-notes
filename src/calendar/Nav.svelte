@@ -1,57 +1,56 @@
 <script lang="ts">
-  import type { Moment } from "moment";
-  import { Platform } from "obsidian";
-  import { getContext } from "svelte";
+import type { Moment } from "moment";
+import { Platform } from "obsidian";
+import { DISPLAYED_MONTH } from "src/constants";
+import { getContext } from "svelte";
+import type { DisplayedMonth } from "./displayedMonth.svelte";
+import Month from "./Month.svelte";
+import type { EventHandlers, FileMap } from "./types";
 
-  import { DISPLAYED_MONTH } from "src/constants";
-  import type { DisplayedMonth } from "./displayedMonth.svelte";
-  import Month from "./Month.svelte";
-  import type { FileMap, EventHandlers } from "./types";
+let {
+  fileMap,
+  today,
+  onHover,
+  onClick,
+  onContextMenu,
+  activeFilePath = null,
+}: {
+  fileMap: FileMap;
+  today: Moment;
+  onHover: EventHandlers["onHover"];
+  onClick: EventHandlers["onClick"];
+  onContextMenu: EventHandlers["onContextMenu"];
+  activeFilePath: string | null;
+} = $props();
 
-  let {
-    fileMap,
-    today,
-    onHover,
-    onClick,
-    onContextMenu,
-    activeFilePath = null,
-  }: {
-    fileMap: FileMap;
-    today: Moment;
-    onHover: EventHandlers["onHover"];
-    onClick: EventHandlers["onClick"];
-    onContextMenu: EventHandlers["onContextMenu"];
-    activeFilePath: string | null;
-  } = $props();
+const displayedMonth = getContext<DisplayedMonth>(DISPLAYED_MONTH);
 
-  const displayedMonth = getContext<DisplayedMonth>(DISPLAYED_MONTH);
+// Normalized first: moment clamps the day when the target month is shorter,
+// so paging Jan 31 -> Feb 28 -> Mar 28 drifts the day component downward and
+// never recovers. The grid discards the day, but the drifted moment is what
+// reaches createPeriodicNote, which formats it as-is — so a custom month or
+// year format containing a day token would embed the drifted day.
+function incrementDisplayedMonth() {
+  displayedMonth.current = displayedMonth.current
+    .clone()
+    .startOf("month")
+    .add(1, "month");
+}
 
-  // Normalized first: moment clamps the day when the target month is shorter,
-  // so paging Jan 31 -> Feb 28 -> Mar 28 drifts the day component downward and
-  // never recovers. The grid discards the day, but the drifted moment is what
-  // reaches createPeriodicNote, which formats it as-is — so a custom month or
-  // year format containing a day token would embed the drifted day.
-  function incrementDisplayedMonth() {
-    displayedMonth.current = displayedMonth.current
-      .clone()
-      .startOf("month")
-      .add(1, "month");
-  }
+function decrementDisplayedMonth() {
+  displayedMonth.current = displayedMonth.current
+    .clone()
+    .startOf("month")
+    .subtract(1, "month");
+}
 
-  function decrementDisplayedMonth() {
-    displayedMonth.current = displayedMonth.current
-      .clone()
-      .startOf("month")
-      .subtract(1, "month");
-  }
+function resetDisplayedMonth() {
+  displayedMonth.current = today.clone().startOf("month");
+}
 
-  function resetDisplayedMonth() {
-    displayedMonth.current = today.clone().startOf("month");
-  }
-
-  let showingCurrentMonth = $derived(
-    displayedMonth.current.isSame(today, "month"),
-  );
+let showingCurrentMonth = $derived(
+  displayedMonth.current.isSame(today, "month"),
+);
 </script>
 
 {#snippet arrow(

@@ -1,69 +1,69 @@
 <script lang="ts">
-  import type { Moment } from "moment";
-  import { setContext } from "svelte";
+import type { Moment } from "moment";
+import { canonicalKey } from "src/cacheSearch";
 
-  import { DISPLAYED_MONTH } from "src/constants";
-  import { canonicalKey } from "src/cacheSearch";
-  import type { Granularity } from "src/types";
-  import type CalendarStore from "./calendarStore.svelte";
-  import Day from "./Day.svelte";
-  import { DisplayedMonth } from "./displayedMonth.svelte";
-  import { computeFileMap } from "./store";
-  import Nav from "./Nav.svelte";
-  import type { FileMap, EventHandlers, Month } from "./types";
-  import { getMonth, isWeekend } from "./utils";
-  import Week from "./Week.svelte";
+import { DISPLAYED_MONTH } from "src/constants";
+import type { Granularity } from "src/types";
+import { setContext } from "svelte";
+import type CalendarStore from "./calendarStore.svelte";
+import Day from "./Day.svelte";
+import { DisplayedMonth } from "./displayedMonth.svelte";
+import Nav from "./Nav.svelte";
+import { computeFileMap } from "./store";
+import type { EventHandlers, FileMap, Month } from "./types";
+import { getMonth, isWeekend } from "./utils";
+import Week from "./Week.svelte";
 
-  let {
-    fileStore,
-    onHover,
-    onClick,
-    onContextMenu,
-  }: {
-    fileStore: CalendarStore;
-    onHover: EventHandlers["onHover"];
-    onClick: EventHandlers["onClick"];
-    onContextMenu: EventHandlers["onContextMenu"];
-  } = $props();
+let {
+  fileStore,
+  onHover,
+  onClick,
+  onContextMenu,
+}: {
+  fileStore: CalendarStore;
+  onHover: EventHandlers["onHover"];
+  onClick: EventHandlers["onClick"];
+  onContextMenu: EventHandlers["onContextMenu"];
+} = $props();
 
-  let activeFilePath: string | null = $state(null);
+let activeFilePath: string | null = $state(null);
 
-  let today: Moment = $state.raw(window.moment());
+let today: Moment = $state.raw(window.moment());
 
-  const displayedMonth = new DisplayedMonth();
-  setContext(DISPLAYED_MONTH, displayedMonth);
+const displayedMonth = new DisplayedMonth();
+setContext(DISPLAYED_MONTH, displayedMonth);
 
-  const month: Month = $derived(getMonth(displayedMonth.current));
+const month: Month = $derived(getMonth(displayedMonth.current));
 
-  const enabledGranularities: Granularity[] = $derived.by(() => {
-    // Track fileStore.version so mutations re-derive.
-    void fileStore.version;
-    return fileStore.getEnabledGranularities();
-  });
+const enabledGranularities: Granularity[] = $derived.by(() => {
+  // Track fileStore.version so mutations re-derive.
+  void fileStore.version;
+  return fileStore.getEnabledGranularities();
+});
 
-  const showWeeks: boolean = $derived(enabledGranularities.includes("week"));
-  const dayEnabled: boolean = $derived(enabledGranularities.includes("day"));
+const showWeeks: boolean = $derived(enabledGranularities.includes("week"));
+const dayEnabled: boolean = $derived(enabledGranularities.includes("day"));
 
-  const fileMap: FileMap = $derived.by(() =>
-    computeFileMap(
-      month,
-      (date, granularity) => fileStore.getFile(date, granularity),
-      enabledGranularities,
-    ),
-  );
+const fileMap: FileMap = $derived.by(() =>
+  computeFileMap(
+    month,
+    (date, granularity) => fileStore.getFile(date, granularity),
+    enabledGranularities,
+  ),
+);
 
-  const daysOfWeek: string[] = window.moment.weekdaysShort(true);
+const daysOfWeek: string[] = window.moment.weekdaysShort(true);
 
-  export function tick() {
-    const now = window.moment();
-    if (!now.isSame(today, "day")) {
-      today = now;
-    }
+export function tick() {
+  const now = window.moment();
+  if (!now.isSame(today, "day")) {
+    today = now;
   }
+}
 
-  export function setActiveFilePath(path: string | null) {
-    activeFilePath = path;
-  }
+export function setActiveFilePath(path: string | null) {
+  activeFilePath = path;
+}
 </script>
 
 <div id="calendar-container" class="container">

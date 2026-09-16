@@ -1,12 +1,11 @@
 {
   "extends": "@tsconfig/svelte/tsconfig.json",
   "include": ["src/**/*", "deploy.ts", "version-bump.ts"],
-  "exclude": ["src/**/*.test.ts"],
   "compilerOptions": {
     "target": "ESNext",
     "lib": ["DOM", "ESNext"],
     "module": "ESNext",
-    "types": ["svelte", "node"],
+    "types": ["svelte", "node", "bun"],
     "noEmit": true,
     "paths": { "src/*": ["./src/*"] }
   }
