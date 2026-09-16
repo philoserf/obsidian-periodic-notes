@@ -14,7 +14,6 @@ import { CacheIndex } from "./cacheIndex";
 import { resolveFile } from "./cacheResolve";
 import { getEnabledGranularities } from "./format";
 import type PeriodicNotesPlugin from "./main";
-import { isInFolder } from "./paths";
 import { applyTemplateToFile } from "./template";
 import type { CacheEntry, Granularity } from "./types";
 
@@ -50,7 +49,7 @@ export class NoteCache extends Component {
       this.initialize();
       this.registerEvent(
         this.app.vault.on("create", (file) => {
-          if (file instanceof TFile) void this.resolve(file, true);
+          if (file instanceof TFile) void this.resolveCreated(file);
         }),
       );
       this.registerEvent(
@@ -85,28 +84,23 @@ export class NoteCache extends Component {
     // Shared across granularities: when configured folders overlap (e.g.
     // day in "/" and week in "daily/"), each folder is walked only once.
     const visited = new Set<TFolder>();
-    const recurseChildren = (
-      folder: TFolder,
-      cb: (file: TAbstractFile) => void,
-    ) => {
+    const files: TFile[] = [];
+    const collect = (folder: TFolder) => {
       if (visited.has(folder)) return;
       visited.add(folder);
       for (const c of folder.children) {
-        if (c instanceof TFile) cb(c);
-        else if (c instanceof TFolder) recurseChildren(c, cb);
+        if (c instanceof TFile) files.push(c);
+        else if (c instanceof TFolder) collect(c);
       }
     };
 
-    const active = getEnabledGranularities(settings);
-    for (const granularity of active) {
+    for (const granularity of getEnabledGranularities(settings)) {
       const folder = settings.granularities[granularity].folder || "/";
       const rootFolder = this.app.vault.getAbstractFileByPath(folder);
-      if (!(rootFolder instanceof TFolder)) continue;
-
-      recurseChildren(rootFolder, (file) => {
-        if (file instanceof TFile) void this.resolve(file, false);
-      });
+      if (rootFolder instanceof TFolder) collect(rootFolder);
     }
+
+    for (const file of files) this.resolve(file);
   }
 
   // Deliberately does NOT trigger periodic-notes:resolve, and does not go
@@ -129,70 +123,49 @@ export class NoteCache extends Component {
   private onRename(file: TAbstractFile, oldPath: string): void {
     if (!(file instanceof TFile)) return;
 
-    const previous = this.index.get(oldPath);
+    // No splice branch: resolve() reads the file's frontmatter at its new
+    // path, so a match made by a property is re-found there rather than
+    // carried over, and the folder test that applies to every other write
+    // into the index applies here too. This was the last of the four
+    // mechanisms that used to encode frontmatter-beats-filename separately.
     this.index.remove(oldPath);
-
-    // A frontmatter match survives a rename — the property that made the file
-    // periodic did not move. Splicing the new path into the old entry keeps it
-    // without depending on metadataCache having caught up with the new path,
-    // which is not guaranteed at the moment this event fires. resolve() below
-    // does ask for frontmatter, so the fall-through may well find the property
-    // anyway; this branch is what makes that a bonus rather than a requirement.
-    //
-    // It survives a rename *within the configured folder*, though. The folder
-    // is not part of the provenance being preserved: the other two write paths
-    // into the index both refuse a file outside it, and a note the user has
-    // moved out has stopped being periodic whatever its frontmatter still says.
-    if (previous?.match === "frontmatter") {
-      const folder =
-        this.plugin.settings.granularities[previous.granularity].folder;
-      if (isInFolder(file.path, folder)) {
-        // remove(oldPath) above can promote a contender onto this key, so the
-        // re-index can lose the collision. Announcing a file that is not in
-        // byPath is the same mistake resolve() guards at its own index.set.
-        if (
-          this.index.set({ ...previous, filePath: file.path }).filePath !==
-          file.path
-        ) {
-          return;
-        }
-        this.app.workspace.trigger(
-          "periodic-notes:resolve",
-          previous.granularity,
-          file,
-        );
-        return;
-      }
-      // Left the folder. remove(oldPath) has already dropped it; fall through
-      // so the new path gets a fair filename look, which is also what indexes
-      // a file that landed in a *different* granularity's folder.
-    }
-
-    void this.resolve(file, false);
+    this.resolve(file);
   }
 
-  // Runs synchronously through index.set and the trigger except on the
-  // create-with-template path, where the trigger waits for the template.
-  private async resolve(file: TFile, isCreate: boolean): Promise<void> {
-    const settings = this.plugin.settings;
+  /** The frontmatter a file's path currently carries, for resolveFile's reader. */
+  private frontmatterOf(file: TFile): unknown {
+    return this.app.metadataCache.getFileCache(file)?.frontmatter ?? null;
+  }
+
+  private entryFor(file: TFile): CacheEntry | null {
     // Hoisted out of the closure: resolveFile asks for each enabled
     // granularity in turn, and an in-closure lookup would repeat this read up
     // to four times per file across initialize()'s whole-folder walk.
-    const frontmatter =
-      this.app.metadataCache.getFileCache(file)?.frontmatter ?? null;
-    const entry = resolveFile(file, settings, (granularity) =>
+    const frontmatter = this.frontmatterOf(file);
+    const entry = resolveFile(file, this.plugin.settings, (granularity) =>
       parseFrontMatterEntry(frontmatter, granularity),
     );
-    if (!entry) return;
-
+    if (!entry) return null;
     // A canonical-key collision can leave this file unindexed in favour of
     // another note for the same date. Nothing downstream should be told the
     // file resolved when it did not.
-    if (this.index.set(entry).filePath !== file.path) return;
+    return this.index.set(entry).filePath === file.path ? entry : null;
+  }
 
-    if (isCreate && file.stat.size === 0) {
+  /** Index a file and announce it. Synchronous throughout. */
+  private resolve(file: TFile): void {
+    const entry = this.entryFor(file);
+    if (entry) this.announce(entry.granularity, file);
+  }
+
+  /** The vault "create" path: index, stamp the template, then announce. */
+  private async resolveCreated(file: TFile): Promise<void> {
+    const entry = this.entryFor(file);
+    if (!entry) return;
+
+    if (file.stat.size === 0) {
       try {
-        await applyTemplateToFile(this.app, file, settings, entry);
+        await applyTemplateToFile(this.app, file, this.plugin.settings, entry);
       } catch (err) {
         console.error("[Periodic Notes] failed to apply template", err);
         new Notice(
@@ -212,12 +185,12 @@ export class NoteCache extends Component {
       }
     }
 
-    // Fires after template application, so listeners may read file contents.
-    this.app.workspace.trigger(
-      "periodic-notes:resolve",
-      entry.granularity,
-      file,
-    );
+    this.announce(entry.granularity, file);
+  }
+
+  // Fires after template application, so listeners may read file contents.
+  private announce(granularity: Granularity, file: TFile): void {
+    this.app.workspace.trigger("periodic-notes:resolve", granularity, file);
   }
 
   // The index can outlive the file it points at — a delete event missed or
