@@ -9,11 +9,11 @@
     "audit": "bun audit --audit-level=critical",
     "dev": "vite build --watch",
     "build": "bun run check && vite build",
-    "check": "bun run typecheck && biome check . && svelte-check --tsgo",
+    "check": "bun run typecheck && biome check . && svelte-check --tsgo && prettier --check \"**/*.md\"",
     "typecheck": "node ./node_modules/@typescript/native/bin/tsc --noEmit",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
-    "format": "biome format --write .",
+    "format": "biome format --write . && prettier --write \"**/*.md\"",
     "format:check": "biome format .",
     "version": "bun run version-bump.ts",
     "test": "bun test",
@@ -34,6 +34,7 @@
     "@typescript/native": "npm:typescript@7",
     "moment": "^2.31.0",
     "obsidian": "^1.13.1",
+    "prettier": "^3.9.7",
     "svelte-check": "^4.7.6",
     "vite": "^8.3.0"
   }

@@ -1,18 +1,9 @@
-import { copyFileSync } from "node:fs";
 import path from "node:path";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 import { defineConfig } from "vite";
 
 export default defineConfig({
-  plugins: [
-    svelte({ emitCss: false }),
-    {
-      name: "copy-styles",
-      writeBundle() {
-        copyFileSync("src/styles.css", "styles.css");
-      },
-    },
-  ],
+  plugins: [svelte({ emitCss: false })],
   resolve: {
     alias: { src: path.resolve(__dirname, "src") },
   },

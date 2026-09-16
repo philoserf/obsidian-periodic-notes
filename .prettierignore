@@ -1,0 +1,5 @@
+# Findings from the code-* review skills; ignored by git, not ours to format.
+.issues/
+
+# Generated bundle.
+main.js
