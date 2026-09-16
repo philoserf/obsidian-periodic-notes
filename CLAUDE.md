@@ -12,7 +12,7 @@ The current next step for this repo is tracked in the workspace backlog at `../N
 
 ### Build System
 
-- **Output**: `./main.js` (CommonJS format, tracked in git)
+- **Output**: `./main.js` (CommonJS format, gitignored — `release.yml` builds the bundle it publishes, so the committed copy was only ever diffed against a fresh build of the same source)
 - Vite outputs to project root (`outDir: "."`) with `emptyOutDir: false` — never change this
 - Only the default export from `main.ts` — no named exports (vite output.exports: "default")
 

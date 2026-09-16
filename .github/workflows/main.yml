@@ -16,12 +16,8 @@ jobs:
           bun-version: latest
       - run: bun install
       - run: bun audit --audit-level=critical
-      # `build` is check + bundle. The diff then fails the PR when the committed
-      # main.js does not match a fresh build — Obsidian ships the committed
-      # bundle, so a dependency bump that skips the rebuild must not merge.
-      # bun is deliberately unpinned, so a bun release that shifts bundler
-      # output trips this too. The fix is the same either way: rebuild and
-      # commit main.js.
+      # `build` is check + bundle, so this typechecks, lints and svelte-checks
+      # before bundling. main.js is not tracked, so there is nothing to diff it
+      # against: release.yml builds the bundle it publishes, at the tag.
       - run: bun run build
-      - run: git diff --exit-code main.js
       - run: bun test
