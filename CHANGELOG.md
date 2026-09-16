@@ -1,5 +1,32 @@
 # Changelog
 
+## 2.5.0
+
+Three silent defects in the resolution path, two of which were destroying or
+falsifying note content rather than merely hiding it. One user-visible
+behaviour change comes with them, which is what makes this a minor release
+rather than a patch.
+
+### Fixed
+
+- Nested week, month and year formats read the year from the path. A format such as `YYYY/MM` or `gggg/[W]ww` was matched against the file's basename alone, and the only candidate that can match a basename is the format with everything before the last slash removed — which is exactly where the year token lives. `2019/09.md` resolved to September of the *current* year; every year collapsed onto one canonical key, so a vault with five years of nested monthly notes exposed twelve of them and filed the other forty-eight away as collisions, reported only in the developer console. Worse, creating such a note rendered its template from the mis-read date, writing "September 2026" into the note just created for September 2019 (#292, superseding #280)
+- Only Markdown files are recognised as periodic notes. Nothing restricted recognition by file type, so an attachment named `2026-09-07.png` became *the* daily note for that date — opening the day's note opened the image, and the calendar drew its dot. Where both existed, a `2026-09-07.canvas` outranked the real `2026-09-07.md` and evicted it from the index entirely. Worst of all, an empty non-Markdown file whose name happened to parse — a `.canvas`, or a placeholder dropped in by sync — had the granularity's Markdown template written into it on creation. Note creation was always Markdown-only; recognition now matches it (#281)
+- A note that is periodic only because of its frontmatter is dropped when it is moved out of its configured folder. Moving `daily/standup.md`, periodic because it carries `day: 2026-09-07`, into an archive folder previously left it indexed at its new location: it still answered "open today's daily note", the calendar still dotted it, and jump-to-adjacent still walked through it. Moving such a note *back* into its folder now re-indexes it without needing an edit (#276)
+
+### Changed
+
+- **A file that does not sit at the depth its format renders is no longer a periodic note.** With a nested format such as `YYYY/YYYY-MM-DD`, a flat `daily/2026-06-12.md` used to match anyway. The whole rendered path is now what counts. If you have notes sitting outside the folder structure their format describes, they will stop being recognised — move them, or flatten the format (#292)
+
+### Internal
+
+- File resolution has one entry point. Frontmatter-beats-filename was a single precedence rule reconstructed at runtime from four separate mechanisms — a refusal to re-resolve, a call order, a removal-and-re-offer, and a rename branch — none of which stated it. The ordering of two calls now is the rule, which is what made the Markdown restriction a single line covering both match kinds (#295, #296)
+- Indexing no longer strands collision losers whose frontmatter property is edited away, and note discovery on startup reports the correct granularity for a file whose filename and frontmatter disagree (#295)
+- The release workflow runs the test suite and verifies the pushed tag against `manifest.json` and `versions.json` before publishing. It previously typechecked and linted but never ran a test, and nothing checked that the tag matched the version Obsidian would install (#293)
+
+### Dependencies
+
+- `@biomejs/biome` 2.5.14, `@types/bun` 1.4.2, `moment` 2.31.0, `vite` 8.3.0 (#303)
+
 ## 2.4.0
 
 Six fixes across note creation, the settings tab and the calendar command. One
