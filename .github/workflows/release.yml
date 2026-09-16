@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     tags:
-      - "*"
+      - "[0-9]*.[0-9]*.[0-9]*"
 
 permissions:
   contents: write
@@ -14,13 +14,35 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # Obsidian keys installs off manifest.json, so a tag that disagrees with it
+      # installs as the manifest's version and no longer matches the release it
+      # came from. versions.json is what tells older Obsidian builds which release
+      # they may install, so a missing row is the same class of mistake.
+      #
+      # The tag filter above is a glob: `*` is a wildcard, not a quantifier, so it
+      # also admits a prerelease tag. This step is what stops one publishing as a
+      # full release — the guard is here, not in the pattern. jq is preinstalled on
+      # ubuntu-latest, so this runs before setup-bun and fails a bad tag in seconds.
+      - name: Verify tag matches manifest and versions.json
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          manifest="$(jq -r .version manifest.json)"
+          [ "$tag" = "$manifest" ] || { echo "tag $tag != manifest $manifest" >&2; exit 1; }
+          jq -e --arg t "$tag" 'has($t)' versions.json >/dev/null \
+            || { echo "versions.json has no row for $tag" >&2; exit 1; }
+
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
 
-      - run: |
-          bun install
-          bun run build
+      - run: bun install
+
+      # `build` is check + bundle, so it typechecks and lints but does not test.
+      # CI covers every merge to main; this covers a tag cut from a commit CI
+      # never saw.
+      - run: bun test
+
+      - run: bun run build
 
       - name: Create release
         uses: softprops/action-gh-release@v3
