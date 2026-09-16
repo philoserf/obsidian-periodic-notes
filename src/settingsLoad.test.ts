@@ -86,6 +86,19 @@ describe("sanitizeSettings", () => {
     expect(settings.granularities.day.enabled).toBe(true);
   });
 
+  test("refuses a persisted dot-only folder", () => {
+    // The settings tab refuses these, but a value can reach data.json without
+    // passing through it — a hand edit, a sync conflict, an older build. "."
+    // and "..." name no vault folder, so storing one leaves the granularity
+    // indexing nothing, silently.
+    for (const folder of [".", "...", "notes/.."]) {
+      const settings = sanitize({
+        granularities: { day: { enabled: true, folder } },
+      });
+      expect(settings.granularities.day.folder).toBe("");
+    }
+  });
+
   test("refuses a persisted format that escapes the vault", () => {
     const settings = sanitize({
       granularities: {
