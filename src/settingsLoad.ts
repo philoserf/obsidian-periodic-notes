@@ -1,5 +1,5 @@
 import { DEFAULT_SETTINGS } from "./constants";
-import { hasDotDotSegment, literalizeFormat } from "./paths";
+import { hasDotDotSegment, hasDotOnlySegment, literalizeFormat } from "./paths";
 import { granularities, type NoteConfig, type Settings } from "./types";
 
 type UnknownRecord = Record<string, unknown>;
@@ -55,7 +55,12 @@ function sanitizeConfig(
 
   if (typeof saved.folder === "string") {
     const folder = normalizeFolder(saved.folder);
-    if (!hasDotDotSegment(folder)) config.folder = folder;
+    // Both rules, not just traversal: the settings tab refuses a dot-only
+    // segment too, and a value that reaches data.json another way -- a hand
+    // edit, a sync conflict, an older build -- has never been through it.
+    if (!hasDotDotSegment(folder) && !hasDotOnlySegment(folder)) {
+      config.folder = folder;
+    }
   }
 
   if (typeof saved.templatePath === "string") {
