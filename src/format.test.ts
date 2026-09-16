@@ -4,10 +4,7 @@ import {
   extractDateStringFromPath,
   getBasename,
   getFormat,
-  getPossibleFormats,
-  isFragileBasename,
   isValidFilename,
-  removeEscapedCharacters,
   validateFormat,
 } from "./format";
 import type { Settings } from "./types";
@@ -33,35 +30,6 @@ describe("getFormat", () => {
   test("returns default when empty", () => {
     expect(getFormat(DEFAULT_SETTINGS, "day")).toBe("YYYY-MM-DD");
     expect(getFormat(DEFAULT_SETTINGS, "week")).toBe("gggg-[W]ww");
-  });
-});
-
-describe("getPossibleFormats", () => {
-  test("returns default for unconfigured", () => {
-    expect(getPossibleFormats(DEFAULT_SETTINGS, "day")).toEqual(["YYYY-MM-DD"]);
-  });
-
-  test("returns one candidate for a flat custom format", () => {
-    const s = settingsWithFormat("day", "YYYY-MM-DD");
-    expect(getPossibleFormats(s, "day")).toEqual(["YYYY-MM-DD"]);
-  });
-
-  test("returns full and partial for nested format", () => {
-    const s = settingsWithFormat("day", "YYYY/YYYY-MM-DD");
-    expect(getPossibleFormats(s, "day")).toEqual([
-      "YYYY/YYYY-MM-DD",
-      "YYYY-MM-DD",
-    ]);
-  });
-});
-
-describe("removeEscapedCharacters", () => {
-  test("removes bracket-escaped content", () => {
-    expect(removeEscapedCharacters("YYYY-[W]ww")).toBe("YYYY-ww");
-  });
-
-  test("removes backslash-escaped characters", () => {
-    expect(removeEscapedCharacters("YYYY\\-MM")).toBe("YYYYMM");
   });
 });
 
@@ -110,61 +78,48 @@ describe("validateFormat", () => {
   });
 });
 
-describe("isFragileBasename", () => {
-  test("a flat format is not fragile", () => {
-    expect(isFragileBasename("YYYY-MM-DD", "day")).toBe(false);
-  });
-
-  test("a nested format whose basename lacks tokens is fragile", () => {
-    expect(isFragileBasename("YYYY/DD", "day")).toBe(true);
-    expect(isFragileBasename("YYYY/MM/DD", "day")).toBe(true);
-  });
-
-  test("a nested format with a complete basename is not fragile", () => {
-    expect(isFragileBasename("YYYY/YYYY-MM-DD", "day")).toBe(false);
-  });
-
-  test("only daily formats can be fragile", () => {
-    // Week, month and year notes are read from the basename regardless.
-    expect(isFragileBasename("YYYY/DD", "week")).toBe(false);
-    expect(isFragileBasename("YYYY/MM", "month")).toBe(false);
-  });
-
-  test("an escaped slash does not make a format nested", () => {
-    expect(isFragileBasename("[YYYY/]DD", "day")).toBe(false);
-  });
-});
-
 describe("extractDateStringFromPath", () => {
   const file = (path: string) => {
     const basename = path.split("/").pop()?.replace(/\.md$/, "") ?? "";
     return { path, basename, extension: "md" };
   };
 
-  test("returns basename for a simple format", () => {
+  test("returns the basename for a flat format", () => {
     expect(
-      extractDateStringFromPath(
-        file("daily/2026-06-12.md"),
-        "YYYY-MM-DD",
-        "day",
-      ),
+      extractDateStringFromPath(file("daily/2026-06-12.md"), "YYYY-MM-DD"),
     ).toBe("2026-06-12");
   });
 
-  test("returns trailing path segments for a fragile nested format", () => {
+  test("returns as many trailing segments as the format renders", () => {
     expect(
-      extractDateStringFromPath(
-        file("journal/2026/06/12.md"),
-        "YYYY/MM/DD",
-        "day",
-      ),
+      extractDateStringFromPath(file("journal/2026/06/12.md"), "YYYY/MM/DD"),
     ).toBe("2026/06/12");
   });
 
-  test("ignores escaped slashes when counting nesting", () => {
+  test("walks back for a nested format even when the basename is complete", () => {
+    // The old pair only walked back when the basename could not pin the date;
+    // the full format then had to be matched against a bare basename, which is
+    // where the year went missing. One rule, so the whole rendered path counts.
     expect(
-      extractDateStringFromPath(file("notes/2026/12.md"), "YYYY/[d/]DD", "day"),
-    ).toBe("2026/12");
+      extractDateStringFromPath(file("2026/2026-06-12.md"), "YYYY/YYYY-MM-DD"),
+    ).toBe("2026/2026-06-12");
+  });
+
+  test("counts an escaped slash, which moment renders as a real separator", () => {
+    // window.moment().format("YYYY/[d/]DD") produces "2026/d/16" - three
+    // segments on disk, so "notes/2026/12.md" is not a path this format writes.
+    expect(
+      extractDateStringFromPath(file("notes/2026/d/12.md"), "YYYY/[d/]DD"),
+    ).toBe("2026/d/12");
+  });
+
+  test("does not eat a path character when the file has no extension", () => {
+    expect(
+      extractDateStringFromPath(
+        { path: "daily/2026-06-12", basename: "2026-06-12", extension: "" },
+        "YYYY-MM-DD",
+      ),
+    ).toBe("2026-06-12");
   });
 });
 

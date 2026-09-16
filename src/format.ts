@@ -1,5 +1,5 @@
 import { DEFAULT_FORMAT } from "./constants";
-import { hasDotDotSegment } from "./paths";
+import { hasDotDotSegment, literalizeFormat } from "./paths";
 import { type Granularity, granularities, type Settings } from "./types";
 
 export function getFormat(
@@ -11,27 +11,8 @@ export function getFormat(
   );
 }
 
-export function getPossibleFormats(
-  settings: Settings,
-  granularity: Granularity,
-): string[] {
-  const format = settings.granularities[granularity].format;
-  if (!format) return [DEFAULT_FORMAT[granularity]];
-
-  // `[^/]*` matches the empty string at minimum, so exec never returns null.
-  // For a format with no "/" the partial equals the format, and handing moment
-  // the same candidate twice is only noise.
-  const partialFormat = /[^/]*$/.exec(format)?.[0] ?? format;
-  return partialFormat === format ? [format] : [format, partialFormat];
-}
-
 export function getEnabledGranularities(settings: Settings): Granularity[] {
   return granularities.filter((g) => settings.granularities[g].enabled);
-}
-
-export function removeEscapedCharacters(format: string): string {
-  const withoutBrackets = format.replace(/\[[^\]]*\]/g, "");
-  return withoutBrackets.replace(/\\./g, "");
 }
 
 export function getBasename(format: string): string {
@@ -75,34 +56,6 @@ export function validateFormat(
   return "";
 }
 
-function isMissingRequiredTokens(format: string): boolean {
-  const base = getBasename(format).replace(/\[[^\]]*\]/g, "");
-  return (
-    !["M", "D"].every((t) => base.includes(t)) ||
-    !(base.includes("Y") || base.includes("y"))
-  );
-}
-
-/**
- * True when a nested daily format leaves too little in the last path segment
- * to identify a date on its own — "YYYY/MM/DD" gives a basename of "DD", so
- * the date has to be read back out of the surrounding directories.
- *
- * Deliberately does no moment work. This is called once per file per enabled
- * granularity during NoteCache.initialize's folder walk, which re-runs on
- * every settings change that touches indexing.
- */
-export function isFragileBasename(
-  format: string,
-  granularity: Granularity,
-): boolean {
-  return (
-    granularity === "day" &&
-    removeEscapedCharacters(format).includes("/") &&
-    isMissingRequiredTokens(format)
-  );
-}
-
 // Structural subset of TFile, so this module stays importable in tests.
 export type PathParts = {
   path: string;
@@ -110,22 +63,30 @@ export type PathParts = {
   extension: string;
 };
 
+/**
+ * The part of a path that should parse as the date: as many trailing segments
+ * as the format actually renders, with the extension stripped.
+ *
+ * One rule for flat and nested formats alike. A flat format renders no
+ * separator, so this degenerates to the basename; a nested one takes the whole
+ * rendered shape, which is what keeps the year in play when it lives in a
+ * directory rather than the filename.
+ *
+ * Counted with literalizeFormat, not by stripping escapes: moment renders
+ * "[d/]" as the literal "d/", which is a real directory separator on disk. The
+ * count has to match what format() writes, for the same reason validateFormat
+ * checks the rendered sample rather than the format.
+ */
 export function extractDateStringFromPath(
   file: PathParts,
   format: string,
-  granularity: Granularity,
 ): string {
-  if (isFragileBasename(format, granularity)) {
-    // TFile.extension is "" for an extensionless file, and initialize()'s walk
-    // does not filter by extension — slicing -(0 + 1) would eat a real
-    // character of the path rather than a separator.
-    const withoutExtension = file.extension
-      ? file.path.slice(0, -(file.extension.length + 1))
-      : file.path;
-    const strippedFormat = removeEscapedCharacters(format);
-    const nestingLvl = (strippedFormat.match(/\//g)?.length ?? 0) + 1;
-    const pathParts = withoutExtension.split("/");
-    return pathParts.slice(-nestingLvl).join("/");
-  }
-  return file.basename;
+  // TFile.extension is "" for an extensionless file, and initialize()'s walk
+  // does not filter by extension — slicing -(0 + 1) would eat a real
+  // character of the path rather than a separator.
+  const withoutExtension = file.extension
+    ? file.path.slice(0, -(file.extension.length + 1))
+    : file.path;
+  const depth = literalizeFormat(format).split("/").length;
+  return withoutExtension.split("/").slice(-depth).join("/");
 }

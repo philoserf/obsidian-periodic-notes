@@ -32,12 +32,12 @@ If you want something similar, the code is MIT-licensed — fork it and adapt. D
 
 Each granularity is configured independently:
 
-| Setting  | Description                                                                                                   |
-| -------- | ------------------------------------------------------------------------------------------------------------- |
-| Enabled  | Turn this granularity on or off.                                                                              |
-| Format   | Moment.js format string. Defaults: `YYYY-MM-DD` (day), `gggg-[W]ww` (week), `YYYY-MM` (month), `YYYY` (year). |
-| Folder   | Folder where these notes live. Nested folders in the format string (e.g. `YYYY/MM/YYYY-MM-DD`) are supported. |
-| Template | Path to a template file applied when a new note is created.                                                   |
+| Setting  | Description                                                                                                                                                                                                                |
+| -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Enabled  | Turn this granularity on or off.                                                                                                                                                                                           |
+| Format   | Moment.js format string. Defaults: `YYYY-MM-DD` (day), `gggg-[W]ww` (week), `YYYY-MM` (month), `YYYY` (year).                                                                                                              |
+| Folder   | Folder where these notes live. Nested folders in the format string (e.g. `YYYY/MM/YYYY-MM-DD`) are supported — a note is matched on the whole path the format renders, so a file must actually sit at that depth to count. |
+| Template | Path to a template file applied when a new note is created.                                                                                                                                                                |
 
 ## Template Tokens
 
