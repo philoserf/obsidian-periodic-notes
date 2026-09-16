@@ -1,7 +1,7 @@
 import type { Moment } from "moment";
 
 import { canonicalKey, findAdjacentKey } from "./cacheSearch";
-import { type CacheEntry, type Granularity, granularities } from "./types";
+import type { CacheEntry, Granularity } from "./types";
 
 /**
  * Which of two entries claiming one canonical key keeps it. Frontmatter is an
@@ -14,6 +14,21 @@ function preferred(a: CacheEntry, b: CacheEntry): CacheEntry {
   return a.filePath <= b.filePath ? a : b;
 }
 
+/**
+ * The index behind every read path, and the home of one invariant that four
+ * methods exist to preserve:
+ *
+ *   A path appears in at most one of `byPath` and `contenders` — never both,
+ *   and never twice in `contenders`. A key that is free in `byKey` has no
+ *   contender waiting for it.
+ *
+ * `set`, `remove`, `promote` and `dropContender` each maintain that, and each
+ * is only readable against it. `set` and `remove` vacate a key and immediately
+ * re-offer it; `promote` is how a freed key finds its next holder;
+ * `dropContender` is what keeps the first half true whenever a path changes
+ * status. Check any one of them against the statement above rather than
+ * against the other three.
+ */
 export class CacheIndex {
   private byPath = new Map<string, CacheEntry>();
   private byKey = new Map<string, CacheEntry>();
@@ -23,8 +38,6 @@ export class CacheIndex {
    * here, so a vault without collisions carries no extra state at all.
    */
   private contenders = new Map<string, CacheEntry[]>();
-  private sortedByGranularity = new Map<Granularity, string[]>();
-  private dirtyGranularities = new Set<Granularity>(granularities);
 
   private addContender(key: string, entry: CacheEntry): void {
     const list = this.contenders.get(key);
@@ -44,9 +57,11 @@ export class CacheIndex {
   }
 
   /**
-   * Hand a freed key to the best remaining contender. The promoted entry may
-   * point at a file that is gone; that is fine, because every read resolves
-   * against the vault and removes what it cannot find, which promotes again.
+   * Hand a freed key to the best remaining contender — the invariant's second
+   * half, which is why every path that vacates a key calls this immediately.
+   * The promoted entry may point at a file that is gone; that is fine, because
+   * every read resolves against the vault and removes what it cannot find,
+   * which promotes again.
    */
   private promote(key: string): void {
     const list = this.contenders.get(key);
@@ -55,7 +70,6 @@ export class CacheIndex {
     this.dropContender(next.filePath);
     this.byPath.set(next.filePath, next);
     this.byKey.set(key, next);
-    this.dirtyGranularities.add(next.granularity);
   }
 
   /**
@@ -71,17 +85,28 @@ export class CacheIndex {
       const oldKey = canonicalKey(oldByPath.granularity, oldByPath.date);
       if (oldKey !== newKey) {
         this.byKey.delete(oldKey);
-        this.dirtyGranularities.add(oldByPath.granularity);
         // This is the other way a winner stops claiming a key: not removed,
         // but re-dated by a frontmatter edit. The key is just as free as it is
         // after remove(), so a contender has to be offered it here too.
         this.promote(oldKey);
+      } else if (oldByPath.match !== entry.match) {
+        // Same key, same path, different provenance — a frontmatter match
+        // downgraded to a filename one when the property was edited away.
+        // `preferred` ranks frontmatter above filename, so the downgrade can
+        // change who deserves the key; but the collision check below compares
+        // against the incumbent, which is this very path, and would skip it.
+        // Vacate and re-offer, so contenders get the turn they would have had
+        // when this went through remove() and a re-offer instead.
+        this.byKey.delete(newKey);
+        this.byPath.delete(entry.filePath);
+        this.promote(newKey);
       }
     }
 
     // Unconditional, and before the collision check below: a prior entry for
     // this path may have been a loser, which never reaches byPath, so the
-    // oldByPath cleanup above cannot have found it.
+    // oldByPath cleanup above cannot have found it. (Invariant, first half:
+    // one path is never in both maps.)
     this.dropContender(entry.filePath);
 
     const incumbent = this.byKey.get(newKey);
@@ -100,17 +125,13 @@ export class CacheIndex {
       if (winner === incumbent) return incumbent;
     }
 
-    const isNewKey = !this.byKey.has(newKey);
     this.byPath.set(entry.filePath, entry);
     this.byKey.set(newKey, entry);
-    if (isNewKey) {
-      this.dirtyGranularities.add(entry.granularity);
-    }
     return entry;
   }
 
   remove(filePath: string): void {
-    // Unconditional for the same reason as in set: a loser is absent from
+    // Unconditional, for the invariant's first half: a loser is absent from
     // byPath, so the lookup below would miss it and strand its contender.
     this.dropContender(filePath);
     const entry = this.byPath.get(filePath);
@@ -118,7 +139,6 @@ export class CacheIndex {
       const key = canonicalKey(entry.granularity, entry.date);
       this.byKey.delete(key);
       this.byPath.delete(filePath);
-      this.dirtyGranularities.add(entry.granularity);
       this.promote(key);
     }
   }
@@ -127,8 +147,6 @@ export class CacheIndex {
     this.byPath.clear();
     this.byKey.clear();
     this.contenders.clear();
-    this.sortedByGranularity.clear();
-    this.dirtyGranularities = new Set(granularities);
   }
 
   get(filePath: string): CacheEntry | null {
@@ -150,25 +168,16 @@ export class CacheIndex {
     const curr = this.get(filePath);
     if (!curr) return null;
 
-    const sorted = this.getSortedKeys(curr.granularity);
+    // Built here rather than cached per granularity: every mutation dirtied
+    // the cache, and findAdjacent's own loop removes stale entries as it goes,
+    // so the cache was invalidated on essentially every iteration of the loop
+    // it existed to speed up.
+    const prefix = `${curr.granularity}:`;
+    const sorted = [...this.byKey.keys()]
+      .filter((k) => k.startsWith(prefix))
+      .sort();
     const key = canonicalKey(curr.granularity, curr.date);
     const adjKey = findAdjacentKey(sorted, key, direction);
     return adjKey ? (this.byKey.get(adjKey) ?? null) : null;
-  }
-
-  private getSortedKeys(granularity: Granularity): string[] {
-    if (!this.dirtyGranularities.has(granularity)) {
-      const cached = this.sortedByGranularity.get(granularity);
-      if (cached) return cached;
-    }
-    const prefix = `${granularity}:`;
-    const keys: string[] = [];
-    for (const k of this.byKey.keys()) {
-      if (k.startsWith(prefix)) keys.push(k);
-    }
-    keys.sort();
-    this.sortedByGranularity.set(granularity, keys);
-    this.dirtyGranularities.delete(granularity);
-    return keys;
   }
 }
