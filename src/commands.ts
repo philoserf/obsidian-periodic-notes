@@ -8,7 +8,7 @@ import {
 } from "obsidian";
 import { getEnabledGranularities } from "./format";
 import type PeriodicNotesPlugin from "./main";
-import type { Granularity } from "./types";
+import type { CacheEntry, Granularity } from "./types";
 
 interface GranularityLabel {
   periodicity: string;
@@ -38,13 +38,9 @@ async function jumpToAdjacentNote(
   app: App,
   plugin: PeriodicNotesPlugin,
   direction: "forwards" | "backwards",
+  meta: CacheEntry,
 ): Promise<void> {
-  const activeFile = app.workspace.getActiveFile();
-  if (!activeFile) return;
-  const meta = plugin.cache.find(activeFile.path);
-  if (!meta) return;
-
-  const adjacent = plugin.cache.findAdjacent(activeFile.path, direction);
+  const adjacent = plugin.cache.findAdjacent(meta.filePath, direction);
   if (adjacent) {
     const file = app.vault.getAbstractFileByPath(adjacent.filePath);
     if (file && file instanceof TFile) {
@@ -60,15 +56,10 @@ async function jumpToAdjacentNote(
 }
 
 async function openAdjacentNote(
-  app: App,
   plugin: PeriodicNotesPlugin,
   direction: "forwards" | "backwards",
+  meta: CacheEntry,
 ): Promise<void> {
-  const activeFile = app.workspace.getActiveFile();
-  if (!activeFile) return;
-  const meta = plugin.cache.find(activeFile.path);
-  if (!meta) return;
-
   const offset = direction === "forwards" ? 1 : -1;
   const adjacentDate = meta.date.clone().add(offset, meta.granularity);
   await plugin.openPeriodicNote(meta.granularity, adjacentDate);
@@ -81,17 +72,29 @@ export function getCommands(
 ): Command[] {
   const label = granularityLabels[granularity];
 
-  const navCommand = (id: string, name: string, run: () => void): Command => ({
+  const navCommand = (
+    id: string,
+    name: string,
+    run: (entry: CacheEntry) => void | Promise<void>,
+  ): Command => ({
     id,
     name,
+    // Resolved once, not twice: checkCallback runs a second time to execute,
+    // and the entry the check found is exactly what the handler needs.
     checkCallback: (checking: boolean) => {
       if (!plugin.settings.granularities[granularity].enabled) return false;
       const activeFile = app.workspace.getActiveFile();
-      if (checking) {
-        if (!activeFile) return false;
-        return plugin.cache.find(activeFile.path)?.granularity === granularity;
-      }
-      run();
+      if (!activeFile) return false;
+      const entry = plugin.cache.find(activeFile.path);
+      if (entry?.granularity !== granularity) return false;
+      if (checking) return true;
+      // A dropped promise here is a silent failure: openFile rejects when the
+      // vault refuses the path, and the command would appear to do nothing.
+      // Same shape as main.ts's show-calendar callback.
+      void Promise.resolve(run(entry)).catch((err) => {
+        console.error(`[Periodic Notes] ${name} failed`, err);
+        new Notice(`Periodic Notes: ${name} failed. See console for details.`);
+      });
     },
   });
 
@@ -108,22 +111,22 @@ export function getCommands(
     navCommand(
       `next-${label.periodicity}-note`,
       `Jump forwards to closest ${label.periodicity} note`,
-      () => jumpToAdjacentNote(app, plugin, "forwards"),
+      (entry) => jumpToAdjacentNote(app, plugin, "forwards", entry),
     ),
     navCommand(
       `prev-${label.periodicity}-note`,
       `Jump backwards to closest ${label.periodicity} note`,
-      () => jumpToAdjacentNote(app, plugin, "backwards"),
+      (entry) => jumpToAdjacentNote(app, plugin, "backwards", entry),
     ),
     navCommand(
       `open-next-${label.periodicity}-note`,
       `Open next ${label.periodicity} note`,
-      () => openAdjacentNote(app, plugin, "forwards"),
+      (entry) => openAdjacentNote(plugin, "forwards", entry),
     ),
     navCommand(
       `open-prev-${label.periodicity}-note`,
       `Open previous ${label.periodicity} note`,
-      () => openAdjacentNote(app, plugin, "backwards"),
+      (entry) => openAdjacentNote(plugin, "backwards", entry),
     ),
   ];
 }
