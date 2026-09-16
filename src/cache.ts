@@ -32,7 +32,20 @@ export class NoteCache extends Component {
   // component that was actually loaded — and so Component.unload() tears every
   // registration down again when the plugin is disabled.
   onload(): void {
+    // onLayoutReady defers whenever layout is not ready yet, and the component
+    // can be unloaded before it fires — enabled at app start, disabled from
+    // Settings while the workspace is still restoring. registerEvent on an
+    // already-unloaded component has nothing left to tear down, since unload()
+    // drains its teardown list once and does not run again, so the five
+    // listeners below would outlive the plugin. CalendarStore and CalendarView
+    // guard the same shape; this was the one place taking the default.
+    let closed = false;
+    this.register(() => {
+      closed = true;
+    });
+
     this.app.workspace.onLayoutReady(() => {
+      if (closed) return;
       console.info("[Periodic Notes] initializing cache");
       this.initialize();
       this.registerEvent(
