@@ -15,6 +15,7 @@ import { CacheIndex } from "./cacheIndex";
 import { resolveEntry } from "./cacheResolve";
 import { getEnabledGranularities } from "./format";
 import type PeriodicNotesPlugin from "./main";
+import { isInFolder } from "./paths";
 import { applyTemplateToFile } from "./template";
 import type { CacheEntry, Granularity } from "./types";
 
@@ -134,14 +135,34 @@ export class NoteCache extends Component {
     // periodic did not move. Re-resolving cannot preserve it: resolveEntry is
     // handed the entry for the *new* path, which does not exist yet, so it
     // would silently fall back to filename matching and drop the note.
+    //
+    // It survives a rename *within the configured folder*, though. The folder
+    // is not part of the provenance being preserved: the other two write paths
+    // into the index both refuse a file outside it, and a note the user has
+    // moved out has stopped being periodic whatever its frontmatter still says.
     if (previous?.match === "frontmatter") {
-      this.index.set({ ...previous, filePath: file.path });
-      this.app.workspace.trigger(
-        "periodic-notes:resolve",
-        previous.granularity,
-        file,
-      );
-      return;
+      const folder =
+        this.plugin.settings.granularities[previous.granularity].folder;
+      if (isInFolder(file.path, folder)) {
+        // remove(oldPath) above can promote a contender onto this key, so the
+        // re-index can lose the collision. Announcing a file that is not in
+        // byPath is the same mistake resolve() guards at its own index.set.
+        if (
+          this.index.set({ ...previous, filePath: file.path }).filePath !==
+          file.path
+        ) {
+          return;
+        }
+        this.app.workspace.trigger(
+          "periodic-notes:resolve",
+          previous.granularity,
+          file,
+        );
+        return;
+      }
+      // Left the folder. remove(oldPath) has already dropped it; fall through
+      // so the new path gets a fair filename look, which is also what indexes
+      // a file that landed in a *different* granularity's folder.
     }
 
     void this.resolve(file, false);
