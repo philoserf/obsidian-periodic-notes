@@ -10,9 +10,8 @@ import {
   TFolder,
 } from "obsidian";
 
-import { resolveFrontmatterEntry } from "./cacheFrontmatter";
 import { CacheIndex } from "./cacheIndex";
-import { resolveEntry } from "./cacheResolve";
+import { resolveFile } from "./cacheResolve";
 import { getEnabledGranularities } from "./format";
 import type PeriodicNotesPlugin from "./main";
 import { isInFolder } from "./paths";
@@ -92,37 +91,26 @@ export class NoteCache extends Component {
       if (!(rootFolder instanceof TFolder)) continue;
 
       recurseChildren(rootFolder, (file) => {
-        if (file instanceof TFile) {
-          void this.resolve(file, false);
-          const metadata = this.app.metadataCache.getFileCache(file);
-          if (metadata) this.resolveFrontmatter(file, metadata);
-        }
+        if (file instanceof TFile) void this.resolve(file, false);
       });
     }
   }
 
+  // Deliberately does NOT trigger periodic-notes:resolve, and does not go
+  // through resolve(): that would fire the plugin's public event on every
+  // metadata save of every periodic note, and route a plain save through the
+  // template-capable path. Reads the event's own frontmatter rather than
+  // getFileCache, which may not yet reflect this change.
   private resolveFrontmatter(file: TFile, cache: CachedMetadata): void {
-    const entry = resolveFrontmatterEntry(
-      file.path,
-      this.plugin.settings,
-      (granularity) => parseFrontMatterEntry(cache.frontmatter, granularity),
+    const entry = resolveFile(file, this.plugin.settings, (granularity) =>
+      parseFrontMatterEntry(cache.frontmatter, granularity),
     );
-
-    if (entry) {
-      this.index.set(entry);
-      return;
-    }
-
-    // The property that produced a frontmatter entry can be edited away, and
-    // nothing else drops it: resolveEntry refuses to re-resolve a path already
-    // matched by frontmatter. Remove it here, then offer the file to filename
-    // matching — stripping frontmatter from a note whose name still parses
-    // should leave it periodic.
-    const existing = this.index.get(file.path);
-    if (existing?.match === "frontmatter") {
-      this.index.remove(file.path);
-      void this.resolve(file, false);
-    }
+    // A property edited away leaves nothing behind: resolveFile has already
+    // offered the file to filename matching, so a null here means it is not a
+    // periodic note at all. remove() also reaches contenders, which byPath
+    // lookups cannot see.
+    if (entry) this.index.set(entry);
+    else this.index.remove(file.path);
   }
 
   private onRename(file: TAbstractFile, oldPath: string): void {
@@ -132,9 +120,11 @@ export class NoteCache extends Component {
     this.index.remove(oldPath);
 
     // A frontmatter match survives a rename — the property that made the file
-    // periodic did not move. Re-resolving cannot preserve it: resolveEntry is
-    // handed the entry for the *new* path, which does not exist yet, so it
-    // would silently fall back to filename matching and drop the note.
+    // periodic did not move. Splicing the new path into the old entry keeps it
+    // without depending on metadataCache having caught up with the new path,
+    // which is not guaranteed at the moment this event fires. resolve() below
+    // does ask for frontmatter, so the fall-through may well find the property
+    // anyway; this branch is what makes that a bonus rather than a requirement.
     //
     // It survives a rename *within the configured folder*, though. The folder
     // is not part of the provenance being preserved: the other two write paths
@@ -172,7 +162,14 @@ export class NoteCache extends Component {
   // create-with-template path, where the trigger waits for the template.
   private async resolve(file: TFile, isCreate: boolean): Promise<void> {
     const settings = this.plugin.settings;
-    const entry = resolveEntry(file, settings, this.index.get(file.path));
+    // Hoisted out of the closure: resolveFile asks for each enabled
+    // granularity in turn, and an in-closure lookup would repeat this read up
+    // to four times per file across initialize()'s whole-folder walk.
+    const frontmatter =
+      this.app.metadataCache.getFileCache(file)?.frontmatter ?? null;
+    const entry = resolveFile(file, settings, (granularity) =>
+      parseFrontMatterEntry(frontmatter, granularity),
+    );
     if (!entry) return;
 
     // A canonical-key collision can leave this file unindexed in favour of
