@@ -5,7 +5,7 @@ import { NoteCache } from "./cache";
 import { CalendarView } from "./calendar/view";
 import { getCommands, granularityLabels, showContextMenu } from "./commands";
 import { VIEW_TYPE_CALENDAR } from "./constants";
-import { getBasename, getEnabledGranularities, getFormat } from "./format";
+import { getBasename, getFormat } from "./format";
 import {
   calendarDayIcon,
   calendarMonthIcon,
@@ -19,7 +19,12 @@ import { SettingsTab } from "./settings";
 import { sanitizeSettings } from "./settingsLoad";
 import { getNoteCreationPath, readTemplate } from "./template";
 import { applyTemplate } from "./templateRender";
-import { type Granularity, granularities, type Settings } from "./types";
+import {
+  type Granularity,
+  getEnabledGranularities,
+  granularities,
+  type Settings,
+} from "./types";
 
 interface OpenOpts {
   inNewSplit?: boolean;

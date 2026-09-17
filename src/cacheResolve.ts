@@ -1,11 +1,11 @@
-import {
-  extractDateStringFromPath,
-  getEnabledGranularities,
-  getFormat,
-  type PathParts,
-} from "./format";
+import { extractDateStringFromPath, getFormat, type PathParts } from "./format";
 import { isInFolder } from "./paths";
-import type { CacheEntry, Granularity, Settings } from "./types";
+import {
+  type CacheEntry,
+  type Granularity,
+  getEnabledGranularities,
+  type Settings,
+} from "./types";
 
 /**
  * Coerce a frontmatter value into something moment can parse. YAML types the

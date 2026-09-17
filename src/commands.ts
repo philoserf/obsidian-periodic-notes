@@ -6,10 +6,13 @@ import {
   type Point,
   TFile,
 } from "obsidian";
-import { getEnabledGranularities } from "./format";
 import type PeriodicNotesPlugin from "./main";
 import { reportFailure } from "./platform";
-import type { CacheEntry, Granularity } from "./types";
+import {
+  type CacheEntry,
+  type Granularity,
+  getEnabledGranularities,
+} from "./types";
 
 interface GranularityLabel {
   periodicity: string;

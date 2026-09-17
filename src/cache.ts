@@ -11,11 +11,14 @@ import {
 
 import { CacheIndex } from "./cacheIndex";
 import { resolveFile } from "./cacheResolve";
-import { getEnabledGranularities } from "./format";
 import type PeriodicNotesPlugin from "./main";
 import { reportFailure } from "./platform";
 import { applyTemplateToFile } from "./template";
-import type { CacheEntry, Granularity } from "./types";
+import {
+  type CacheEntry,
+  type Granularity,
+  getEnabledGranularities,
+} from "./types";
 
 export class NoteCache extends Component {
   private index = new CacheIndex();
