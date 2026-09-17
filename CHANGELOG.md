@@ -35,6 +35,7 @@ what makes this a minor release rather than a patch.
 - The calendar has one enabled signal per granularity instead of three, and its file map is total (#289)
 - `bun run check` now covers the Svelte components and the test files, neither of which it previously saw (#269, #294)
 - Markdown formatting is declared in the repository rather than supplied by an editor hook (#297)
+- The Vite config no longer uses `__dirname`, which would have broken the build when Vite switches its config loader — and which the warning Vite prints about it points at the wrong fix for (#322)
 - Smaller cleanups: the resolve/create split (#284), the folder walker (#278), one stylesheet rather than two (#288), `getEnabledGranularities` beside the list it filters (#277), and inlining a six-parameter method with one caller (#282)
 
 ### Documentation
