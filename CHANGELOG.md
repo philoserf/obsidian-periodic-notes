@@ -1,5 +1,51 @@
 # Changelog
 
+## 2.5.0
+
+Thirty-two issues, closing the whole backlog. Three were silent defects in the
+resolution path, two of them destroying or falsifying note content rather than
+merely hiding it. One user-visible behaviour change comes with them, which is
+what makes this a minor release rather than a patch.
+
+### Fixed
+
+- Nested week, month and year formats read the year from the path. A format such as `YYYY/MM` or `gggg/[W]ww` was matched against the file's basename alone, and the only candidate that can match a basename is the format with everything before the last slash removed — which is exactly where the year token lives. `2019/09.md` resolved to September of the _current_ year; every year collapsed onto one canonical key, so a vault with five years of nested monthly notes exposed twelve of them and filed the other forty-eight away as collisions, reported only in the developer console. Worse, creating such a note rendered its template from the mis-read date, writing "September 2026" into the note just created for September 2019 (#292, superseding #280)
+- Only Markdown files are recognised as periodic notes. Nothing restricted recognition by file type, so an attachment named `2026-09-07.png` became _the_ daily note for that date — opening the day's note opened the image, and the calendar drew its dot. Where both existed, a `2026-09-07.canvas` outranked the real `2026-09-07.md` and evicted it from the index entirely. Worst of all, an empty non-Markdown file whose name happened to parse — a `.canvas`, or a placeholder dropped in by sync — had the granularity's Markdown template written into it on creation. Note creation was always Markdown-only; recognition now matches it (#281)
+- A note that is periodic only because of its frontmatter is dropped when it is moved out of its configured folder. Moving `daily/standup.md`, periodic because it carries `day: 2026-09-07`, into an archive folder previously left it indexed at its new location: it still answered "open today's daily note", the calendar still dotted it, and jump-to-adjacent still walked through it. Moving such a note _back_ into its folder re-indexes it without needing an edit (#276)
+- Navigation commands report a failure instead of appearing to do nothing. The four jump and open-adjacent commands dropped the promise their handler returned, so a note the vault refused to open produced no message anywhere (#268)
+- Settings are no longer lost silently. Every write dropped the save promise, so a failed write left the user typing into a field whose value was not being kept (#287)
+- The calendar keeps tracking the active note after being closed and reopened. Its listeners were registered once per view instance while the closed flag was never cleared, so a reopened calendar stopped highlighting the active note and no longer followed a rename (#272)
+- A folder whose segments are nothing but dots is refused when settings load, not only when they are typed. Such a value names no vault folder, so a granularity configured with one silently indexed nothing (#275)
+- The Folder and Template suggesters no longer offer the entire vault. The field is empty when first focused, and an empty query matched every path (#285)
+- The cache no longer leaves five vault listeners attached after the plugin is disabled during startup, where they went on applying templates to newly created files (#283)
+- A note that loses its frontmatter date while another note claims the same period now re-contests that period rather than keeping it by default (#304)
+
+### Changed
+
+- **A file that does not sit at the depth its format renders is no longer a periodic note.** With a nested format such as `YYYY/YYYY-MM-DD`, a flat `daily/2026-06-12.md` used to match anyway. The whole rendered path is now what counts. If you have notes sitting outside the folder structure their format describes, they will stop being recognised — move them, or flatten the format (#292)
+- `{{date:FMT}}` is documented as what it does: the note's own date at the current time of day, not today's date. The behaviour is unchanged; the README was describing the opposite (#286)
+
+### Internal
+
+- File resolution has one entry point. Frontmatter-beats-filename was a single precedence rule reconstructed at runtime from four separate mechanisms — a refusal to re-resolve, a call order, a removal-and-re-offer, and a rename branch — none of which stated it. The ordering of two calls now is the rule, which is what made the Markdown restriction a single line covering both match kinds (#295, #296, #305)
+- `main.js` is no longer tracked in git. The release workflow builds the bundle it publishes, so the committed copy was only ever diffed against a fresh build of the same source (#291)
+- The release workflow runs the test suite and verifies the pushed tag against `manifest.json` and `versions.json` before publishing (#293)
+- One failure report replaces six open-coded ones, so an error that carries a useful message now reaches the user everywhere rather than at one site (#290)
+- The index drops a sorted-key cache that was invalidated on nearly every iteration of the loop it existed to speed up (#270, #271)
+- The calendar has one enabled signal per granularity instead of three, and its file map is total (#289)
+- `bun run check` now covers the Svelte components and the test files, neither of which it previously saw (#269, #294)
+- Markdown formatting is declared in the repository rather than supplied by an editor hook (#297)
+- The Vite config no longer uses `__dirname`, which would have broken the build when Vite switches its config loader — and which the warning Vite prints about it points at the wrong fix for (#322)
+- Smaller cleanups: the resolve/create split (#284), the folder walker (#278), one stylesheet rather than two (#288), `getEnabledGranularities` beside the list it filters (#277), and inlining a six-parameter method with one caller (#282)
+
+### Documentation
+
+- `THEORY.md` and `WALKTHROUGH.md` are current with the release, and `CLAUDE.md`'s two hand-maintained module inventories are replaced by the rule they restated — both had drifted (#274, #273, #286)
+
+### Dependencies
+
+- `@biomejs/biome` 2.5.14, `@types/bun` 1.4.2, `moment` 2.31.0, `vite` 8.3.0 (#303)
+
 ## 2.4.0
 
 Six fixes across note creation, the settings tab and the calendar command. One
