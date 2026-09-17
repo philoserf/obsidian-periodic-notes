@@ -8,6 +8,7 @@ import {
 } from "obsidian";
 import { getEnabledGranularities } from "./format";
 import type PeriodicNotesPlugin from "./main";
+import { reportFailure } from "./platform";
 import type { CacheEntry, Granularity } from "./types";
 
 interface GranularityLabel {
@@ -92,8 +93,7 @@ export function getCommands(
       // vault refuses the path, and the command would appear to do nothing.
       // Same shape as main.ts's show-calendar callback.
       void Promise.resolve(run(entry)).catch((err) => {
-        console.error(`[Periodic Notes] ${name} failed`, err);
-        new Notice(`Periodic Notes: ${name} failed. See console for details.`);
+        reportFailure(`${name} failed`, err);
       });
     },
   });

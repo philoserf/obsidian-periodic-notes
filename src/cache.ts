@@ -3,7 +3,6 @@ import {
   type App,
   type CachedMetadata,
   Component,
-  Notice,
   parseFrontMatterEntry,
   type TAbstractFile,
   TFile,
@@ -14,6 +13,7 @@ import { CacheIndex } from "./cacheIndex";
 import { resolveFile } from "./cacheResolve";
 import { getEnabledGranularities } from "./format";
 import type PeriodicNotesPlugin from "./main";
+import { reportFailure } from "./platform";
 import { applyTemplateToFile } from "./template";
 import type { CacheEntry, Granularity } from "./types";
 
@@ -167,10 +167,7 @@ export class NoteCache extends Component {
       try {
         await applyTemplateToFile(this.app, file, this.plugin.settings, entry);
       } catch (err) {
-        console.error("[Periodic Notes] failed to apply template", err);
-        new Notice(
-          `Periodic Notes: failed to apply template to "${file.path}". See console for details.`,
-        );
+        reportFailure(`failed to apply template to "${file.path}"`, err);
       }
 
       // index.set above was synchronous, but the delete and rename handlers

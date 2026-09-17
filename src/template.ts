@@ -1,7 +1,8 @@
-import { type App, Notice, normalizePath, type TFile, TFolder } from "obsidian";
+import { type App, normalizePath, type TFile, TFolder } from "obsidian";
 
 import { getFormat } from "./format";
 import { buildNotePath } from "./paths";
+import { reportFailure } from "./platform";
 import { applyTemplate } from "./templateRender";
 import type { CacheEntry, Granularity, NoteConfig, Settings } from "./types";
 
@@ -21,11 +22,10 @@ export async function readTemplate(
     // function exists to report is lost.
     return file ? await vault.cachedRead(file) : "";
   } catch (err) {
-    console.error(
-      `[Periodic Notes] Failed to read the ${granularity} note template '${normalized}'`,
+    reportFailure(
+      `failed to read the ${granularity} note template '${normalized}'`,
       err,
     );
-    new Notice(`Failed to read the ${granularity} note template`);
     return "";
   }
 }

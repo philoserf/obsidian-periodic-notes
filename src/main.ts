@@ -1,5 +1,5 @@
 import type { Moment } from "moment";
-import { addIcon, Notice, normalizePath, Plugin, TFile } from "obsidian";
+import { addIcon, normalizePath, Plugin, TFile } from "obsidian";
 
 import { NoteCache } from "./cache";
 import { CalendarView } from "./calendar/view";
@@ -14,7 +14,7 @@ import {
 } from "./icons";
 import { configureLocale } from "./locale";
 import { canonicalFolder } from "./paths";
-import { isMetaPressed } from "./platform";
+import { isMetaPressed, reportFailure } from "./platform";
 import { SettingsTab } from "./settings";
 import { sanitizeSettings } from "./settingsLoad";
 import { getNoteCreationPath, readTemplate } from "./template";
@@ -96,10 +96,7 @@ export default class PeriodicNotesPlugin extends Plugin {
           }
           await workspace.revealLeaf(leaf);
         })().catch((err) => {
-          console.error("[Periodic Notes] failed to show the calendar", err);
-          new Notice(
-            "Periodic Notes: failed to show the calendar. See console for details.",
-          );
+          reportFailure("failed to show the calendar", err);
         });
       },
     });
@@ -173,10 +170,7 @@ export default class PeriodicNotesPlugin extends Plugin {
       // silent failure -- the user keeps typing into a field whose value is
       // not being kept. Returning early matters too, since both steps below
       // act on settings that did not persist.
-      console.error("[Periodic Notes] failed to save settings", err);
-      new Notice(
-        "Periodic Notes: failed to save settings. See console for details.",
-      );
+      reportFailure("failed to save settings", err);
       return;
     }
     this.configureRibbonIcons();
@@ -251,18 +245,7 @@ export default class PeriodicNotesPlugin extends Plugin {
       await leaf.openFile(file, { active: true });
     } catch (err) {
       const label = date.format(getFormat(this.settings, granularity));
-      console.error(
-        `[Periodic Notes] failed to open ${granularity} note "${label}"`,
-        err,
-      );
-      // Carry the message: the folder-collision error from ensureFolderExists
-      // says exactly what is wrong and where, which is no use in a console the
-      // user does not have open.
-      new Notice(
-        err instanceof Error
-          ? `Periodic Notes: failed to open ${granularity} note "${label}" — ${err.message}`
-          : `Periodic Notes: failed to open ${granularity} note "${label}". See console for details.`,
-      );
+      reportFailure(`failed to open ${granularity} note "${label}"`, err);
     }
   }
 }
