@@ -25,16 +25,16 @@ The current next step for this repo is tracked in the workspace backlog at `../N
 ### Cache
 
 - `canonicalKey`: `${granularity}:${date.startOf(granularity).toISOString()}`
-- `getPeriodicNote` is O(1) via byKey lookup; `findAdjacent` is O(log n) warm, O(m log m) cold rebuild (m = entries in one granularity)
+- `getPeriodicNote` is O(1) via byKey lookup; `findAdjacent` is O(m log m) — it builds and sorts the keys for one granularity where it uses them (m = entries in that granularity)
 - Resolves files by exact filename format or frontmatter — no loose/date-prefix matching
 - `periodic-notes:resolve` fires after the entry is indexed and — on the create path — after the template has been applied, so listeners may read file contents
 
 ### Testing
 
 - `bunfig.toml` preload (`src/test-preload.ts`) provides `window.moment` globally
-- Pure modules — import directly in tests: `format.ts`, `paths.ts`, `locale.ts`, `settingsLoad.ts`, `cacheResolve.ts`, `cacheIndex.ts`, `cacheSearch.ts`, `templateRender.ts`, `calendar/store.ts`, `calendar/utils.ts`
-- Modules that CANNOT be imported in tests (import obsidian at top level): `cache.ts`, `template.ts`, `settings.ts`, `platform.ts`, `main.ts`, `commands.ts`
+- **A module can be imported directly in a test unless it imports a _value_ from `obsidian`** — `import type` does not count, since it is erased. Read the module's import block; the ones that cannot be imported are the wiring half of each core/wiring pair. This replaced two hand-maintained inventories that had drifted three ways at once
+- Test files are typechecked (`tsconfig.json` has no `exclude`, and `types` includes `bun`), so a stale call signature in a test is a build failure rather than a surprise at runtime
 
 ### Release Process
 
-Use the `obsidian-release-gate` then `obsidian-release-ship` skills — do not tag by hand.
+Use the `release-gate` then `release-ship` skills — do not tag by hand. `release-ship` is user-invoked.
