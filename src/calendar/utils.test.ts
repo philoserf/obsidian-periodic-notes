@@ -39,7 +39,6 @@ describe("getMonth", () => {
       expect(days[i].valueOf()).toBeGreaterThan(days[i - 1].valueOf());
     }
   });
-
 });
 
 describe("isWeekend", () => {
