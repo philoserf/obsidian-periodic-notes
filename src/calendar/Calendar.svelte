@@ -43,12 +43,12 @@ const enabledGranularities: Granularity[] = $derived.by(() => {
 
 const showWeeks: boolean = $derived(enabledGranularities.includes("week"));
 const dayEnabled: boolean = $derived(enabledGranularities.includes("day"));
+const monthEnabled: boolean = $derived(enabledGranularities.includes("month"));
+const yearEnabled: boolean = $derived(enabledGranularities.includes("year"));
 
 const fileMap: FileMap = $derived.by(() =>
-  computeFileMap(
-    month,
-    (date, granularity) => fileStore.getFile(date, granularity),
-    enabledGranularities,
+  computeFileMap(month, (date, granularity) =>
+    fileStore.getFile(date, granularity),
   ),
 );
 
@@ -67,7 +67,16 @@ export function setActiveFilePath(path: string | null) {
 </script>
 
 <div id="calendar-container" class="container">
-  <Nav {fileMap} {today} {onHover} {onClick} {onContextMenu} {activeFilePath} />
+  <Nav
+    {fileMap}
+    {today}
+    {onHover}
+    {onClick}
+    {onContextMenu}
+    {activeFilePath}
+    {monthEnabled}
+    {yearEnabled}
+  />
   <table class="calendar">
     <colgroup>
       {#if showWeeks}

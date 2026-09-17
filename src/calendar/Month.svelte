@@ -14,6 +14,8 @@ let {
   onContextMenu,
   resetDisplayedMonth,
   activeFilePath = null,
+  monthEnabled,
+  yearEnabled,
 }: {
   fileMap: FileMap;
   onHover: EventHandlers["onHover"];
@@ -21,6 +23,8 @@ let {
   onContextMenu: EventHandlers["onContextMenu"];
   resetDisplayedMonth: () => void;
   activeFilePath: string | null;
+  monthEnabled: boolean;
+  yearEnabled: boolean;
 } = $props();
 
 const displayedMonth = getContext<DisplayedMonth>(DISPLAYED_MONTH);
@@ -36,9 +40,9 @@ const TITLES = [
 const titles = $derived(
   TITLES.map(({ granularity, format }) => {
     const key = canonicalKey(granularity, displayedMonth.current);
-    // Presence in the map is the enabled signal for month and year, where a
-    // day cell gets an explicit prop — see THEORY.md on the two signals.
-    const enabled = fileMap.has(key);
+    // An explicit prop, the same signal day cells already take. It used to be
+    // read off the map's key presence, which made one lookup mean two things.
+    const enabled = granularity === "month" ? monthEnabled : yearEnabled;
     const file = fileMap.get(key) ?? null;
 
     // A disabled title has no note to open, so both fall back to jumping the

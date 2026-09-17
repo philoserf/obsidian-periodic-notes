@@ -14,6 +14,8 @@ let {
   onClick,
   onContextMenu,
   activeFilePath = null,
+  monthEnabled,
+  yearEnabled,
 }: {
   fileMap: FileMap;
   today: Moment;
@@ -21,6 +23,8 @@ let {
   onClick: EventHandlers["onClick"];
   onContextMenu: EventHandlers["onContextMenu"];
   activeFilePath: string | null;
+  monthEnabled: boolean;
+  yearEnabled: boolean;
 } = $props();
 
 const displayedMonth = getContext<DisplayedMonth>(DISPLAYED_MONTH);
@@ -87,6 +91,8 @@ let showingCurrentMonth = $derived(
     {onHover}
     {onClick}
     {onContextMenu}
+    {monthEnabled}
+    {yearEnabled}
   />
   <div class="right-nav">
     {@render arrow("left", "Previous Month", decrementDisplayedMonth)}
