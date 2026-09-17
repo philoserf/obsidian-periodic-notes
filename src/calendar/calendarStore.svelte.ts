@@ -1,9 +1,8 @@
 import type { Moment } from "moment";
 import type { Component, TFile } from "obsidian";
 
-import { getEnabledGranularities } from "src/format";
 import type PeriodicNotesPlugin from "src/main";
-import type { Granularity } from "src/types";
+import { type Granularity, getEnabledGranularities } from "src/types";
 
 export default class CalendarStore {
   // Bumped on any vault/metadata event that may have changed the

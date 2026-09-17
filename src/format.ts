@@ -1,6 +1,6 @@
 import { DEFAULT_FORMAT } from "./constants";
 import { hasDotDotSegment, literalizeFormat } from "./paths";
-import { type Granularity, granularities, type Settings } from "./types";
+import type { Granularity, Settings } from "./types";
 
 export function getFormat(
   settings: Settings,
@@ -9,10 +9,6 @@ export function getFormat(
   return (
     settings.granularities[granularity].format || DEFAULT_FORMAT[granularity]
   );
-}
-
-export function getEnabledGranularities(settings: Settings): Granularity[] {
-  return granularities.filter((g) => settings.granularities[g].enabled);
 }
 
 export function getBasename(format: string): string {
