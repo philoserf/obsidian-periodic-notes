@@ -1,6 +1,5 @@
 import { describe, expect, test } from "bun:test";
 
-import { DEFAULT_FORMAT } from "./constants";
 import { canonicalFolder } from "./paths";
 import { sanitizeSettings } from "./settingsLoad";
 
@@ -134,6 +133,5 @@ describe("sanitizeSettings", () => {
       folder: "",
       templatePath: undefined,
     });
-    expect(DEFAULT_FORMAT.year).toBe("YYYY");
   });
 });

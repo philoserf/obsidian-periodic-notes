@@ -44,16 +44,21 @@ describe("applyTemplate", () => {
     expect(result).toBe("2026-03-19 / 2026-03-21");
   });
 
-  test("replaces weekday tokens for week granularity", () => {
-    const date = window.moment("2026-03-16");
+  test("{{date:FMT}} renders the note's date, not today's", () => {
+    // #286: the README described this as the current date. It is not — the
+    // token reads the note's own date, with the current *time of day* spliced
+    // in, which is why {{time+2h:HH:mm}} gives a useful answer while
+    // {{date:YYYY}} on an old note gives that note's year rather than this one.
+    const noteDate = window.moment("2019-04-10");
     const result = applyTemplate(
-      "2026-W12",
-      "week",
-      date,
-      "gggg-[W]ww",
-      "Mon: {{monday:YYYY-MM-DD}}",
+      "2019-04-10",
+      "day",
+      noteDate,
+      "YYYY-MM-DD",
+      "{{date:YYYY-MM-DD}}",
     );
-    expect(result).toMatch(/^\w+: \d{4}-\d{2}-\d{2}$/);
+    expect(result).toBe("2019-04-10");
+    expect(result).not.toBe(window.moment().format("YYYY-MM-DD"));
   });
 
   test("weekday tokens resolve to the right day of the displayed week", () => {
