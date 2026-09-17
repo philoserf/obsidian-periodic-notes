@@ -31,14 +31,6 @@ export class CalendarView extends ItemView {
   constructor(leaf: WorkspaceLeaf, plugin: PeriodicNotesPlugin) {
     super(leaf);
     this.plugin = plugin;
-
-    this.registerEvent(
-      this.app.workspace.on("file-open", this.onFileOpen.bind(this)),
-    );
-    // A pure rename changes the leaf's file without the file "opening", so
-    // file-open does not fire and the tracked path would keep pointing at a
-    // path nothing matches any more.
-    this.registerEvent(this.app.vault.on("rename", this.onRename.bind(this)));
   }
 
   getViewType(): string {
@@ -61,6 +53,23 @@ export class CalendarView extends ItemView {
   }
 
   async onOpen(): Promise<void> {
+    // Cleared here, and the wiring lives here rather than in the constructor:
+    // Obsidian may reuse a view instance across close and reopen, and onClose
+    // sets `closed`. Registering in the constructor meant the listeners were
+    // attached once for the life of the instance while `closed` stayed true
+    // after the first close, so a reopened calendar silently stopped tracking
+    // the active file. ItemView.onClose unregisters what onOpen registered,
+    // which is what makes re-registering here correct rather than doubling up.
+    this.closed = false;
+
+    this.registerEvent(
+      this.app.workspace.on("file-open", this.onFileOpen.bind(this)),
+    );
+    // A pure rename changes the leaf's file without the file "opening", so
+    // file-open does not fire and the tracked path would keep pointing at a
+    // path nothing matches any more.
+    this.registerEvent(this.app.vault.on("rename", this.onRename.bind(this)));
+
     const fileStore = new CalendarStore(this, this.plugin);
 
     // svelte-check verifies Calendar.svelte's exports match this shape.
