@@ -574,6 +574,68 @@ if (snapshot !== this.indexingSnapshot) {
 Only `enabled`, `format` and `folder` decide what gets indexed, so editing a
 template path costs nothing.
 
+### 13. How it is bundled
+
+The build is short, and almost every line in it is a constraint Obsidian
+imposes rather than a preference.
+
+`vite.config.ts` — `build`
+
+```ts
+build: {
+  lib: {
+    entry: "src/main.ts",
+    formats: ["cjs"],
+    fileName: () => "main.js",
+  },
+  outDir: ".",
+  emptyOutDir: false,
+  ...
+  rollupOptions: {
+    external: ["obsidian", "electron", "fs", "os", "path"],
+    output: { exports: "default" },
+  },
+},
+```
+
+**CommonJS with a single default export**, because that is what Obsidian's
+plugin loader reads. `output.exports: "default"` is what keeps the bundle from
+acquiring a `module.exports.default` wrapper; the loader wants the class itself.
+
+**`outDir: "."` with `emptyOutDir: false`.** The bundle has to sit at the
+repository root, beside `manifest.json` and `styles.css`, because that is the
+shape Obsidian installs. Vite warns about this on every build — an output
+directory that is also the project root is normally a way to overwrite your own
+source — and `emptyOutDir: false` is the line that makes it safe, since the
+default would wipe the directory first.
+
+**The externals are supplied by the host.** `obsidian` is not a package that
+exists at runtime; nor are `electron` or the Node built-ins. Bundling them would
+produce a file that cannot load.
+
+Two smaller things. `svelte({ emitCss: false })` keeps the components from
+emitting a stylesheet, because `styles.css` is three hand-written lines rather
+than generated output. And the `src` alias is why calendar modules import as
+`src/cacheSearch` rather than by relative path:
+
+`vite.config.ts` — `resolve`
+
+```ts
+alias: { src: path.resolve(import.meta.dirname, "src") },
+```
+
+That reads `import.meta.dirname`, not `__dirname`, and the reason is worth
+knowing before someone "fixes" it. This file uses ESM syntax while
+`package.json` declares no `"type"`, so Node treats it as CommonJS; Vite hides
+the mismatch today by bundling the config before loading it, and warns that it
+will stop. The trap is that the remedy the warning suggests — a `.mts`
+extension, or `"type": "module"` — moves the file into ESM scope, which is
+exactly where `__dirname` does not exist. The fix had to come first.
+
+**`main.js` is not tracked.** `release.yml` builds it at the tag and attaches
+what that build produced; `deploy.ts` builds before copying into a vault. Nothing
+reads a committed copy, so there is none.
+
 ## Where the reading order used to break down
 
 One place, and it is filed rather than smoothed over. `CacheIndex`'s contender
