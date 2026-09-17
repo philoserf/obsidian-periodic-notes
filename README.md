@@ -54,12 +54,12 @@ Tokens are replaced when a new note is created from a template.
 
 ### Daily notes
 
-| Token                           | Replaced with                                 |
-| ------------------------------- | --------------------------------------------- |
-| `{{yesterday}}`, `{{tomorrow}}` | Adjacent day formatted with the daily format. |
-| `{{date:FMT}}`                  | Current date formatted with `FMT`.            |
-| `{{date+1d:YYYY-MM-DD}}`        | Offset date, formatted. Supports `+` or `-`.  |
-| `{{time+2h:HH:mm}}`             | Offset time, formatted.                       |
+| Token                           | Replaced with                                                               |
+| ------------------------------- | --------------------------------------------------------------------------- |
+| `{{yesterday}}`, `{{tomorrow}}` | Adjacent day formatted with the daily format.                               |
+| `{{date:FMT}}`                  | The note's date, at the current time of day, formatted with `FMT`.          |
+| `{{date+1d:YYYY-MM-DD}}`        | The note's date offset by the given amount, formatted. Supports `+` or `-`. |
+| `{{time+2h:HH:mm}}`             | The current time of day offset by the given amount, formatted.              |
 
 ### Weekly notes
 

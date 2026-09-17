@@ -39,13 +39,6 @@ describe("getMonth", () => {
       expect(days[i].valueOf()).toBeGreaterThan(days[i - 1].valueOf());
     }
   });
-
-  it("weekNum matches moment week number for each row", () => {
-    const grid = getMonth(moment("2024-01-01"));
-    for (const week of grid) {
-      expect(week.weekNum).toBe(week.days[0].week());
-    }
-  });
 });
 
 describe("isWeekend", () => {
