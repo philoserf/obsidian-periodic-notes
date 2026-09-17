@@ -19,12 +19,7 @@ import { SettingsTab } from "./settings";
 import { sanitizeSettings } from "./settingsLoad";
 import { getNoteCreationPath, readTemplate } from "./template";
 import { applyTemplate } from "./templateRender";
-import {
-  type Granularity,
-  granularities,
-  type NoteConfig,
-  type Settings,
-} from "./types";
+import { type Granularity, granularities, type Settings } from "./types";
 
 interface OpenOpts {
   inNewSplit?: boolean;
@@ -170,7 +165,20 @@ export default class PeriodicNotesPlugin extends Plugin {
   }
 
   public async saveSettings(): Promise<void> {
-    await this.saveData(this.settings);
+    try {
+      await this.saveData(this.settings);
+    } catch (err) {
+      // Here rather than at the four call sites: the ribbon toggle and all
+      // three text fields go through this, and a caller that forgets is a
+      // silent failure -- the user keeps typing into a field whose value is
+      // not being kept. Returning early matters too, since both steps below
+      // act on settings that did not persist.
+      console.error("[Periodic Notes] failed to save settings", err);
+      new Notice(
+        "Periodic Notes: failed to save settings. See console for details.",
+      );
+      return;
+    }
     this.configureRibbonIcons();
 
     // NoteCache.reset() re-walks every configured folder and re-parses every
@@ -202,43 +210,27 @@ export default class PeriodicNotesPlugin extends Plugin {
     const inFlight = this.creating.get(destPath);
     if (inFlight) return inFlight;
 
-    const creation = this.writeNote(
-      destPath,
-      filename,
-      granularity,
-      date,
-      config,
-      format,
-    ).finally(() => this.creating.delete(destPath));
+    const creation = (async () => {
+      const templateContents = await readTemplate(
+        this.app,
+        config.templatePath,
+        granularity,
+      );
+      const rendered = applyTemplate(
+        // The basename, not the formatted path: a nested format makes
+        // `filename` "2026/09/07", and {{title}} means the note's title
+        // everywhere else in Obsidian. applyTemplateToFile passes
+        // TFile.basename for the same reason, and the two must agree.
+        getBasename(filename),
+        granularity,
+        date,
+        format,
+        templateContents,
+      );
+      return this.app.vault.create(destPath, rendered);
+    })().finally(() => this.creating.delete(destPath));
     this.creating.set(destPath, creation);
     return creation;
-  }
-
-  private async writeNote(
-    destPath: string,
-    filename: string,
-    granularity: Granularity,
-    date: Moment,
-    config: NoteConfig,
-    format: string,
-  ): Promise<TFile> {
-    const templateContents = await readTemplate(
-      this.app,
-      config.templatePath,
-      granularity,
-    );
-    const rendered = applyTemplate(
-      // The basename, not the formatted path: a nested format makes `filename`
-      // "2026/09/07", and {{title}} means the note's title everywhere else in
-      // Obsidian. applyTemplateToFile passes TFile.basename for the same
-      // reason, and the two paths must agree.
-      getBasename(filename),
-      granularity,
-      date,
-      format,
-      templateContents,
-    );
-    return this.app.vault.create(destPath, rendered);
   }
 
   public async openPeriodicNote(
