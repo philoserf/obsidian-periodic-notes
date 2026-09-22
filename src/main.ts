@@ -49,7 +49,7 @@ export default class PeriodicNotesPlugin extends Plugin {
   // vault.create and throws for a note that was created correctly.
   private creating = new Map<string, Promise<TFile>>();
 
-  async onload(): Promise<void> {
+  override async onload(): Promise<void> {
     addIcon("calendar-day", calendarDayIcon);
     addIcon("calendar-week", calendarWeekIcon);
     addIcon("calendar-month", calendarMonthIcon);

@@ -41,18 +41,18 @@ export class CalendarView extends ItemView {
     return "Calendar";
   }
 
-  getIcon(): string {
+  override getIcon(): string {
     return "calendar-day";
   }
 
-  async onClose(): Promise<void> {
+  override async onClose(): Promise<void> {
     this.closed = true;
     if (this.calendar) {
       unmount(this.calendar);
     }
   }
 
-  async onOpen(): Promise<void> {
+  override async onOpen(): Promise<void> {
     // Cleared here, and the wiring lives here rather than in the constructor:
     // Obsidian may reuse a view instance across close and reopen, and onClose
     // sets `closed`. Registering in the constructor meant the listeners were
