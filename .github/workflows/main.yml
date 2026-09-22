@@ -6,6 +6,13 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   check:
     runs-on: ubuntu-latest
@@ -14,10 +21,14 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
-      - run: bun install
+      - run: bun install --frozen-lockfile
       - run: bun audit --audit-level=critical
-      # `build` is check + bundle, so this typechecks, lints and svelte-checks
-      # before bundling. main.js is not tracked, so there is nothing to diff it
-      # against: release.yml builds the bundle it publishes, at the tag.
+      # `build` is check (tsc, biome, svelte-check, prettier) + bundle. The diff
+      # then fails the PR when the committed main.js does not match a fresh
+      # build — the release asset is the committed bundle, so a dependency bump
+      # that skips the rebuild must not merge. bun is unpinned and Vite floats
+      # within its range, so a release of either that shifts bundler output
+      # trips this too. The fix is the same either way: rebuild and commit.
       - run: bun run build
+      - run: git diff --exit-code main.js
       - run: bun test

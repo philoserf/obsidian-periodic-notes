@@ -17,7 +17,7 @@
     "format:check": "biome format .",
     "version": "bun run version-bump.ts",
     "test": "bun test",
-    "deploy": "bun run deploy.ts"
+    "deploy": "bun run build && bun run deploy.ts"
   },
   "overrides": {
     "devalue": ">=5.6.4"

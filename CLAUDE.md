@@ -12,7 +12,8 @@ The current next step for this repo is tracked in the workspace backlog at `../N
 
 ### Build System
 
-- **Output**: `./main.js` (CommonJS format, gitignored — `release.yml` builds the bundle it publishes, so the committed copy was only ever diffed against a fresh build of the same source)
+- **Output**: `./main.js` (CommonJS format). It is **committed** — the workspace standard for every plugin — so any change to `src/` or to dependencies needs a rebuilt `main.js` in the same commit. CI runs `bun run build` then `git diff --exit-code main.js`, and `release.yml` requires the same match before it uploads, so the release asset is the committed bundle. This reverses #291
+- **Two TypeScripts are installed on purpose.** `@typescript/native` (TS 7) is what `typecheck` runs; `svelte-check`'s peer range is `typescript ^5 || ^6`, so a transitive `typescript@6` sits beside it for svelte-check alone. Do not remove either
 - Vite outputs to project root (`outDir: "."`) with `emptyOutDir: false` — never change this
 - Only the default export from `main.ts` — no named exports (vite output.exports: "default")
 

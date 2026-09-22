@@ -1,7 +1,5 @@
-# Build output. main.js is NOT tracked: release.yml builds it fresh at the tag
-# and attaches that, deploy.ts builds before copying to a vault, and nothing
-# reads the committed copy. See #291.
-main.js
+# Build output. main.js is tracked on purpose (workspace standard); CI fails a PR
+# whose committed bundle differs from a fresh build.
 *.js.map
 
 # Dependencies
