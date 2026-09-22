@@ -141,13 +141,13 @@ export class SettingsTab extends PluginSettingTab {
   private debouncedSave = debounce(() => this.plugin.saveSettings(), 500, true);
 
   constructor(
-    readonly app: App,
+    override readonly app: App,
     readonly plugin: PeriodicNotesPlugin,
   ) {
     super(app, plugin);
   }
 
-  display(): void {
+  override display(): void {
     const { containerEl } = this;
     containerEl.empty();
 

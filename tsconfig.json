@@ -2,6 +2,8 @@
   "extends": "@tsconfig/svelte/tsconfig.json",
   "include": ["src/**/*", "deploy.ts", "version-bump.ts"],
   "compilerOptions": {
+    "noImplicitOverride": true,
+    "isolatedModules": true,
     "target": "ESNext",
     "lib": ["DOM", "ESNext"],
     "module": "ESNext",

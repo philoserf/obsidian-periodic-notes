@@ -33,7 +33,7 @@ export class NoteCache extends Component {
   // Wiring lives here rather than in the constructor so it happens only for a
   // component that was actually loaded — and so Component.unload() tears every
   // registration down again when the plugin is disabled.
-  onload(): void {
+  override onload(): void {
     // onLayoutReady defers whenever layout is not ready yet, and the component
     // can be unloaded before it fires — enabled at app start, disabled from
     // Settings while the workspace is still restoring. registerEvent on an
