@@ -1,5 +1,7 @@
 # Periodic Notes
 
+![Status: Stable](https://img.shields.io/badge/Status-Stable-brightgreen.svg)
+
 Create and manage daily, weekly, monthly, and yearly notes in [Obsidian](https://obsidian.md/). Originally created by [Liam Cain](https://github.com/liamcain/obsidian-periodic-notes).
 
 ## You probably shouldn't install this
