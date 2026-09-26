@@ -16,15 +16,15 @@
         "hooks": [
           {
             "type": "command",
-            "command": "if echo \"$CLAUDE_FILE_PATH\" | grep -qE '\\.(ts|js|json|svelte)$'; then bunx biome check --write \"$CLAUDE_FILE_PATH\" 2>/dev/null; fi; exit 0"
+            "command": "f=$(jq -r '.tool_input.file_path // empty' 2>/dev/null); if echo \"$f\" | grep -qE '\\.(ts|js|json|svelte)$'; then bunx biome check --write \"$f\" 2>/dev/null; fi; exit 0"
           },
           {
             "type": "command",
-            "command": "if echo \"$CLAUDE_FILE_PATH\" | grep -qE '\\.svelte$'; then svelte-check --threshold error --output human-verbose 2>&1 | tail -5; fi; exit 0"
+            "command": "f=$(jq -r '.tool_input.file_path // empty' 2>/dev/null); if echo \"$f\" | grep -qE '\\.svelte$'; then svelte-check --threshold error --output human-verbose 2>&1 | tail -5; fi; exit 0"
           },
           {
             "type": "command",
-            "command": "if echo \"$CLAUDE_FILE_PATH\" | grep -qE 'src/.*\\.ts$' && ! echo \"$CLAUDE_FILE_PATH\" | grep -qE '\\.test\\.ts$'; then TEST=$(echo \"$CLAUDE_FILE_PATH\" | sed 's/\\.ts$/.test.ts/'); [ -f \"$TEST\" ] && bun test \"$TEST\" 2>&1 | tail -3; fi; exit 0"
+            "command": "f=$(jq -r '.tool_input.file_path // empty' 2>/dev/null); if echo \"$f\" | grep -qE 'src/.*\\.ts$' && ! echo \"$f\" | grep -qE '\\.test\\.ts$'; then TEST=$(echo \"$f\" | sed 's/\\.ts$/.test.ts/'); [ -f \"$TEST\" ] && bun test \"$TEST\" 2>&1 | tail -3; fi; exit 0"
           }
         ]
       }
@@ -35,7 +35,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "case \"$CLAUDE_FILE_PATH\" in */bun.lock|bun.lock) echo 'BLOCK: Do not edit lock files directly. Use bun install instead.' && exit 1;; esac; exit 0"
+            "command": "f=$(jq -r '.tool_input.file_path // empty' 2>/dev/null); case \"$f\" in */bun.lock|bun.lock) echo 'BLOCK: Do not edit lock files directly. Use bun install instead.' >&2; exit 2;; esac; exit 0"
           }
         ]
       }
