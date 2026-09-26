@@ -12,10 +12,9 @@ The current next step for this repo is tracked in the workspace backlog at `../N
 
 ### Build System
 
-- **Output**: `./main.js` (CommonJS format). It is **committed** — the workspace standard for every plugin — so any change to `src/` or to dependencies needs a rebuilt `main.js` in the same commit. CI runs `bun run build` then `git diff --exit-code main.js`, and `release.yml` requires the same match before it uploads, so the release asset is the committed bundle. This reverses #291
+- **Output**: `./main.js` (CommonJS format). It is **committed** — the workspace standard for every plugin — so any change to `src/` or to dependencies needs a rebuilt `main.js` in the same commit. CI runs `bun run build` then `git diff --exit-code main.js`, and `release.yml` requires the same match before it uploads, so the release asset is the committed bundle
 - **Two TypeScripts are installed on purpose.** `@typescript/native` (TS 7) is what `typecheck` runs; `svelte-check`'s peer range is `typescript ^5 || ^6`, so a transitive `typescript@6` sits beside it for svelte-check alone. Do not remove either
 - Vite outputs to project root (`outDir: "."`) with `emptyOutDir: false` — never change this
-- Only the default export from `main.ts` — no named exports (vite output.exports: "default")
 
 ### Settings
 
@@ -33,7 +32,7 @@ The current next step for this repo is tracked in the workspace backlog at `../N
 ### Testing
 
 - `bunfig.toml` preload (`src/test-preload.ts`) provides `window.moment` globally
-- **A module can be imported directly in a test unless it imports a _value_ from `obsidian`** — `import type` does not count, since it is erased. Read the module's import block; the ones that cannot be imported are the wiring half of each core/wiring pair. This replaced two hand-maintained inventories that had drifted three ways at once
+- **A module can be imported directly in a test unless it imports a _value_ from `obsidian`** — `import type` does not count, since it is erased. Read the module's import block; the ones that cannot be imported are the wiring half of each core/wiring pair
 - Test files are typechecked (`tsconfig.json` has no `exclude`, and `types` includes `bun`), so a stale call signature in a test is a build failure rather than a surprise at runtime
 
 ### Release Process
