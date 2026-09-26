@@ -12,10 +12,6 @@ Build and deploy the periodic-notes plugin to the local Obsidian vault for testi
 
 ## Steps
 
-1. Run `bun run build` — this runs checks first, then builds
-2. If build succeeds, run `bun run deploy` — copies main.js, manifest.json, styles.css to `$OBSIDIAN_DEPLOY_DEST`
-3. Report success or failure
-
-If the build fails, show the error output and stop. Do not deploy a broken build.
+Run `bun run deploy`. It runs checks and builds first, and copies main.js, manifest.json and styles.css to `$OBSIDIAN_DEPLOY_DEST` only if the build succeeds. Report the result; on failure, show the error output.
 
 If deploy fails with `OBSIDIAN_DEPLOY_DEST not set`, tell the user to create `.env.local` with that variable rather than editing `deploy.ts`.
