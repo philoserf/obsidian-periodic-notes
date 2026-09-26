@@ -14,12 +14,12 @@ The current next step for this repo is tracked in the workspace backlog at `../N
 
 - **Output**: `./main.js` (CommonJS format). It is **committed** — the workspace standard for every plugin — so any change to `src/` or to dependencies needs a rebuilt `main.js` in the same commit. CI runs `bun run build` then `git diff --exit-code main.js`, and `release.yml` requires the same match before it uploads, so the release asset is the committed bundle
 - **Two TypeScripts are installed on purpose.** `@typescript/native` (TS 7) is what `typecheck` runs; `svelte-check`'s peer range is `typescript ^5 || ^6`, so a transitive `typescript@6` sits beside it for svelte-check alone. Do not remove either
-- Vite outputs to project root (`outDir: "."`) with `emptyOutDir: false` — never change this
+- Vite outputs to project root (`outDir: "."`) with `emptyOutDir: false` — setting it to `true` would make Vite empty the repository root on every build
 
 ### Settings
 
 - `plugin.settings` is a plain `Settings` object (not a Svelte store)
-- No migration — if saved data doesn't match v2 shape, defaults are used
+- No migration — `sanitizeSettings` (`src/settingsLoad.ts`) type-checks each saved field and falls back to that field's own default; only saved data without a `granularities` object gets all defaults
 - Native Obsidian `Setting` API in `settings.ts` — no Svelte in settings
 
 ### Cache
