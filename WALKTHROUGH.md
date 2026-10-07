@@ -21,11 +21,11 @@ Four granularities, each independently enabled with its own format, folder and
 template: `day`, `week`, `month`, `year`.
 
 **Technologies.** TypeScript, bundled by Vite to a CommonJS `main.js` at the
-repository root. That bundle is **not** tracked: `release.yml` builds it fresh at
-the tag and attaches that, and `deploy.ts` builds before copying to a vault, so
-nothing ever reads a committed copy. Svelte 5 with runes, used for the calendar
-view only — everything else uses native Obsidian APIs. Tests run under
-`bun test`.
+repository root. That bundle **is** tracked, and CI and `release.yml` both
+require a fresh build to equal the committed copy. Svelte 5 with runes, used for
+the calendar view only — everything else, the settings tab included, uses native
+Obsidian APIs. The settings tab is built from Obsidian 1.13's declarative
+settings, which is what sets `minAppVersion`. Tests run under `bun test`.
 
 **Entry point.** `src/main.ts` exports the `Plugin` subclass Obsidian loads.
 
@@ -38,18 +38,19 @@ from `obsidian` cannot be imported by a test at all**, because Obsidian is the
 host application rather than a package. So most modules come in pairs — a pure
 core holding the logic, and a thin wiring layer holding the Obsidian calls.
 
-| Wiring (untestable)      | Pure core (directly tested)                          |
-| ------------------------ | ---------------------------------------------------- |
-| `cache.ts`               | `cacheResolve.ts`, `cacheIndex.ts`, `cacheSearch.ts` |
-| `template.ts`            | `templateRender.ts`                                  |
-| `settings.ts`            | `settingsLoad.ts`, `paths.ts`                        |
-| `main.ts`, `commands.ts` | `format.ts`, `locale.ts`, `types.ts`                 |
-| `platform.ts`            | —                                                    |
-| `calendar/view.ts`       | `calendar/store.ts`, `calendar/utils.ts`             |
+| Wiring (untestable)      | Pure core (directly tested)                             |
+| ------------------------ | ------------------------------------------------------- |
+| `cache.ts`               | `cacheResolve.ts`, `cacheIndex.ts`, `cacheSearch.ts`    |
+| `template.ts`            | `templateRender.ts`                                     |
+| `settings.ts`            | `settingsDefinitions.ts`, `settingsLoad.ts`, `paths.ts` |
+| `main.ts`, `commands.ts` | `format.ts`, `locale.ts`, `types.ts`                    |
+| `platform.ts`            | —                                                       |
+| `calendar/view.ts`       | `calendar/store.ts`, `calendar/utils.ts`                |
 
 Where extraction needs a value only the wiring layer has, it is injected as a
 callback rather than mocked — `normalizeFolder` into `sanitizeSettings`, a
-frontmatter `read` into resolution, `getFile` into `computeFileMap`.
+frontmatter `read` into resolution, `getFile` into `computeFileMap`, the
+vault-backed folder and template checks into `settingDefinitions`.
 
 `types.ts` is on the pure side and holds `getEnabledGranularities`, because that
 function reads no format: it filters the granularity list by the enabled flag,
@@ -111,7 +112,12 @@ if (
 
 if (typeof saved.folder === "string") {
   const folder = normalizeFolder(saved.folder);
-  if (!hasDotDotSegment(folder)) config.folder = folder;
+  // Both rules, not just traversal: the settings tab refuses a dot-only
+  // segment too, and a value that reaches data.json another way -- a hand
+  // edit, a sync conflict, an older build -- has never been through it.
+  if (!hasDotDotSegment(folder) && !hasDotOnlySegment(folder)) {
+    config.folder = folder;
+  }
 }
 ```
 
@@ -119,7 +125,7 @@ Every field is checked individually and falls back to its own default, rather
 than the sub-object being trusted as a unit. Formats are deliberately **not**
 round-tripped here: `loadSettings` runs before `configureLocale`, so rejecting
 on a parse failure would silently reset a working format on upgrade. Only values
-that would escape the vault are refused.
+that would escape the vault, or name no folder at all, are refused.
 
 `literalizeFormat` is why a traversal cannot hide inside an escape — moment
 renders `[..]` as a literal `..`, so the guard checks the rendered shape:
@@ -347,6 +353,7 @@ it would otherwise skip a contender `preferred` would now pick.
 
 ```ts
 this.app.workspace.onLayoutReady(() => {
+  if (closed) return;
   console.info("[Periodic Notes] initializing cache");
   this.initialize();
   this.registerEvent(
@@ -376,19 +383,17 @@ attached for the life of the app — and the `create` listener writes templates.
 `entryFor` is the shared path — it reads frontmatter once and hands it to
 `resolveFile` as a closure:
 
-`src/cache.ts` — `NoteCache.resolve`
+`src/cache.ts` — `NoteCache.entryFor`
 
 ```ts
 // Hoisted out of the closure: resolveFile asks for each enabled
 // granularity in turn, and an in-closure lookup would repeat this read up
 // to four times per file across initialize()'s whole-folder walk.
-const frontmatter =
-  this.app.metadataCache.getFileCache(file)?.frontmatter ?? null;
-const entry = resolveFile(file, settings, (granularity) =>
+const frontmatter = this.frontmatterOf(file);
+const entry = resolveFile(file, this.plugin.settings, (granularity) =>
   parseFrontMatterEntry(frontmatter, granularity),
 );
-if (!entry) return;
-
+if (!entry) return null;
 // A canonical-key collision can leave this file unindexed in favour of
 // another note for the same date. Nothing downstream should be told the
 // file resolved when it did not.
@@ -521,12 +526,51 @@ where, which is no use in a console the user does not have open — so a message
 is carried through whenever the error has one.
 
 **Ribbon icons** are rebuilt only when the enabled set changes, keyed on a
-join of the enabled granularities — saves are debounced per keystroke across
-three text fields, and only the Enabled toggle can change what the ribbon shows.
+join of the enabled granularities — every accepted settings change saves, and
+only the Enabled toggle can change what the ribbon shows.
 
 **The calendar** (`src/calendar/`) is the one Svelte 5 area. `CalendarStore`
 holds a `$state` version counter bumped on any relevant vault event; consumers
 read it inside `$derived` so the file map recomputes.
+
+`getMonth` lays out six rows of seven days, starting on the locale's first
+weekday. A row then has to stand for one week, and the obvious choice — its
+first day — is wrong under a Sunday-first locale with an ISO format, because ISO
+files that Sunday under the week before. One helper names the right day, and the
+click, the hover, the file lookup and the row's label all read it:
+
+`src/calendar/utils.ts` — `weekDate`
+
+```ts
+/**
+ * The date a calendar row stands for when it is clicked, hovered or looked up.
+ * Not days[0]: under a Sunday-first locale that is a Sunday, which an ISO
+ * format files under the week before the row (#325). days[3] is inside the
+ * row's week whichever day the row starts on — Wednesday or Thursday, and
+ * Thursday is the day that decides ISO week membership.
+ */
+export function weekDate(days: Moment[]): Moment {
+  return gridAt(days, 3);
+}
+```
+
+Moving the date is half of it. The label must count in the same week system as
+the format, or the row spanning New Year reads 1 and opens `2026-W53`:
+
+`src/calendar/utils.ts` — `getMonth`
+
+```ts
+  for (const w of month) {
+    const anchor = weekDate(w.days);
+    w.weekNum = isoWeek ? anchor.isoWeek() : anchor.week();
+  }
+```
+
+`isoWeek` comes from `usesIsoWeek`, which looks for unbracketed `G`/`W` tokens in
+the week format. So `Calendar.svelte` passes the format into `getMonth`, derived
+as a string so the grid re-derives when the format changes rather than on every
+vault event. `gridAt` is the read for any fixed grid position: it throws if the
+six-by-seven shape ever changes, rather than rendering a blank cell.
 
 That map is **total**: every key the visible grid can ask about is present,
 mapped to a `TFile` or to `null`, so a lookup answers exactly one question — is
@@ -556,14 +600,66 @@ registered in `onOpen` rather than the constructor, and `onOpen` clears the
 close and reopen, and registering once in the constructor left a reopened
 calendar with its listeners attached but every handler returning early.
 
-### 12. Settings changes and rescans
+### 12. The settings tab, and what a change costs
+
+The tab is data. `settingDefinitions` returns one page per period — Daily,
+Weekly, Monthly, Yearly — in Obsidian 1.13's declarative settings shape, and
+imports only types from `obsidian`, so it is tested directly. Each page's link
+summarises the period and flags a folder or template that does not exist yet:
+
+`src/settingsDefinitions.ts` — `settingDefinitions`
+
+```ts
+      displayValue: () =>
+        enabled()
+          ? `${config().format || DEFAULT_FORMAT[granularity]} · ${config().folder || "/"}`
+          : "Off",
+      status: () => (enabled() && advisory().length > 0 ? "warning" : null),
+```
+
+Format, Folder and Template carry `visible: enabled`, which hides them — and
+removes them from settings search — while the period is off. Folder and Template
+use Obsidian's own folder and file pickers.
+
+Validation has two strengths, and the distinction is the module's central idea:
+
+`src/settingsDefinitions.ts` — `Validation`
+
+```ts
+/**
+ * A field's verdict. A `blocking` value is rejected by the control and never
+ * stored — it would corrupt note resolution or escape the vault. Anything else
+ * is advisory: the value is stored, so a folder can be configured before the
+ * note that creates it, and the period's page entry carries a warning.
+ */
+export type Validation = { error: string; blocking: boolean };
+```
+
+The checks that need the vault — does this folder exist, is it a file — live in
+`settings.ts` and are injected as `SettingsChecks`. That file is otherwise just
+the binding between control keys such as `week.format` and the settings object,
+and its one write path is the load path:
+
+`src/settings.ts` — `SettingsTab.setControlValue`
+
+```ts
+    const edited = structuredClone(this.plugin.settings);
+    Object.assign(edited.granularities[parsed.granularity], {
+      [parsed.field]: value,
+    });
+    this.plugin.settings = sanitizeSettings(edited, normalizeFolder);
+    await this.plugin.saveSettings();
+    this.update();
+```
+
+So a control stores exactly what a reload would produce, and section 2's
+guarantees hold for typed values as well as loaded ones.
+
+Every accepted change saves, and a save is where the rescan is decided:
 
 `src/main.ts` — `saveSettings`
 
 ```ts
-// NoteCache.reset() re-walks every configured folder and re-parses every
-// filename, so firing this on each debounce tick meant a full vault scan
-// per typing pause — including for fields the index never reads.
 const snapshot = this.indexingSnapshotOf(this.settings);
 if (snapshot !== this.indexingSnapshot) {
   this.indexingSnapshot = snapshot;
@@ -572,7 +668,9 @@ if (snapshot !== this.indexingSnapshot) {
 ```
 
 Only `enabled`, `format` and `folder` decide what gets indexed, so editing a
-template path costs nothing.
+template path costs nothing. `NoteCache.reset()` re-walks every configured
+folder, which is why that check matters when every keystroke the control accepts
+is a save.
 
 ### 13. How it is bundled
 
@@ -632,9 +730,12 @@ will stop. The trap is that the remedy the warning suggests — a `.mts`
 extension, or `"type": "module"` — moves the file into ESM scope, which is
 exactly where `__dirname` does not exist. The fix had to come first.
 
-**`main.js` is not tracked.** `release.yml` builds it at the tag and attaches
-what that build produced; `deploy.ts` builds before copying into a vault. Nothing
-reads a committed copy, so there is none.
+**`main.js` is tracked**, as in every philoserf plugin. The Vite build is
+deterministic, so CI can run `bun run build` and then `git diff --exit-code
+main.js`, and `release.yml` refuses to publish unless its own fresh build matches
+the committed file — the release asset is the committed bundle. On Dependabot
+PRs, CI rebuilds and commits `main.js` itself, since a bump to a bundled
+dependency changes the output.
 
 ## Where the reading order used to break down
 
@@ -652,20 +753,17 @@ of reconstructing it from the other three.
 
 ## Index
 
-No new findings from this pass.
+| #   | Severity | Issue                                                                                                     | Primary location                                       |
+| --- | -------- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| 1   | low      | Three comments in `main.ts` still describe the debounced, three-text-field settings tab that #335 removed | `src/main.ts` — `configureRibbonIcons`, `saveSettings` |
 
-The two this document filed on its previous revision are both closed:
-[#304](https://github.com/philoserf/obsidian-periodic-notes/issues/304), the
-same-key match downgrade that skipped the contender re-contest, and
-[#305](https://github.com/philoserf/obsidian-periodic-notes/issues/305),
-`onRename`'s frontmatter splice. So is
-[#271](https://github.com/philoserf/obsidian-periodic-notes/issues/271), the
-reading-order problem described above — which is why that section now says
-_used to_.
+**Total: 1 issue (0 critical, 0 high, 0 medium, 1 low)**
 
-**Total: 0 issues.**
-
-Prose in the previous revision that the code no longer supported — a
-`resolve(file, isCreate)` flag, a rename splice, a sorted-key cache, and a
-`FileMap` whose key presence doubled as an enabled signal — was corrected in
-place by this pass rather than filed.
+Prose in the previous revision that the 2.6.0 changes left unsupported was
+corrected in place rather than filed. That covered `main.js` being untracked
+(#326), a debounced save across three text fields (#335), a settings layer with
+no definitions module (#335), and calendar rows that stood for their first day
+(#325). Three snippets had drifted from their source before
+this release — `sanitizeConfig`'s folder rule, the `closed` guard in
+`NoteCache.onload`, and the frontmatter read now in `NoteCache.entryFor` — and
+were requoted.

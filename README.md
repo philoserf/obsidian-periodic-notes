@@ -32,14 +32,14 @@ If you want something similar, the code is MIT-licensed — fork it and adapt. D
 
 ## Settings
 
-Each granularity is configured independently:
+Requires Obsidian 1.13 or later. Each granularity has its own page in the settings tab. The page's entry shows its format and folder, or "Off", and carries a warning badge when the folder or template doesn't exist yet. Format, Folder and Template appear only while the granularity is enabled. A value that would place notes outside the vault is rejected and never saved. A folder or template that doesn't exist yet is saved with a warning.
 
 | Setting  | Description                                                                                                                                                                                                                |
 | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Enabled  | Turn this granularity on or off.                                                                                                                                                                                           |
 | Format   | Moment.js format string. Defaults: `YYYY-MM-DD` (day), `gggg-[W]ww` (week), `YYYY-MM` (month), `YYYY` (year).                                                                                                              |
 | Folder   | Folder where these notes live. Nested folders in the format string (e.g. `YYYY/MM/YYYY-MM-DD`) are supported — a note is matched on the whole path the format renders, so a file must actually sit at that depth to count. |
-| Template | Path to a template file applied when a new note is created.                                                                                                                                                                |
+| Template | Markdown file applied as the template when a new note is created.                                                                                                                                                          |
 
 ## Template Tokens
 

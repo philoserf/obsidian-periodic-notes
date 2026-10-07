@@ -1,5 +1,31 @@
 # Changelog
 
+## 2.6.0
+
+The settings tab is rebuilt on Obsidian 1.13's declarative settings, so the
+plugin now requires **Obsidian 1.13.0 or later**. That requirement is what makes
+this a minor release. One calendar defect is fixed alongside it.
+
+### Changed
+
+- **Requires Obsidian 1.13.0.** `minAppVersion` rises from 1.6.0, because the new settings tab is built from Obsidian's declarative settings, which 1.13 introduced. Obsidian will not offer this version to an older app (#335)
+- The settings tab has one page per period — Daily, Weekly, Monthly, Yearly. Each page's link shows that period's format and folder, or "Off", and carries a warning badge when an enabled period's folder or template does not exist yet. A page shows Format, Folder and Template only while its period is enabled, and a disabled period's fields no longer turn up in settings search (#335)
+- Folder and Template use Obsidian's built-in folder and file pickers; the Template picker lists only Markdown files. The plugin's own path suggester is gone (#335)
+- A rejected value is shown inline and never stored. Leaving the field no longer restores what was there before the edit — the last accepted value is simply what stays saved. A folder or template that does not exist yet is accepted with a warning, so a period can be configured before its first note (#335)
+- Settings save on every accepted change instead of after a debounce. The note index still rescans only when a period's enabled state, format or folder actually changes (#335)
+
+### Fixed
+
+- Clicking a week number in the calendar opens the week it is labelled with under a Sunday-first locale. With an ISO week format such as `GGGG-[W]WW`, each row starts on a Sunday, which ISO files under the week before, so clicking 42 opened `2026-W41`. Week labels now follow the format's own week system too, so the row spanning New Year 2027 reads 53 and opens `2026-W53` instead of reading 1. The default format, `gggg-[W]ww`, behaves as before (#325)
+
+### Internal
+
+- `main.js` is committed again, reversing #291 to match every other philoserf plugin. CI and the release workflow both require a fresh build to equal the committed bundle, so the release asset is the committed file (#326)
+- CI, release and Dependabot workflows adopted from the plugin template: a read-only CI token, a release tag filter that actually rejects `v`-prefixed tags, a tag check against `package.json` as well as the manifests, and Dependabot PRs that rebuild `main.js` themselves (#326, #338)
+- TypeScript runs with `noImplicitOverride`, `isolatedModules`, `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes`. The calendar reads its fixed grid through a helper that throws if the grid's shape ever changes, rather than rendering a blank cell (#329, #330)
+- The project's Claude Code hooks read the edited path from stdin, so they run at all; the lock-file guard now blocks (#332)
+- Dependency updates: svelte 5.57.2, vite 8.3.3, @sveltejs/vite-plugin-svelte 7.3.1, Biome 2.5.15, prettier 3.9.9 and @types/node 26.6.4 (#328, #336, #341)
+
 ## 2.5.0
 
 Thirty-two issues, closing the whole backlog. Three were silent defects in the
