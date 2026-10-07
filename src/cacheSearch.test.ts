@@ -60,14 +60,13 @@ describe("findAdjacentKey", () => {
   });
 
   it("works correctly across a large array (binary search correctness)", () => {
-    const big = Array.from(
-      { length: 1000 },
-      (_, i) => `day:2024-01-01T00:00:00.${String(i).padStart(3, "0")}Z`,
-    );
-    expect(findAdjacentKey(big, big[500], "forwards")).toBe(big[501]);
-    expect(findAdjacentKey(big, big[500], "backwards")).toBe(big[499]);
-    expect(findAdjacentKey(big, big[0], "backwards")).toBe(null);
-    expect(findAdjacentKey(big, big[999], "forwards")).toBe(null);
+    const keyAt = (i: number) =>
+      `day:2024-01-01T00:00:00.${String(i).padStart(3, "0")}Z`;
+    const big = Array.from({ length: 1000 }, (_, i) => keyAt(i));
+    expect(findAdjacentKey(big, keyAt(500), "forwards")).toBe(keyAt(501));
+    expect(findAdjacentKey(big, keyAt(500), "backwards")).toBe(keyAt(499));
+    expect(findAdjacentKey(big, keyAt(0), "backwards")).toBe(null);
+    expect(findAdjacentKey(big, keyAt(999), "forwards")).toBe(null);
   });
 });
 

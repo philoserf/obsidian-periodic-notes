@@ -4,6 +4,7 @@ import moment from "moment";
 import {
   activateOnKey,
   getMonth,
+  gridAt,
   isWeekend,
   usesIsoWeek,
   weekDate,
@@ -35,7 +36,7 @@ describe("getMonth", () => {
   it("first day of first week is on or before the 1st of the month", () => {
     const displayed = moment("2024-03-01");
     const grid = getMonth(displayed, LOCALE_WEEK);
-    const firstDay = grid[0].days[0];
+    const firstDay = gridAt(gridAt(grid, 0).days, 0);
     expect(firstDay.isSameOrBefore(displayed.clone().startOf("month"))).toBe(
       true,
     );
@@ -45,7 +46,9 @@ describe("getMonth", () => {
     const grid = getMonth(moment("2024-06-01"), LOCALE_WEEK);
     const days = grid.flatMap((w) => w.days);
     for (let i = 1; i < days.length; i++) {
-      expect(days[i].valueOf()).toBeGreaterThan(days[i - 1].valueOf());
+      expect(gridAt(days, i).valueOf()).toBeGreaterThan(
+        gridAt(days, i - 1).valueOf(),
+      );
     }
   });
 });
@@ -62,7 +65,8 @@ describe("week rows under a Sunday-first locale", () => {
   const pad = (n: number) => String(n).padStart(2, "0");
 
   it("starts each row on Sunday, which is the case #325 needs", () => {
-    expect(getMonth(moment("2026-10-01"), ISO_WEEK)[0].days[0].day()).toBe(0);
+    const first = gridAt(getMonth(moment("2026-10-01"), ISO_WEEK), 0);
+    expect(gridAt(first.days, 0).day()).toBe(0);
   });
 
   it("opens the ISO week a row is labelled with", () => {
@@ -73,7 +77,7 @@ describe("week rows under a Sunday-first locale", () => {
     // The row Sun 2026-10-11 to Sat 2026-10-17 is the one reported: its
     // Monday-to-Saturday is ISO week 42, so it is labelled and opens 42.
     const reported = getMonth(moment("2026-10-01"), ISO_WEEK).find((w) =>
-      w.days[0].isSame("2026-10-11", "day"),
+      gridAt(w.days, 0).isSame("2026-10-11", "day"),
     );
     expect(reported?.weekNum).toBe(42);
     expect(reported && weekDate(reported.days).format(ISO_WEEK)).toBe(
@@ -153,5 +157,15 @@ describe("activateOnKey", () => {
   it("ignores any other key without suppressing it", () => {
     expect(press("a")).toEqual({ prevented: false, activated: false });
     expect(press("Tab")).toEqual({ prevented: false, activated: false });
+  });
+});
+
+describe("gridAt", () => {
+  it("returns the item at a fixed grid position", () => {
+    expect(gridAt(["a", "b"], 1)).toBe("b");
+  });
+
+  it("fails loudly rather than rendering a blank cell", () => {
+    expect(() => gridAt(["a"], 3)).toThrow("calendar grid has no item at 3");
   });
 });
