@@ -11,7 +11,7 @@ import { DisplayedMonth } from "./displayedMonth.svelte";
 import Nav from "./Nav.svelte";
 import { computeFileMap } from "./store";
 import type { EventHandlers, FileMap, Month } from "./types";
-import { getMonth, isWeekend } from "./utils";
+import { getMonth, gridAt, isWeekend, weekDate } from "./utils";
 import Week from "./Week.svelte";
 
 let {
@@ -89,7 +89,7 @@ export function setActiveFilePath(path: string | null) {
       {#if showWeeks}
         <col />
       {/if}
-      {#each month[1].days as date}
+      {#each gridAt(month, 1).days as date}
         <col class:weekend={isWeekend(date)} />
       {/each}
     </colgroup>
@@ -104,7 +104,7 @@ export function setActiveFilePath(path: string | null) {
       </tr>
     </thead>
     <tbody>
-      {#each month as week (canonicalKey("week", week.days[0]))}
+      {#each month as week (canonicalKey("week", weekDate(week.days)))}
         <tr>
           {#if showWeeks}
             <Week

@@ -22,7 +22,20 @@ export function usesIsoWeek(format: string): boolean {
  * Thursday is the day that decides ISO week membership.
  */
 export function weekDate(days: Moment[]): Moment {
-  return days[3];
+  return gridAt(days, 3);
+}
+
+/**
+ * An item at a fixed position in the calendar grid. getMonth builds exactly
+ * six rows of seven days, so these positions always exist; this reads them
+ * and fails loudly, rather than rendering a blank cell, if that ever changes.
+ */
+export function gridAt<T>(items: readonly T[], index: number): T {
+  const item = items[index];
+  if (item === undefined) {
+    throw new Error(`calendar grid has no item at ${index}`);
+  }
+  return item;
 }
 
 export function getMonth(displayedMonth: Moment, weekFormat: string): Month {

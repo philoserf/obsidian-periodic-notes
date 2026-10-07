@@ -26,6 +26,9 @@ export function findAdjacentKey(
   while (lo <= hi) {
     const mid = (lo + hi) >>> 1;
     const midKey = sorted[mid];
+    // lo <= mid <= hi stays inside the array, so this never fires; it is what
+    // lets the compiler see that.
+    if (midKey === undefined) return null;
     if (midKey === key) {
       const offset = direction === "forwards" ? 1 : -1;
       return sorted[mid + offset] ?? null;

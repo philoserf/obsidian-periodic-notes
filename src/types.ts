@@ -16,7 +16,9 @@ export interface NoteConfig {
   enabled: boolean;
   format: string;
   folder: string;
-  templatePath?: string;
+  // `| undefined` on purpose: "no template" is written as undefined, which
+  // JSON drops, so absent and undefined are one state on disk and in memory.
+  templatePath?: string | undefined;
 }
 
 export interface Settings {

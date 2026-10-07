@@ -4,7 +4,7 @@ import { canonicalKey } from "src/cacheSearch";
 import type { Granularity } from "src/types";
 
 import type { FileMap, Month } from "./types";
-import { weekDate } from "./utils";
+import { gridAt, weekDate } from "./utils";
 
 /**
  * Every key the visible grid can ask about, mapped to its note or null.
@@ -21,7 +21,9 @@ export function computeFileMap(
   getFile: (date: Moment, granularity: Granularity) => TFile | null,
 ): FileMap {
   const map: FileMap = new Map();
-  const displayedMonth = month[1].days[0];
+  // The second row always lies in the displayed month; the first may start in
+  // the one before.
+  const displayedMonth = gridAt(gridAt(month, 1).days, 0);
 
   for (const week of month) {
     for (const day of week.days) {
