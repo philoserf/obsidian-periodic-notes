@@ -15,7 +15,7 @@ import {
 import { configureLocale } from "./locale";
 import { canonicalFolder } from "./paths";
 import { isMetaPressed, reportFailure } from "./platform";
-import { SettingsTab } from "./settings";
+import { normalizeFolder, SettingsTab } from "./settings";
 import { sanitizeSettings } from "./settingsLoad";
 import { getNoteCreationPath, readTemplate } from "./template";
 import { applyTemplate } from "./templateRender";
@@ -149,9 +149,7 @@ export default class PeriodicNotesPlugin extends Plugin {
 
   async loadSettings(): Promise<void> {
     const saved = await this.loadData();
-    this.settings = sanitizeSettings(saved, (folder) =>
-      canonicalFolder(normalizePath(folder)),
-    );
+    this.settings = sanitizeSettings(saved, normalizeFolder);
     this.indexingSnapshot = this.indexingSnapshotOf(this.settings);
   }
 
