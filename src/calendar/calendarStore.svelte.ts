@@ -1,6 +1,7 @@
 import type { Moment } from "moment";
 import type { Component, TFile } from "obsidian";
 
+import { getFormat } from "src/format";
 import type PeriodicNotesPlugin from "src/main";
 import { type Granularity, getEnabledGranularities } from "src/types";
 
@@ -49,6 +50,10 @@ export default class CalendarStore {
 
   public getFile(date: Moment, granularity: Granularity): TFile | null {
     return this.plugin.cache.getPeriodicNote(granularity, date);
+  }
+
+  public getFormat(granularity: Granularity): string {
+    return getFormat(this.plugin.settings, granularity);
   }
 
   public getEnabledGranularities(): Granularity[] {

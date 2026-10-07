@@ -11,7 +11,7 @@ describe("computeFileMap", () => {
   // granularities, which made one lookup carry two facts — absent meant "off",
   // present-and-null meant "on, no note". Month and year read the first
   // through `has`; they take explicit props now, so this means one thing.
-  const month = getMonth(moment("2024-03-01"));
+  const month = getMonth(moment("2024-03-01"), "gggg-[W]ww");
   const noFiles = () => null;
 
   it("generates keys for all 42 days in the month grid", () => {
