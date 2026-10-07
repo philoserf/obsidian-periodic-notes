@@ -4,6 +4,7 @@ import { canonicalKey } from "src/cacheSearch";
 import type { Granularity } from "src/types";
 
 import type { FileMap, Month } from "./types";
+import { weekDate } from "./utils";
 
 /**
  * Every key the visible grid can ask about, mapped to its note or null.
@@ -26,8 +27,8 @@ export function computeFileMap(
     for (const day of week.days) {
       map.set(canonicalKey("day", day), getFile(day, "day"));
     }
-    const weekStart = week.days[0];
-    map.set(canonicalKey("week", weekStart), getFile(weekStart, "week"));
+    const date = weekDate(week.days);
+    map.set(canonicalKey("week", date), getFile(date, "week"));
   }
 
   map.set(

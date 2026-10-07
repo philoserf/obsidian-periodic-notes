@@ -33,7 +33,14 @@ let today: Moment = $state.raw(window.moment());
 const displayedMonth = new DisplayedMonth();
 setContext(DISPLAYED_MONTH, displayedMonth);
 
-const month: Month = $derived(getMonth(displayedMonth.current));
+// A string, so the grid re-derives when the format changes and not on every
+// vault event that bumps the version.
+const weekFormat: string = $derived.by(() => {
+  void fileStore.version;
+  return fileStore.getFormat("week");
+});
+
+const month: Month = $derived(getMonth(displayedMonth.current, weekFormat));
 
 const enabledGranularities: Granularity[] = $derived.by(() => {
   // Track fileStore.version so mutations re-derive.
