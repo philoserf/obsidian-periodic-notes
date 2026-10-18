@@ -20,7 +20,7 @@ The current next step for this repo is tracked in the workspace backlog at `../N
 
 - `plugin.settings` is a plain `Settings` object (not a Svelte store)
 - No migration — `sanitizeSettings` (`src/settingsLoad.ts`) type-checks each saved field and falls back to that field's own default; only saved data without a `granularities` object gets all defaults
-- Declarative settings (Obsidian 1.13, hence `minAppVersion`): `src/settingsDefinitions.ts` builds the tab as data — one page per period, its entry showing the format and folder and a warning when the folder or template is missing — and is tested as data. `settings.ts` is the wiring: the vault checks, and `getControlValue`/`setControlValue` keyed `week.format` and so on. Every write goes through `sanitizeSettings`, so a control stores what a reload would produce. No Svelte in settings
+- Declarative settings (Obsidian 1.13, hence `minAppVersion`): `src/settingsDefinitions.ts` builds the tab as data — one page per period, its entry showing the format and folder and a warning when the folder or template is missing — and is tested as data. `settings.ts` is the wiring: the vault checks, and `getControlValue`/`setControlValue` keyed `week.format` and so on. Every write goes through `sanitizeSettings`, so a control stores what a reload would produce. A save and an external change (`onExternalSettingsChange`, e.g. Obsidian Sync rewriting `data.json`) both end in `applySettings` in `main.ts`, which rescans the cache only when `indexingSnapshotOf` (`settingsLoad.ts`) moved. No Svelte in settings
 
 ### Cache
 

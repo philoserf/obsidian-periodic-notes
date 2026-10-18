@@ -32,7 +32,7 @@ If you want something similar, the code is MIT-licensed — fork it and adapt. D
 
 ## Settings
 
-Requires Obsidian 1.13 or later. Each granularity has its own page in the settings tab. The page's entry shows its format and folder, or "Off", and carries a warning badge when the folder or template doesn't exist yet. Format, Folder and Template appear only while the granularity is enabled. A value that would place notes outside the vault is rejected and never saved. A folder or template that doesn't exist yet is saved with a warning.
+Requires Obsidian 1.13 or later. Each granularity has its own page in the settings tab. The page's entry shows its format and folder, or "Off", and carries a warning badge when the folder or template doesn't exist yet. Format, Folder and Template appear only while the granularity is enabled. A value that would place notes outside the vault is rejected and never saved. A folder or template that doesn't exist yet is saved with a warning. Settings synced from another device take effect without restarting Obsidian.
 
 | Setting  | Description                                                                                                                                                                                                                |
 | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
