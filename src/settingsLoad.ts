@@ -69,3 +69,14 @@ function sanitizeConfig(
 
   return config;
 }
+
+// Only `enabled`, `format` and `folder` decide what the cache indexes;
+// templatePath does not, so editing it must not trigger a rescan.
+export function indexingSnapshotOf(settings: Settings): string {
+  return JSON.stringify(
+    granularities.map((g) => {
+      const { enabled, format, folder } = settings.granularities[g];
+      return [enabled, format, folder];
+    }),
+  );
+}

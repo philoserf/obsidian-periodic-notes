@@ -1,5 +1,5 @@
 import type { Moment } from "moment";
-import { addIcon, normalizePath, Plugin, TFile } from "obsidian";
+import { addIcon, getLanguage, Plugin, TFile } from "obsidian";
 
 import { NoteCache } from "./cache";
 import { CalendarView } from "./calendar/view";
@@ -13,10 +13,9 @@ import {
   calendarYearIcon,
 } from "./icons";
 import { configureLocale } from "./locale";
-import { canonicalFolder } from "./paths";
 import { isMetaPressed, reportFailure } from "./platform";
 import { normalizeFolder, SettingsTab } from "./settings";
-import { sanitizeSettings } from "./settingsLoad";
+import { indexingSnapshotOf, sanitizeSettings } from "./settingsLoad";
 import { getNoteCreationPath, readTemplate } from "./template";
 import { applyTemplate } from "./templateRender";
 import {
@@ -40,8 +39,10 @@ export default class PeriodicNotesPlugin extends Plugin {
   // forwarder here would only pass the call along. Not `readonly` — it is
   // built in onload, not in the constructor.
   public cache!: NoteCache;
-  // The settings the cache index is built from, as last persisted. Compared on
-  // save so only a change that actually affects indexing costs a vault rescan.
+  // Kept so an external settings change can refresh the tab's summaries.
+  private settingsTab!: SettingsTab;
+  // The settings the cache index is built from, as last applied. Compared in
+  // applySettings so only a change that affects indexing costs a vault rescan.
   private indexingSnapshot = "";
   // Creations in progress, keyed by destination path. The index only learns of
   // a file from the vault's "create" event, so two callers racing to open the
@@ -57,7 +58,7 @@ export default class PeriodicNotesPlugin extends Plugin {
 
     await this.loadSettings();
     // moment's locale is global to the app, so put it back on unload.
-    this.register(configureLocale());
+    this.register(configureLocale(getLanguage()));
 
     // addChild, not a bare field: Component.registerEvent only arranges teardown
     // during the component's own unload, and nothing else would ever unload the
@@ -65,7 +66,8 @@ export default class PeriodicNotesPlugin extends Plugin {
     // disabled plugin goes on applying templates to newly created files.
     this.cache = this.addChild(new NoteCache(this.app, this));
 
-    this.addSettingTab(new SettingsTab(this.app, this));
+    this.settingsTab = new SettingsTab(this.app, this);
+    this.addSettingTab(this.settingsTab);
 
     this.configureRibbonIcons();
     for (const granularity of granularities) {
@@ -110,11 +112,10 @@ export default class PeriodicNotesPlugin extends Plugin {
   private configureRibbonIcons(): void {
     const enabled = getEnabledGranularities(this.settings);
     const key = enabled.join(",");
-    // saveSettings calls this on every save, and saves are debounced per
-    // keystroke burst across three text fields. Only the Enabled toggle can
-    // change what the ribbon shows, so everything else returns here — which is
-    // also what bounds addRibbonIcon's own per-call unload registration, since
-    // detach() does not undo it.
+    // applySettings calls this on every accepted settings change, keystrokes
+    // included. Only the Enabled toggle can change what the ribbon shows, so
+    // everything else returns here — which is also what bounds addRibbonIcon's
+    // own per-call unload registration, since detach() does not undo it.
     if (key === this.ribbonKey) return;
     this.ribbonKey = key;
 
@@ -150,38 +151,43 @@ export default class PeriodicNotesPlugin extends Plugin {
   async loadSettings(): Promise<void> {
     const saved = await this.loadData();
     this.settings = sanitizeSettings(saved, normalizeFolder);
-    this.indexingSnapshot = this.indexingSnapshotOf(this.settings);
+    this.indexingSnapshot = indexingSnapshotOf(this.settings);
   }
 
-  // Only `enabled`, `format` and `folder` decide what the cache indexes;
-  // templatePath does not, so editing it must not trigger a rescan.
-  private indexingSnapshotOf(settings: Settings): string {
-    return JSON.stringify(
-      granularities.map((g) => {
-        const { enabled, format, folder } = settings.granularities[g];
-        return [enabled, format, folder];
-      }),
-    );
+  // Obsidian Sync, or anything else, rewrote data.json. Left unhandled, the
+  // in-memory settings stay stale and the next save writes them back over the
+  // synced file. Not loadSettings: it overwrites indexingSnapshot, so
+  // applySettings would never see the change.
+  override async onExternalSettingsChange(): Promise<void> {
+    this.settings = sanitizeSettings(await this.loadData(), normalizeFolder);
+    this.applySettings();
+    this.settingsTab.update();
   }
 
   public async saveSettings(): Promise<void> {
     try {
       await this.saveData(this.settings);
     } catch (err) {
-      // Here rather than at the four call sites: the ribbon toggle and all
-      // three text fields go through this, and a caller that forgets is a
-      // silent failure -- the user keeps typing into a field whose value is
-      // not being kept. Returning early matters too, since both steps below
-      // act on settings that did not persist.
+      // Here rather than in its one caller, setControlValue: a failure there
+      // would be silent -- the user keeps typing into a field whose value is
+      // not being kept. Returning early matters too, since applySettings acts
+      // on settings that did not persist.
       reportFailure("failed to save settings", err);
       return;
     }
+    this.applySettings();
+  }
+
+  // Brings the ribbon and the cache in line with this.settings, after a save
+  // or an external change.
+  private applySettings(): void {
     this.configureRibbonIcons();
 
     // NoteCache.reset() re-walks every configured folder and re-parses every
-    // filename, so firing this on each debounce tick meant a full vault scan
-    // per typing pause — including for fields the index never reads.
-    const snapshot = this.indexingSnapshotOf(this.settings);
+    // filename, and every accepted settings change saves — each keystroke in a
+    // format or folder field. Rescanning only when the indexed fields moved
+    // keeps that from being a full vault scan per keystroke.
+    const snapshot = indexingSnapshotOf(this.settings);
     if (snapshot !== this.indexingSnapshot) {
       this.indexingSnapshot = snapshot;
       this.app.workspace.trigger("periodic-notes:settings-updated");
