@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import { canonicalFolder } from "./paths";
-import { sanitizeSettings } from "./settingsLoad";
+import { indexingSnapshotOf, sanitizeSettings } from "./settingsLoad";
 
 // Stands in for Obsidian's normalizePath, which is not importable in tests.
 const normalizePath = (path: string) => {
@@ -133,5 +133,27 @@ describe("sanitizeSettings", () => {
       folder: "",
       templatePath: undefined,
     });
+  });
+});
+
+describe("indexingSnapshotOf", () => {
+  const base = () => sanitize({ granularities: { day: { enabled: true } } });
+
+  test("ignores templatePath, which the cache never reads", () => {
+    const edited = base();
+    edited.granularities.day.templatePath = "templates/daily.md";
+    expect(indexingSnapshotOf(edited)).toBe(indexingSnapshotOf(base()));
+  });
+
+  test("changes when an indexed field changes", () => {
+    for (const change of [
+      { enabled: false },
+      { format: "YYYY/MM/DD" },
+      { folder: "daily" },
+    ]) {
+      const edited = base();
+      Object.assign(edited.granularities.day, change);
+      expect(indexingSnapshotOf(edited)).not.toBe(indexingSnapshotOf(base()));
+    }
   });
 });

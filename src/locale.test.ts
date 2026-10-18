@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { resolveMomentLocale } from "./locale";
+import { configureLocale, resolveMomentLocale } from "./locale";
 
 describe("resolveMomentLocale", () => {
   test("maps an Obsidian language to its moment locale", () => {
@@ -32,5 +32,20 @@ describe("resolveMomentLocale", () => {
     expect(resolveMomentLocale("en", "en-gb")).toBe("en-gb");
     // It is reachable only from a non-English system.
     expect(resolveMomentLocale("en", "fr-fr")).toBe("en-gb");
+  });
+});
+
+describe("configureLocale", () => {
+  test("applies the language it is given, and restores the previous locale", () => {
+    const previous = window.moment.locale();
+    // defineLocale also makes the new locale current, so put it straight back:
+    // the calendar tests depend on the global locale being left alone.
+    window.moment.defineLocale("x-test", {});
+    window.moment.locale(previous);
+
+    const restore = configureLocale("x-test");
+    expect(window.moment.locale()).toBe("x-test");
+    restore();
+    expect(window.moment.locale()).toBe(previous);
   });
 });

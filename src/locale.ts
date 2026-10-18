@@ -43,14 +43,15 @@ export function resolveMomentLocale(
 }
 
 /**
- * Applies the locale and returns a function that puts back what was there.
+ * Applies the locale for Obsidian's language — getLanguage(), passed in so this
+ * module stays importable in tests — and returns a function that puts back
+ * what was there.
  * `moment.locale(x)` is a global setter on the single moment instance Obsidian
  * hands every plugin, so leaving it set outlives the plugin's own lifetime and
  * silently reconfigures date formatting for the whole app.
  */
-export function configureLocale(): () => void {
+export function configureLocale(obsidianLang: string): () => void {
   const previous = window.moment.locale();
-  const obsidianLang = localStorage.getItem("language") || "en";
   const momentLocale = resolveMomentLocale(
     obsidianLang,
     navigator.language?.toLowerCase(),
