@@ -1,5 +1,26 @@
 # Changelog
 
+## 2.7.0
+
+Settings that Obsidian Sync brings in from another device now take effect
+without a restart, instead of being overwritten by the next save. That
+behaviour change is what makes this a minor release.
+
+### Fixed
+
+- A settings change synced from another device is picked up while Obsidian is running. Before, the plugin kept the settings it loaded at startup, and its next save wrote them back over the synced `data.json`, silently undoing the change. The ribbon icons and an open settings tab now follow the synced settings, and the note index rescans only when a period's enabled state, format or folder changed (#344)
+
+### Changed
+
+- The calendar's locale comes from Obsidian's public `getLanguage()` instead of an undocumented `localStorage` key. It returns the same language code, with the same `en` default, so the calendar's locale is unchanged (#344)
+
+### Internal
+
+- CI, release and Dependabot workflows are removed in favour of local tooling: the release gate and the repo's own build and test run on the committed tree before anything is pushed (#345, #346)
+- Type-checking runs through `bun --check` instead of `tsc --noEmit` (#348)
+- Comments in `main.ts` describe the current settings tab rather than the debounced, three-field one 2.6.0 replaced, and two unused imports are gone (#343)
+- Dependency updates: obsidian typings 1.14.4, vite 8.3.4, prettier 3.9.10, svelte-check 4.7.7, @types/bun 1.4.3 and @types/node 26.6.5 (#350)
+
 ## 2.6.0
 
 The settings tab is rebuilt on Obsidian 1.13's declarative settings, so the

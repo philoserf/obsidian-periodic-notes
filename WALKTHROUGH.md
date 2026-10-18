@@ -21,8 +21,8 @@ Four granularities, each independently enabled with its own format, folder and
 template: `day`, `week`, `month`, `year`.
 
 **Technologies.** TypeScript, bundled by Vite to a CommonJS `main.js` at the
-repository root. That bundle **is** tracked, and CI and `release.yml` both
-require a fresh build to equal the committed copy. Svelte 5 with runes, used for
+repository root. That bundle **is** tracked, and the release gate requires a
+fresh build to equal the committed copy. Svelte 5 with runes, used for
 the calendar view only — everything else, the settings tab included, uses native
 Obsidian APIs. The settings tab is built from Obsidian 1.13's declarative
 settings, which is what sets `minAppVersion`. Tests run under `bun test`.
@@ -80,7 +80,7 @@ vault events ──► NoteCache ──► resolveFile ──► CacheIndex
 ```ts
 await this.loadSettings();
 // moment's locale is global to the app, so put it back on unload.
-this.register(configureLocale());
+this.register(configureLocale(getLanguage()));
 
 // addChild, not a bare field: Component.registerEvent only arranges teardown
 // during the component's own unload, and nothing else would ever unload the
@@ -94,6 +94,11 @@ Two details worth pausing on. `configureLocale` returns an undo function because
 hands every plugin — leaving it set reconfigures date formatting app-wide. And
 the cache is registered as a **child component**, not assigned to a field, so
 that disabling the plugin actually tears down its listeners.
+
+The language arrives as an argument. `getLanguage()` is Obsidian's public read
+of its UI language, and calling it here rather than inside `configureLocale`
+keeps `locale.ts` free of `obsidian` values, so the locale mapping and the
+apply-and-restore behaviour are both tested directly.
 
 ### 2. Settings are re-validated on every load
 
@@ -655,12 +660,15 @@ and its one write path is the load path:
 So a control stores exactly what a reload would produce, and section 2's
 guarantees hold for typed values as well as loaded ones.
 
-Every accepted change saves, and a save is where the rescan is decided:
+Every accepted change saves. A successful save hands off to `applySettings`,
+which is where the rescan is decided:
 
-`src/main.ts` — `saveSettings`
+`src/main.ts` — `applySettings`
 
 ```ts
-const snapshot = this.indexingSnapshotOf(this.settings);
+this.configureRibbonIcons();
+...
+const snapshot = indexingSnapshotOf(this.settings);
 if (snapshot !== this.indexingSnapshot) {
   this.indexingSnapshot = snapshot;
   this.app.workspace.trigger("periodic-notes:settings-updated");
@@ -670,7 +678,31 @@ if (snapshot !== this.indexingSnapshot) {
 Only `enabled`, `format` and `folder` decide what gets indexed, so editing a
 template path costs nothing. `NoteCache.reset()` re-walks every configured
 folder, which is why that check matters when every keystroke the control accepts
-is a save.
+is a save. `indexingSnapshotOf` lives in `settingsLoad.ts`, on the pure side, so
+which fields count is tested rather than read off `main.ts`.
+
+The tab is not the only writer of `data.json`. Obsidian Sync, or anything else
+outside the plugin, can rewrite it while the plugin runs, and Obsidian reports
+that through `onExternalSettingsChange`:
+
+`src/main.ts` — `onExternalSettingsChange`
+
+```ts
+override async onExternalSettingsChange(): Promise<void> {
+  this.settings = sanitizeSettings(await this.loadData(), normalizeFolder);
+  this.applySettings();
+  this.settingsTab.update();
+}
+```
+
+Left unhandled, the in-memory settings stay stale, and the next save writes
+them back over the synced file. The reload takes the same sanitizing path as a
+load and then the same `applySettings` as a save, so a synced change costs a
+rescan exactly when a typed one would. It deliberately does not call
+`loadSettings`: that resets `indexingSnapshot` to the new settings, after which
+`applySettings` would compare the new settings against themselves and never
+rescan. `update()` rebuilds the tab's definitions, so an open page's summary
+and warning follow the synced values.
 
 ### 13. How it is bundled
 
@@ -730,12 +762,12 @@ will stop. The trap is that the remedy the warning suggests — a `.mts`
 extension, or `"type": "module"` — moves the file into ESM scope, which is
 exactly where `__dirname` does not exist. The fix had to come first.
 
-**`main.js` is tracked**, as in every philoserf plugin. The Vite build is
-deterministic, so CI can run `bun run build` and then `git diff --exit-code
-main.js`, and `release.yml` refuses to publish unless its own fresh build matches
-the committed file — the release asset is the committed bundle. On Dependabot
-PRs, CI rebuilds and commits `main.js` itself, since a bump to a bundled
-dependency changes the output.
+**`main.js` is tracked**, as in every philoserf plugin, and the release asset is
+the committed bundle. The Vite build is deterministic, so a fresh
+`bun run build` followed by `git diff --exit-code main.js` shows whether the
+committed copy is current. Nothing runs that on each push: a change to `src/` or
+to a bundled dependency carries its rebuilt `main.js` in the same commit, and
+the release gate's clean-after-build check catches one that did not.
 
 ## Where the reading order used to break down
 
@@ -750,20 +782,3 @@ That is now navigable rather than resolved. The invariant those four methods
 exist to preserve is stated once, above the class, and each points at it rather
 than at the others — so a reader checks one method against the statement instead
 of reconstructing it from the other three.
-
-## Index
-
-| #   | Severity | Issue                                                                                                     | Primary location                                       |
-| --- | -------- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
-| 1   | low      | Three comments in `main.ts` still describe the debounced, three-text-field settings tab that #335 removed | `src/main.ts` — `configureRibbonIcons`, `saveSettings` |
-
-**Total: 1 issue (0 critical, 0 high, 0 medium, 1 low)**
-
-Prose in the previous revision that the 2.6.0 changes left unsupported was
-corrected in place rather than filed. That covered `main.js` being untracked
-(#326), a debounced save across three text fields (#335), a settings layer with
-no definitions module (#335), and calendar rows that stood for their first day
-(#325). Three snippets had drifted from their source before
-this release — `sanitizeConfig`'s folder rule, the `closed` guard in
-`NoteCache.onload`, and the frontmatter read now in `NoteCache.entryFor` — and
-were requoted.
