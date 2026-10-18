@@ -29,13 +29,13 @@
     "@biomejs/biome": "^2.5.15",
     "@sveltejs/vite-plugin-svelte": "^7.3.1",
     "@tsconfig/svelte": "^5.0.8",
-    "@types/bun": "^1.4.2",
-    "@types/node": "^26.6.4",
+    "@types/bun": "^1.4.3",
+    "@types/node": "^26.6.5",
     "@typescript/native": "npm:typescript@7",
     "moment": "^2.31.0",
-    "obsidian": "^1.13.1",
-    "prettier": "^3.9.9",
-    "svelte-check": "^4.7.6",
-    "vite": "^8.3.3"
+    "obsidian": "^1.14.4",
+    "prettier": "^3.9.10",
+    "svelte-check": "^4.7.7",
+    "vite": "^8.3.4"
   }
 }
