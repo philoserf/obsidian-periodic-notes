@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.7.1
+
+No change to the plugin's behaviour. `main.js` is rebuilt with vite 8.3.5,
+which minifies it 20 bytes smaller; everything else is development tooling.
+
+### Internal
+
+- Markdown is formatted and checked with Bun's built-in `bun fmt` instead of prettier, which is no longer a dependency. It reads the same `.prettierrc.json` and `.prettierignore`, and formats no file differently (#355)
+- The `.gitignore` comment on `main.js` no longer claims CI rejects a stale bundle; it says to rebuild and diff before committing (#354)
+- Dependency updates: Biome 2.6.3, @types/bun 1.4.4 and vite 8.3.5 (#356)
+
 ## 2.7.0
 
 Settings that Obsidian Sync brings in from another device now take effect
