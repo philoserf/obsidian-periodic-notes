@@ -1,5 +1,5 @@
-# Build output. main.js is tracked on purpose (workspace standard); CI fails a PR
-# whose committed bundle differs from a fresh build.
+# Build output. main.js is tracked on purpose (workspace standard). Nothing
+# checks it automatically: run `bun run build` and `git diff --exit-code main.js`.
 *.js.map
 
 # Dependencies
