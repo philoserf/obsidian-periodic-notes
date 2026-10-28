@@ -1,5 +1,6 @@
-# Build output. main.js is tracked on purpose (workspace standard). Nothing
-# checks it automatically: run `bun run build` and `git diff --exit-code main.js`.
+# Build output. `bun run build` writes main.js here and copies it into the vault
+# (deploy.ts); a release attaches a fresh build. Nothing reads a committed copy.
+main.js
 *.js.map
 
 # Dependencies
