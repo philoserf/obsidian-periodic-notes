@@ -12,7 +12,7 @@ The current next step for this repo is tracked in the workspace backlog at `../N
 
 ### Build System
 
-- **Output**: `./main.js` (CommonJS format). It is **committed** — the workspace standard for every plugin — so any change to `src/` or to dependencies needs a rebuilt `main.js` in the same commit. Run `bun run build` and confirm `git diff --exit-code main.js` is clean before committing; nothing automated checks it.
+- **Output**: `./main.js` (CommonJS format). Gitignored build output: `bun run build` ends with `deploy.ts`, which copies `main.js`, `manifest.json` and `styles.css` to `OBSIDIAN_DEPLOY_DEST` from `.env.local`, or does nothing when it is unset. A release attaches a fresh build. Tracked until 2026-10-28 (#307 untracked it, #327 restored it to match the template's CI, which is gone)
 - **Two TypeScripts are installed on purpose.** `@typescript/native` (TS 7) is what `svelte-check --tsgo` loads, and the editor's language server with it (`typecheck` is `bun --check`, not `bun check`, which would run the `check` script and loop); `svelte-check`'s peer range is `typescript ^5 || ^6`, so a transitive `typescript@6` sits beside it for svelte-check alone. Do not remove either
 - Vite outputs to project root (`outDir: "."`) with `emptyOutDir: false` — setting it to `true` would make Vite empty the repository root on every build
 
