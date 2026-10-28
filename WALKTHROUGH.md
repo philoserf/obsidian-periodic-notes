@@ -21,8 +21,8 @@ Four granularities, each independently enabled with its own format, folder and
 template: `day`, `week`, `month`, `year`.
 
 **Technologies.** TypeScript, bundled by Vite to a CommonJS `main.js` at the
-repository root. That bundle **is** tracked, and the release gate requires a
-fresh build to equal the committed copy. Svelte 5 with runes, used for
+repository root. That bundle is gitignored build output, and a release attaches
+a fresh build. Svelte 5 with runes, used for
 the calendar view only — everything else, the settings tab included, uses native
 Obsidian APIs. The settings tab is built from Obsidian 1.13's declarative
 settings, which is what sets `minAppVersion`. Tests run under `bun test`.
@@ -43,7 +43,7 @@ core holding the logic, and a thin wiring layer holding the Obsidian calls.
 | `cache.ts`               | `cacheResolve.ts`, `cacheIndex.ts`, `cacheSearch.ts`    |
 | `template.ts`            | `templateRender.ts`                                     |
 | `settings.ts`            | `settingsDefinitions.ts`, `settingsLoad.ts`, `paths.ts` |
-| `main.ts`, `commands.ts` | `format.ts`, `locale.ts`, `types.ts`                    |
+| `main.ts`, `commands.ts` | `format.ts`, `locale.ts`, `types.ts`, `cli.ts`          |
 | `platform.ts`            | —                                                       |
 | `calendar/view.ts`       | `calendar/store.ts`, `calendar/utils.ts`                |
 
@@ -534,6 +534,29 @@ is carried through whenever the error has one.
 join of the enabled granularities — every accepted settings change saves, and
 only the Enabled toggle can change what the ribbon shows.
 
+**The command line** is one verb, `periodic-notes:create`, registered with
+`registerCliHandler`. It is a ribbon click without the open:
+
+`src/main.ts` — `createFromCli`
+
+```ts
+const request = parseCreateRequest(params, this.settings);
+if ("error" in request) return `error: ${request.error}`;
+const { granularity, date } = request;
+try {
+  const file =
+    this.cache.getPeriodicNote(granularity, date) ??
+    (await this.createPeriodicNote(granularity, date));
+  return file.path;
+```
+
+Going through `createPeriodicNote` is the point: a note made from a terminal
+shares the in-flight map and gets its template exactly as a clicked one does.
+The caller is a script, so nothing opens and no Notice is raised; a failure is
+the printed `error: ` line. `parseCreateRequest` in `cli.ts` checks the flags,
+with `day` and today as defaults and a strict `YYYY-MM-DD` date whatever the
+configured format, and imports no `obsidian` value, so it is tested directly.
+
 **The calendar** (`src/calendar/`) is the one Svelte 5 area. `CalendarStore`
 holds a `$state` version counter bumped on any relevant vault event; consumers
 read it inside `$derived` so the file map recomputes.
@@ -762,12 +785,13 @@ will stop. The trap is that the remedy the warning suggests — a `.mts`
 extension, or `"type": "module"` — moves the file into ESM scope, which is
 exactly where `__dirname` does not exist. The fix had to come first.
 
-**`main.js` is tracked**, as in every philoserf plugin, and the release asset is
-the committed bundle. The Vite build is deterministic, so a fresh
-`bun run build` followed by `git diff --exit-code main.js` shows whether the
-committed copy is current. Nothing runs that on each push: a change to `src/` or
-to a bundled dependency carries its rebuilt `main.js` in the same commit, and
-the release gate's clean-after-build check catches one that did not.
+**`main.js` is not tracked.** The plugin has one installation, which gets its
+bundle from the build, and a release attaches a freshly built `main.js`; a
+committed copy only made every source PR carry a rebuilt bundle. The build's
+last step is `deploy.ts`, which copies `main.js`, `manifest.json` and
+`styles.css` to `OBSIDIAN_DEPLOY_DEST` from `.env.local`, or stops at
+`./main.js` when that is unset. It is a Bun script rather than a `cp` in
+`package.json` because only a Bun process loads `.env.local`.
 
 ## Where the reading order used to break down
 
