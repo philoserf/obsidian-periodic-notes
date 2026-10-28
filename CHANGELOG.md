@@ -1,5 +1,20 @@
 # Changelog
 
+## 2.8.0
+
+The plugin gains a command-line verb, so scripts can get or create a periodic
+note from its template without opening it. That new feature is what makes this
+a minor release.
+
+### Added
+
+- `obsidian periodic-notes:create granularity=week date=2026-10-28` gets or creates the note for that period and prints its vault path without opening it. It takes the same path as a ribbon click, cache lookup then creation from the template, so a note made from the command line gets its template exactly as a clicked one does. Both flags are optional: `granularity` defaults to `day` and `date` to today. `date` is always `YYYY-MM-DD`, whatever the configured filename format. A failure, such as an unknown or disabled granularity or a malformed date, prints `error: ` and the reason, and raises no Notice (#358)
+
+### Internal
+
+- `main.js` is no longer tracked. It is gitignored build output again, and a release attaches a fresh build. `bun run build` now ends by copying `main.js`, `manifest.json` and `styles.css` into the vault named by `OBSIDIAN_DEPLOY_DEST` in `.env.local`, and does nothing more when that is unset; the separate `deploy` script is gone (#359)
+- Dependency updates: svelte 5.57.3 and @types/node 26.6.6 (#360)
+
 ## 2.7.1
 
 No change to the plugin's behaviour. `main.js` is rebuilt with vite 8.3.5,
