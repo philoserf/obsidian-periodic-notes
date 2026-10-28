@@ -29,6 +29,7 @@ If you want something similar, the code is MIT-licensed — fork it and adapt. D
 - **Ribbon icons** — one per enabled granularity, each opening that granularity's note for the current period. Right-click any of them for a menu of all enabled granularities.
 - **Command palette** — `Open today's daily note`, `Jump forwards to closest weekly note`, etc. One set of commands per enabled granularity.
 - **Calendar sidebar** — run `Periodic Notes: Show calendar` to add it to the right panel. Click a day, week number, month, or year to open or create that note. Right-click for delete/file-menu actions.
+- **Command line** — `obsidian periodic-notes:create date=2026-10-28 granularity=week` gets or creates the note for that period, from its template, and prints its vault path without opening it. Both flags are optional: `granularity` defaults to `day` and `date` to today. On failure it prints `error: ` and the reason.
 
 ## Settings
 

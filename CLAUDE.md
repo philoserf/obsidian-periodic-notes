@@ -29,6 +29,11 @@ The current next step for this repo is tracked in the workspace backlog at `../N
 - Resolves files by exact filename format or frontmatter — no loose/date-prefix matching
 - `periodic-notes:resolve` fires after the entry is indexed and — on the create path — after the template has been applied, so listeners may read file contents
 
+### CLI
+
+- `periodic-notes:create` (`main.ts`'s `createFromCli`) is a ribbon click without the open: cache lookup, then `createPeriodicNote`, so a CLI-made note gets the template exactly as a clicked one does. It prints the path or `error: <reason>` and raises no Notice. Flag checking is `parseCreateRequest` in `cli.ts`, kept free of `obsidian` imports so it can be tested
+- The vault's periodic skills and `sky` call it instead of creating journal files themselves
+
 ### Testing
 
 - `bunfig.toml` preload (`src/test-preload.ts`) provides `window.moment` globally

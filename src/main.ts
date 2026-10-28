@@ -3,6 +3,7 @@ import { addIcon, getLanguage, Plugin, TFile } from "obsidian";
 
 import { NoteCache } from "./cache";
 import { CalendarView } from "./calendar/view";
+import { parseCreateRequest } from "./cli";
 import { getCommands, granularityLabels, showContextMenu } from "./commands";
 import { VIEW_TYPE_CALENDAR } from "./constants";
 import { getBasename, getFormat } from "./format";
@@ -107,6 +108,42 @@ export default class PeriodicNotesPlugin extends Plugin {
         });
       },
     });
+
+    this.registerCliHandler(
+      "periodic-notes:create",
+      "Get or create a periodic note from its template and print its path",
+      {
+        date: {
+          value: "<YYYY-MM-DD>",
+          description: "A day the note covers (default today)",
+        },
+        granularity: {
+          value: "day|week|month|year",
+          description: "Which periodic note (default day)",
+        },
+      },
+      (params) => this.createFromCli(params),
+    );
+  }
+
+  // The `periodic-notes:create` CLI handler: what a ribbon click does, minus
+  // opening the note, since the caller is a terminal. Prints the vault path,
+  // or `error: ` and the reason; no Notice, for the same reason.
+  private async createFromCli(
+    params: Record<string, string | undefined>,
+  ): Promise<string> {
+    const request = parseCreateRequest(params, this.settings);
+    if ("error" in request) return `error: ${request.error}`;
+    const { granularity, date } = request;
+    try {
+      const file =
+        this.cache.getPeriodicNote(granularity, date) ??
+        (await this.createPeriodicNote(granularity, date));
+      return file.path;
+    } catch (err) {
+      console.error("[Periodic Notes] CLI create failed", err);
+      return `error: ${err instanceof Error ? err.message : String(err)}`;
+    }
   }
 
   private configureRibbonIcons(): void {
