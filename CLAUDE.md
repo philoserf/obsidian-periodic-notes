@@ -6,8 +6,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Obsidian plugin to create and manage daily, weekly, monthly, and yearly notes. Built with Svelte 5 (calendar only) and Vite.
 
-The current next step for this repo is tracked in the workspace backlog at `../NEXT.md` (the `obsidian-periodic-notes` row). Read it when starting work; update it when that step ships.
-
 ## Architecture
 
 ### Build System
