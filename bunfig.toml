@@ -1,2 +1,14 @@
 [test]
 preload = ["./src/test-preload.ts"]
+
+[fmt]
+# Leave code in Markdown fences alone: a fenced snippet is quoted, and
+# formatting it would change what it quotes.
+embeddedLanguageFormatting = "off"
+# Svelte components belong to Biome and svelte-check. bun fmt formats them by
+# default, and cannot with embedded formatting off, so it fails on each one.
+svelte = false
+ignorePatterns = [
+  # Generated bundle.
+  "main.js",
+]
