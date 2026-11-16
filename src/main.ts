@@ -214,12 +214,16 @@ export default class PeriodicNotesPlugin extends Plugin {
       // Here rather than in its one caller, setControlValue: a failure there
       // would be silent -- the user keeps typing into a field whose value is
       // not being kept.
-      reportFailure("failed to save settings", err);
+      reportFailure(
+        "failed to save settings; the change applies until Obsidian restarts",
+        err,
+      );
     }
     // Applied either way (#370). The tab already holds and shows the new
     // value, so skipping this left the ribbon, cache and locale on the old
-    // one until some later save applied both. Now only the disk lags, and
-    // the next successful save, or the Notice above, settles it.
+    // one until some later save applied both. Now only the disk lags: the
+    // next successful save writes it, and a restart before then loses it,
+    // which the Notice says.
     this.applySettings();
   }
 
