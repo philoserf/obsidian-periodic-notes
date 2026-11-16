@@ -64,10 +64,12 @@ export function weekRule(
 ): { dow: number; doy: number } | null {
   if (weekStart === "locale") return null;
   const dow = DAY_OF_WEEK[weekStart];
-  if (dow === locale.dow) return null;
+  // Mod 7: moment's `dv` stores Sunday as 7.
+  const from = locale.dow % 7;
+  if (dow === from) return null;
   // The shift in -3..3; the anchor moves by it, so doy moves by what dow
   // moved beyond it — nothing, unless the short way wraps the week.
-  const shift = ((dow - locale.dow + 10) % 7) - 3;
+  const shift = ((dow - from + 10) % 7) - 3;
   return { dow, doy: locale.doy + (dow - locale.dow - shift) };
 }
 
