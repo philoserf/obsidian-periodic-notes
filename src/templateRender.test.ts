@@ -92,6 +92,21 @@ describe("applyTemplate", () => {
     expect(result).toBe("2026-03-22 2026-03-16 2026-03-20");
   });
 
+  test("weekday tokens count in the date's own locale", () => {
+    // #365: a date made before the week start changed keeps its locale, so
+    // rotating by the global locale's first day picked the wrong weekday.
+    const date = window.moment("2026-03-15"); // made under Sunday-first "en"
+    window.moment.locale("en-gb");
+    const result = applyTemplate(
+      "2026-W12",
+      "week",
+      date,
+      "gggg-[W]ww",
+      "{{sunday:YYYY-MM-DD}} {{monday:YYYY-MM-DD}}",
+    );
+    expect(result).toBe("2026-03-15 2026-03-16");
+  });
+
   test("leaves the caller's date untouched", () => {
     // #162: .weekday() mutates in place, and the date handed in is the Moment
     // held by a CacheEntry — shifting it desynchronizes the entry from the

@@ -86,10 +86,13 @@ export function applyTemplate(
     contents = contents.replace(WEEKDAY_TOKEN, (_, dayOfWeek, momentFormat) => {
       // WEEKDAYS is Sunday-first but .weekday() counts from the locale's
       // first day, so the name's position has to be rotated back by it. The
-      // token regex is built from WEEKDAYS, so indexOf cannot miss.
+      // date's own locale, not the global one: .weekday() below counts in
+      // the date's, and the two differ for a moment made before the week
+      // start changed. The token regex is built from WEEKDAYS, so indexOf
+      // cannot miss.
       const day =
         (WEEKDAYS.indexOf(dayOfWeek.toLowerCase()) -
-          window.moment.localeData().firstDayOfWeek() +
+          date.localeData().firstDayOfWeek() +
           7) %
         7;
       // .weekday() mutates and returns the same instance. `date` may be the

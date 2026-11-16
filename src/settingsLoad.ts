@@ -2,10 +2,9 @@ import { DEFAULT_SETTINGS } from "./constants";
 import { hasDotDotSegment, hasDotOnlySegment, literalizeFormat } from "./paths";
 import {
   granularities,
+  isWeekStart,
   type NoteConfig,
   type Settings,
-  type WeekStart,
-  weekStarts,
 } from "./types";
 
 type UnknownRecord = Record<string, unknown>;
@@ -30,9 +29,7 @@ export function sanitizeSettings(
 ): Settings {
   const settings = structuredClone(DEFAULT_SETTINGS);
   if (!isRecord(saved)) return settings;
-  if (weekStarts.includes(saved.weekStart as WeekStart)) {
-    settings.weekStart = saved.weekStart as WeekStart;
-  }
+  if (isWeekStart(saved.weekStart)) settings.weekStart = saved.weekStart;
   if (!isRecord(saved.granularities)) return settings;
 
   for (const granularity of granularities) {

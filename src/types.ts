@@ -27,8 +27,12 @@ export interface NoteConfig {
  * only language tags are — so this is how a user gets the week they set
  * there (#365).
  */
-export type WeekStart = "locale" | "monday" | "sunday";
-export const weekStarts: WeekStart[] = ["locale", "monday", "sunday"];
+export const weekStarts = ["locale", "monday", "sunday"] as const;
+export type WeekStart = (typeof weekStarts)[number];
+
+export function isWeekStart(value: unknown): value is WeekStart {
+  return weekStarts.includes(value as WeekStart);
+}
 
 export interface Settings {
   weekStart: WeekStart;

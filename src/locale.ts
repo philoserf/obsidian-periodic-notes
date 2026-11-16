@@ -32,9 +32,9 @@ const langToMomentLocale: Record<string, string> = {
  * Note the asymmetry: the system locale wins whenever it shares a prefix with
  * Obsidian's language, which makes the explicit `en -> en-gb` entry unreachable
  * for exactly the users it was written for (an `en` Obsidian on an `en-US`
- * system gets `en-us`). Left as it behaves, deliberately: reviving the entry
- * would move the calendar's first column from Sunday to Monday for everyone in
- * that position. A user who wants Monday sets the week start instead (#365).
+ * system gets `en-us`). Left as it behaves: the first day of the week is the
+ * week start setting's job now (#365, Monday by default), so this decides
+ * only the rest of the locale — month names, date formats.
  */
 export function resolveMomentLocale(
   obsidianLang: string,
@@ -96,7 +96,12 @@ export function configureLocale(
   );
   if (rule) {
     const child = `${actual}-periodic-notes-${weekStart}`;
-    if (!moment.locales().includes(child)) {
+    // Defined once, then updated: defineLocale on an existing name is
+    // deprecated, and updating re-asserts the rule in case anything else
+    // has rewritten the child since.
+    if (moment.locales().includes(child)) {
+      moment.updateLocale(child, { week: rule });
+    } else {
       moment.defineLocale(child, { parentLocale: actual, week: rule });
     }
     actual = moment.locale(child);

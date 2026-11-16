@@ -25,10 +25,9 @@ describe("resolveMomentLocale", () => {
   test("the en -> en-gb entry is unreachable on an English system", () => {
     // #197 recorded this asymmetry rather than fixing it. The table says an
     // "en" Obsidian should use en-gb, but the prefix rule above overrides it
-    // for exactly those users. Reviving the entry would move the calendar's
-    // first column from Sunday to Monday, so the behaviour stands and this
-    // test is here to make it visible next time someone reads the table. The
-    // week start setting is how a user picks Monday (#365).
+    // for exactly those users. The first day of the week is the week start
+    // setting's now (#365), so this only picks the rest of the locale; the
+    // test keeps the asymmetry visible next time someone reads the table.
     expect(resolveMomentLocale("en", "en-us")).toBe("en-us");
     expect(resolveMomentLocale("en", "en-gb")).toBe("en-gb");
     // It is reachable only from a non-English system.

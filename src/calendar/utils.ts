@@ -44,7 +44,13 @@ export function getMonth(displayedMonth: Moment, weekFormat: string): Month {
   const month: Month = [];
   let week!: Week;
 
-  const startOfMonth = displayedMonth.clone().date(1);
+  // A clone keeps its original's locale, and the displayed month was made
+  // before any later week-start change. Rebinding here gives every grid day
+  // — and so every row key, click and label — the locale now in force (#365).
+  const startOfMonth = displayedMonth
+    .clone()
+    .locale(window.moment.locale())
+    .date(1);
   const startOffset = startOfMonth.weekday();
   let date: Moment = startOfMonth.clone().subtract(startOffset, "days");
 
