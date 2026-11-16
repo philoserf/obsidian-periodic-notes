@@ -57,11 +57,14 @@ describe("weekRule", () => {
     expect(weekRule({ dow: 1, doy: 4 }, "monday")).toBeNull();
   });
 
-  test("moves the first day and keeps the January day that is always week 1", () => {
-    // en: week 1 holds Jan 1 (7 + 0 - 6). Monday-first, it still does.
-    expect(weekRule({ dow: 0, doy: 6 }, "monday")).toEqual({ dow: 1, doy: 7 });
-    // en-gb: week 1 holds Jan 4, the ISO rule. Sunday-first, it still does.
-    expect(weekRule({ dow: 1, doy: 4 }, "sunday")).toEqual({ dow: 0, doy: 3 });
+  test("moves the first day and the week-1 anchor together", () => {
+    // en: week 1 is anchored on Jan 1; Monday-first, every week moves a day
+    // later, and the anchor with them, to Jan 2.
+    expect(weekRule({ dow: 0, doy: 6 }, "monday")).toEqual({ dow: 1, doy: 6 });
+    // en-gb: anchored on Jan 4; Sunday-first, a day earlier, to Jan 3.
+    expect(weekRule({ dow: 1, doy: 4 }, "sunday")).toEqual({ dow: 0, doy: 4 });
+    // Saturday-first to Monday is two days later, not five earlier.
+    expect(weekRule({ dow: 6, doy: 12 }, "monday")).toEqual({ dow: 1, doy: 5 });
   });
 });
 
@@ -115,7 +118,8 @@ describe("configureLocale with a week start", () => {
 
   test("locale week numbers stay put except for the day that changes rows", () => {
     // Sunday-first, Sun 2025-12-28 to Sat 2026-01-03 is 2026-W01. Monday-first,
-    // Mon 2025-12-29 to Sun 2026-01-04 is: the week holding Jan 1 is still 1.
+    // every week moves a day later, week 1 included: Mon 2025-12-29 to Sun
+    // 2026-01-04.
     const days = [
       "2025-12-28",
       "2025-12-29",
@@ -176,5 +180,104 @@ describe("configureLocale with a week start", () => {
     withWeekStart("monday", () => {
       expect(window.moment.localeData().firstDayOfWeek()).toBe(1);
     });
+  });
+});
+
+describe("weekRule keeps locale week numbers", () => {
+  // Every day the move does not carry into another week keeps its `ww`
+  // number, in every year. A Sunday 1 January (2023, 2034) is where keeping
+  // the week-1 anchor fixed broke it.
+  const previous = window.moment.locale();
+  const define = (name: string, config: object) => {
+    if (window.moment.locales().includes(name)) {
+      window.moment.updateLocale(name, config);
+    } else {
+      window.moment.defineLocale(name, config);
+    }
+    window.moment.locale(previous);
+  };
+
+  // Each parent's rule, and the weekdays each week start moves into another
+  // week, written out by hand so the oracle shares nothing with weekRule.
+  const cases: {
+    name: string;
+    week: { dow: number; doy: number };
+    moved: Record<"monday" | "sunday", number[]>;
+  }[] = [
+    // en: week 1 holds 1 January.
+    {
+      name: "x-wk-en",
+      week: { dow: 0, doy: 6 },
+      moved: { monday: [0], sunday: [] },
+    },
+    // en-gb: week 1 holds 4 January.
+    {
+      name: "x-wk-gb",
+      week: { dow: 1, doy: 4 },
+      moved: { monday: [], sunday: [0] },
+    },
+    // ar: Saturday-first.
+    {
+      name: "x-wk-ar",
+      week: { dow: 6, doy: 12 },
+      moved: { monday: [6, 0], sunday: [6] },
+    },
+    // ar-kw: Sunday-first, anchored before January.
+    {
+      name: "x-wk-kw",
+      week: { dow: 0, doy: 12 },
+      moved: { monday: [0], sunday: [] },
+    },
+    // tr/az: Monday-first, anchored on 1 January.
+    {
+      name: "x-wk-tr",
+      week: { dow: 1, doy: 7 },
+      moved: { monday: [], sunday: [0] },
+    },
+  ];
+
+  const days: { date: string; weekday: number }[] = [];
+  for (
+    const d = window.moment.utc("2019-12-01");
+    d.isBefore("2046-01-31");
+    d.add(1, "day")
+  ) {
+    days.push({ date: d.format("YYYY-MM-DD"), weekday: d.day() });
+  }
+  const numbers = (locale: string) =>
+    days.map(({ date }) =>
+      window.moment.utc(date).locale(locale).format("gggg-[W]ww"),
+    );
+
+  for (const { name, week, moved } of cases) {
+    define(name, { parentLocale: "en", week });
+    for (const weekStart of ["monday", "sunday"] as const) {
+      test(`${name} to ${weekStart}`, () => {
+        const rule = weekRule(week, weekStart);
+        if (moved[weekStart].length === 0) {
+          expect(rule).toBeNull();
+          return;
+        }
+        if (!rule) throw new Error("expected a rule");
+        const child = `${name}-${weekStart}`;
+        define(child, { parentLocale: name, week: rule });
+        const before = numbers(name);
+        const after = numbers(child);
+        const changed = days.filter(
+          ({ weekday }, i) =>
+            before[i] !== after[i] && !moved[weekStart].includes(weekday),
+        );
+        expect(changed).toEqual([]);
+        // And the moved days really did move, so the oracle is not vacuous.
+        expect(days.some((_, i) => before[i] !== after[i])).toBe(true);
+      });
+    }
+  }
+});
+
+describe("weekRule on moment's Sunday-as-7", () => {
+  test("treats dow 7 as Sunday", () => {
+    // moment's `dv` stores Sunday as 7.
+    expect(weekRule({ dow: 7, doy: 13 }, "sunday")).toBeNull();
   });
 });
