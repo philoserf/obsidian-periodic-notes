@@ -149,22 +149,31 @@ A child rather than `updateLocale` on the parent, since rewriting the parent
 could not be undone on unload. Setting one global locale is what keeps every
 week-dependent answer consistent: the calendar's headers and rows, the cache's
 `startOf("week")` keys, `ww` numbering and the weekday template tokens all read
-it. `weekRule` computes the child's `week` config, and moves only `dow`:
+it. `weekRule` computes the child's `week` config:
 
 `src/locale.ts` — `weekRule`
 
 ```ts
-  if (weekStart === "locale") return null;
   const dow = DAY_OF_WEEK[weekStart];
-  if (dow === locale.dow) return null;
-  return { dow, doy: locale.doy + dow - locale.dow };
+  // Mod 7: moment's `dv` stores Sunday as 7.
+  const from = locale.dow % 7;
+  if (dow === from) return null;
+  // The shift in -3..3; the anchor moves by it, so doy moves by what dow
+  // moved beyond it — nothing, unless the short way wraps the week.
+  const shift = ((dow - from + 10) % 7) - 3;
+  return { dow, doy: locale.doy + (dow - locale.dow - shift) };
 ```
 
-Moment's `doy` encodes which January day always falls in week 1, as
-`7 + dow - doy`. Shifting `doy` with `dow` keeps that day fixed. So under the
-`en` rule, where week 1 is the week holding January 1st, a Monday-first week 1
-still holds it. A locale-format weekly note keeps its number, and only the
-Sunday changes rows.
+Moment's `doy` encodes which January day anchors week 1, as `7 + dow - doy`.
+Moving the first day moves every week by the same few days, so the anchor has
+to move by that amount too. A Sunday-to-Monday shift is one day later: under
+the `en` rule week 1 is anchored on 1 January, and Monday-first it is anchored
+on 2 January. Then a locale-format weekly note keeps its number, and only the
+Sundays change rows. The first version kept the anchor fixed instead, which
+renumbered every week of 2023, whose 1 January is a Sunday. A test now compares
+every day from 2020 to 2045 under several parent rules (#369). The parent's
+anchor still decides which week is week 1, so two languages set to Monday can
+still number the same days differently.
 
 ### 2. Settings are re-validated on every load
 
@@ -207,8 +216,10 @@ keeps it:
 
 `isWeekStart` checks against `weekStarts`, the one array the `WeekStart` type is
 derived from, so the type and the check cannot list different values. Formats are deliberately **not**
-round-tripped here: `loadSettings` runs before `configureLocale`, so rejecting
-on a parse failure would silently reset a working format on upgrade. Only values
+round-tripped here: sanitizing runs before the locale is applied, at load and
+again on every save ahead of `applySettings`, so a parse would check against
+the wrong locale, and rejecting would silently reset a working format on
+upgrade. Only values
 that would escape the vault, or name no folder at all, are refused.
 
 `literalizeFormat` is why a traversal cannot hide inside an escape — moment

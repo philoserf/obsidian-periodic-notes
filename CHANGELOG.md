@@ -8,11 +8,11 @@ weeks. That user-visible change is what makes this a minor release.
 
 ### Added
 
-- A "First day of the week" setting, at the top of the plugin's settings: Monday (the default), Sunday, or Language default. The week start used to come only from language tags, which carry no First Day of Week preference, so iOS and iPadOS showed Sunday-first even when the device was set to Monday. The setting moves the calendar's headers and rows, which days a weekly note covers, `ww` week numbers and `{{monday}}`-style template tokens together. ISO week formats (`GGGG-[W]WW`) are unaffected (#365, #367)
+- A "First day of the week" setting, at the top of the plugin's settings: Monday (the default), Sunday, or Language default. The week start used to come only from language tags, which carry no First Day of Week preference, so iOS and iPadOS showed Sunday-first even when the device was set to Monday. The setting moves the calendar's headers and rows, which days a weekly note covers, `ww` week numbers and `{{monday}}`-style template tokens together. ISO week formats (`GGGG-[W]WW`) are unaffected (#365, #367, #369)
 
 ### Changed
 
-- Anyone who has not chosen a week start now gets Monday-first weeks. In a locale weekly format such as the default `gggg-[W]ww`, notes keep their numbers and each Sunday moves into the week before. A weekly note dated by a Sunday, in its filename or frontmatter, now shows in the row before. Choose Sunday or Language default to keep the old layout (#367)
+- Anyone who has not chosen a week start now gets Monday-first weeks. In a locale weekly format such as the default `gggg-[W]ww`, notes keep their numbers and each Sunday moves into the week before. A weekly note dated by a Sunday, in its filename or frontmatter, now shows in the row before. Choose Sunday or Language default to keep the old layout (#367, #369)
 - Moment's locale is shared by the whole app, so while the plugin is enabled other plugins see the same first day of the week. The original locale is restored when the plugin unloads (#367)
 
 ### Internal
