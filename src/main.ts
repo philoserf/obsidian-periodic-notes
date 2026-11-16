@@ -207,21 +207,20 @@ export default class PeriodicNotesPlugin extends Plugin {
     this.settingsTab.update();
   }
 
-  // Whether the save landed. On false nothing was applied, and the caller
-  // puts back the settings that did persist (#370).
-  public async saveSettings(): Promise<boolean> {
+  public async saveSettings(): Promise<void> {
     try {
       await this.saveData(this.settings);
     } catch (err) {
       // Here rather than in its one caller, setControlValue: a failure there
       // would be silent -- the user keeps typing into a field whose value is
-      // not being kept. Returning early matters too, since applySettings acts
-      // on settings that did not persist.
+      // not being kept.
       reportFailure("failed to save settings", err);
-      return false;
     }
+    // Applied either way (#370). The tab already holds and shows the new
+    // value, so skipping this left the ribbon, cache and locale on the old
+    // one until some later save applied both. Now only the disk lags, and
+    // the next successful save, or the Notice above, settles it.
     this.applySettings();
-    return true;
   }
 
   private applyLocale(): void {

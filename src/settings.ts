@@ -93,16 +93,8 @@ export class SettingsTab extends PluginSettingTab {
         [parsed.field]: value,
       });
     }
-    const previous = this.plugin.settings;
-    const next = sanitizeSettings(edited, normalizeFolder);
-    this.plugin.settings = next;
-    // A failed save applies nothing, so keeping `next` would leave the
-    // control showing a value the ribbon, cache and locale never took up
-    // (#370). Put back what persisted, unless a later edit has already
-    // replaced this one -- that edit's own save decides.
-    if (!(await this.plugin.saveSettings()) && this.plugin.settings === next) {
-      this.plugin.settings = previous;
-    }
+    this.plugin.settings = sanitizeSettings(edited, normalizeFolder);
+    await this.plugin.saveSettings();
     this.update();
   }
 }
