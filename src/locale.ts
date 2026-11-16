@@ -51,10 +51,12 @@ const DAY_OF_WEEK: Record<Exclude<WeekStart, "locale">, number> = {
 
 /**
  * The week rule for a chosen week start, given the locale's own: `dow` is the
- * first day, `doy` encodes which January day always falls in week 1
- * (7 + dow - doy). Only the first day moves; that January day is kept, so
- * week 1 is still the week holding the same date and `ww` numbers stay put
- * for all but the day that changes rows. Null when nothing would change.
+ * first day, `doy` encodes which January day anchors week 1 (7 + dow - doy).
+ * Every week moves by the same few days, the short way round, and the anchor
+ * moves with them, so `ww` numbers stay put for all but the days that change
+ * rows. Keeping the anchor fixed instead renumbers a whole year whenever it
+ * falls on a moved day: 2023 under `en`, whose 1 January is a Sunday.
+ * Null when nothing would change.
  */
 export function weekRule(
   locale: { dow: number; doy: number },
@@ -63,7 +65,10 @@ export function weekRule(
   if (weekStart === "locale") return null;
   const dow = DAY_OF_WEEK[weekStart];
   if (dow === locale.dow) return null;
-  return { dow, doy: locale.doy + dow - locale.dow };
+  // The shift in -3..3; the anchor moves by it, so doy moves by what dow
+  // moved beyond it — nothing, unless the short way wraps the week.
+  const shift = ((dow - locale.dow + 10) % 7) - 3;
+  return { dow, doy: locale.doy + (dow - locale.dow - shift) };
 }
 
 /**

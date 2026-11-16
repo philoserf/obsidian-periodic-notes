@@ -57,11 +57,14 @@ describe("weekRule", () => {
     expect(weekRule({ dow: 1, doy: 4 }, "monday")).toBeNull();
   });
 
-  test("moves the first day and keeps the January day that is always week 1", () => {
-    // en: week 1 holds Jan 1 (7 + 0 - 6). Monday-first, it still does.
-    expect(weekRule({ dow: 0, doy: 6 }, "monday")).toEqual({ dow: 1, doy: 7 });
-    // en-gb: week 1 holds Jan 4, the ISO rule. Sunday-first, it still does.
-    expect(weekRule({ dow: 1, doy: 4 }, "sunday")).toEqual({ dow: 0, doy: 3 });
+  test("moves the first day and the week-1 anchor together", () => {
+    // en: week 1 is anchored on Jan 1; Monday-first, every week moves a day
+    // later, and the anchor with them, to Jan 2.
+    expect(weekRule({ dow: 0, doy: 6 }, "monday")).toEqual({ dow: 1, doy: 6 });
+    // en-gb: anchored on Jan 4; Sunday-first, a day earlier, to Jan 3.
+    expect(weekRule({ dow: 1, doy: 4 }, "sunday")).toEqual({ dow: 0, doy: 4 });
+    // Saturday-first to Monday is two days later, not five earlier.
+    expect(weekRule({ dow: 6, doy: 12 }, "monday")).toEqual({ dow: 1, doy: 5 });
   });
 });
 
@@ -177,4 +180,58 @@ describe("configureLocale with a week start", () => {
       expect(window.moment.localeData().firstDayOfWeek()).toBe(1);
     });
   });
+});
+
+describe("weekRule keeps locale week numbers", () => {
+  // Every day the move does not carry into another week keeps its `ww`
+  // number, in every year — the claim the changelog makes. A Sunday 1 January
+  // (2023, 2034) is where shifting doy with dow broke it.
+  const previous = window.moment.locale();
+  const parents = {
+    "x-wk-sun": { dow: 0, doy: 6 }, // en: week 1 holds 1 January
+    "x-wk-mon": { dow: 1, doy: 4 }, // en-gb: week 1 holds 4 January
+    "x-wk-sat": { dow: 6, doy: 12 }, // ar: Saturday-first
+  };
+  for (const [name, week] of Object.entries(parents)) {
+    window.moment.defineLocale(name, { parentLocale: "en", week });
+  }
+  window.moment.locale(previous);
+
+  const numbers = (locale: string, days: string[]) =>
+    days.map((d) => window.moment.utc(d).locale(locale).format("gggg-[W]ww"));
+  const days: string[] = [];
+  for (
+    const d = window.moment.utc("2019-12-01");
+    d.isBefore("2046-01-31");
+    d.add(1, "day")
+  ) {
+    days.push(d.format("YYYY-MM-DD"));
+  }
+
+  for (const [parent, week] of Object.entries(parents)) {
+    for (const weekStart of ["monday", "sunday"] as const) {
+      const rule = weekRule(week, weekStart);
+      if (!rule) continue;
+      test(`${parent} to ${weekStart}`, () => {
+        const child = `${parent}-${weekStart}`;
+        window.moment.defineLocale(child, { parentLocale: parent, week: rule });
+        window.moment.locale(previous);
+        const before = numbers(parent, days);
+        const after = numbers(child, days);
+        // The days that change rows: from the old first day up to the new
+        // one, going the short way round.
+        const shift = ((rule.dow - week.dow + 10) % 7) - 3;
+        const moved = new Set(
+          Array.from({ length: Math.abs(shift) }, (_, i) =>
+            shift > 0 ? (week.dow + i) % 7 : (week.dow - 1 - i + 7) % 7,
+          ),
+        );
+        const changed = days.filter(
+          (d, i) =>
+            before[i] !== after[i] && !moved.has(window.moment.utc(d).day()),
+        );
+        expect(changed).toEqual([]);
+      });
+    }
+  }
 });
