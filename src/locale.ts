@@ -33,8 +33,10 @@ const langToMomentLocale: Record<string, string> = {
  * Obsidian's language, which makes the explicit `en -> en-gb` entry unreachable
  * for exactly the users it was written for (an `en` Obsidian on an `en-US`
  * system gets `en-us`). Left as it behaves: the first day of the week is the
- * week start setting's job now (#365, Monday by default), so this decides
- * only the rest of the locale — month names, date formats.
+ * week start setting's job now (#365, Monday by default). This still decides
+ * the rest of the locale, including which week is week 1 — `en` anchors it on
+ * 1 January, `en-gb` on 4 January — so reviving the entry would renumber
+ * `ww` notes in some years.
  */
 export function resolveMomentLocale(
   obsidianLang: string,
