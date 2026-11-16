@@ -143,9 +143,9 @@ describe("sanitizeSettings week start", () => {
     }
   });
 
-  test("falls back to the language default for anything else", () => {
+  test("falls back to Monday for anything else", () => {
     for (const weekStart of [undefined, "tuesday", 1, null]) {
-      expect(sanitize({ weekStart }).weekStart).toBe("locale");
+      expect(sanitize({ weekStart }).weekStart).toBe("monday");
     }
   });
 
@@ -177,7 +177,7 @@ describe("indexingSnapshotOf", () => {
 
   test("changes when the week start changes, since it moves weekly keys", () => {
     const edited = base();
-    edited.weekStart = "monday";
+    edited.weekStart = "sunday";
     expect(indexingSnapshotOf(edited)).not.toBe(indexingSnapshotOf(base()));
   });
 });

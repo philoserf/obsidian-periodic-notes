@@ -22,8 +22,8 @@ export interface NoteConfig {
 }
 
 /**
- * Which day the plugin's weeks begin on. "locale" keeps the language's own
- * rule. The OS First Day of Week preference is not visible to the plugin —
+ * Which day the plugin's weeks begin on, Monday unless chosen otherwise.
+ * "locale" keeps the language's own rule. The OS First Day of Week preference is not visible to the plugin —
  * only language tags are — so this is how a user gets the week they set
  * there (#365).
  */
