@@ -213,11 +213,14 @@ export default class PeriodicNotesPlugin extends Plugin {
     } catch (err) {
       // Here rather than in its one caller, setControlValue: a failure there
       // would be silent -- the user keeps typing into a field whose value is
-      // not being kept. Returning early matters too, since applySettings acts
-      // on settings that did not persist.
+      // not being kept.
       reportFailure("failed to save settings", err);
-      return;
     }
+    // Applied either way (#370). The tab already holds and shows the new
+    // value, so skipping this left the ribbon, cache and locale on the old
+    // one until some later save applied both. Now only the disk lags. The
+    // next successful save writes it; until then anything that reloads
+    // data.json -- a restart, a plugin reload, a synced rewrite -- drops it.
     this.applySettings();
   }
 
