@@ -40,7 +40,18 @@ const weekFormat: string = $derived.by(() => {
   return fileStore.getFormat("week");
 });
 
-const month: Month = $derived(getMonth(displayedMonth.current, weekFormat));
+// The week start sets the global moment locale, which nothing here can
+// track, so it is read as a string beside the format: a change re-derives the
+// grid and the headers.
+const weekStart: string = $derived.by(() => {
+  void fileStore.version;
+  return fileStore.getWeekStart();
+});
+
+const month: Month = $derived.by(() => {
+  void weekStart;
+  return getMonth(displayedMonth.current, weekFormat);
+});
 
 const enabledGranularities: Granularity[] = $derived.by(() => {
   // Track fileStore.version so mutations re-derive.
@@ -59,7 +70,10 @@ const fileMap: FileMap = $derived.by(() =>
   ),
 );
 
-const daysOfWeek: string[] = window.moment.weekdaysShort(true);
+const daysOfWeek: string[] = $derived.by(() => {
+  void weekStart;
+  return window.moment.weekdaysShort(true);
+});
 
 export function tick() {
   const now = window.moment();

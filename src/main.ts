@@ -24,6 +24,7 @@ import {
   getEnabledGranularities,
   granularities,
   type Settings,
+  type WeekStart,
 } from "./types";
 
 interface OpenOpts {
@@ -45,6 +46,10 @@ export default class PeriodicNotesPlugin extends Plugin {
   // The settings the cache index is built from, as last applied. Compared in
   // applySettings so only a change that affects indexing costs a vault rescan.
   private indexingSnapshot = "";
+  // The week start the moment locale was last configured for, and how to put
+  // back what was there before. Reconfigured only when the setting moves.
+  private localeWeekStart: WeekStart | null = null;
+  private restoreLocale: () => void = () => {};
   // Creations in progress, keyed by destination path. The index only learns of
   // a file from the vault's "create" event, so two callers racing to open the
   // same note both see a cache miss; without this the second reaches
@@ -59,7 +64,8 @@ export default class PeriodicNotesPlugin extends Plugin {
 
     await this.loadSettings();
     // moment's locale is global to the app, so put it back on unload.
-    this.register(configureLocale(getLanguage()));
+    this.applyLocale();
+    this.register(() => this.restoreLocale());
 
     // addChild, not a bare field: Component.registerEvent only arranges teardown
     // during the component's own unload, and nothing else would ever unload the
@@ -215,10 +221,22 @@ export default class PeriodicNotesPlugin extends Plugin {
     this.applySettings();
   }
 
+  private applyLocale(): void {
+    if (this.settings.weekStart === this.localeWeekStart) return;
+    this.restoreLocale();
+    this.restoreLocale = configureLocale(
+      getLanguage(),
+      this.settings.weekStart,
+    );
+    this.localeWeekStart = this.settings.weekStart;
+  }
+
   // Brings the ribbon and the cache in line with this.settings, after a save
   // or an external change.
   private applySettings(): void {
     this.configureRibbonIcons();
+    // Before the rescan below: the cache keys weekly notes by startOf("week").
+    this.applyLocale();
 
     // NoteCache.reset() re-walks every configured folder and re-parses every
     // filename, and every accepted settings change saves — each keystroke in a

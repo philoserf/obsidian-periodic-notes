@@ -21,7 +21,17 @@ export interface NoteConfig {
   templatePath?: string | undefined;
 }
 
+/**
+ * Which day the plugin's weeks begin on. "locale" keeps the language's own
+ * rule. The OS First Day of Week preference is not visible to the plugin —
+ * only language tags are — so this is how a user gets the week they set
+ * there (#365).
+ */
+export type WeekStart = "locale" | "monday" | "sunday";
+export const weekStarts: WeekStart[] = ["locale", "monday", "sunday"];
+
 export interface Settings {
+  weekStart: WeekStart;
   granularities: Record<Granularity, NoteConfig>;
 }
 

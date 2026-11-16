@@ -136,6 +136,24 @@ describe("sanitizeSettings", () => {
   });
 });
 
+describe("sanitizeSettings week start", () => {
+  test("keeps a known week start", () => {
+    for (const weekStart of ["locale", "monday", "sunday"] as const) {
+      expect(sanitize({ weekStart }).weekStart).toBe(weekStart);
+    }
+  });
+
+  test("falls back to the language default for anything else", () => {
+    for (const weekStart of [undefined, "tuesday", 1, null]) {
+      expect(sanitize({ weekStart }).weekStart).toBe("locale");
+    }
+  });
+
+  test("keeps the week start even without saved granularities", () => {
+    expect(sanitize({ weekStart: "monday" }).weekStart).toBe("monday");
+  });
+});
+
 describe("indexingSnapshotOf", () => {
   const base = () => sanitize({ granularities: { day: { enabled: true } } });
 
@@ -155,5 +173,11 @@ describe("indexingSnapshotOf", () => {
       Object.assign(edited.granularities.day, change);
       expect(indexingSnapshotOf(edited)).not.toBe(indexingSnapshotOf(base()));
     }
+  });
+
+  test("changes when the week start changes, since it moves weekly keys", () => {
+    const edited = base();
+    edited.weekStart = "monday";
+    expect(indexingSnapshotOf(edited)).not.toBe(indexingSnapshotOf(base()));
   });
 });

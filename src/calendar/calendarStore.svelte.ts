@@ -3,7 +3,11 @@ import type { Component, TFile } from "obsidian";
 
 import { getFormat } from "src/format";
 import type PeriodicNotesPlugin from "src/main";
-import { type Granularity, getEnabledGranularities } from "src/types";
+import {
+  type Granularity,
+  getEnabledGranularities,
+  type WeekStart,
+} from "src/types";
 
 export default class CalendarStore {
   // Bumped on any vault/metadata event that may have changed the
@@ -54,6 +58,10 @@ export default class CalendarStore {
 
   public getFormat(granularity: Granularity): string {
     return getFormat(this.plugin.settings, granularity);
+  }
+
+  public getWeekStart(): WeekStart {
+    return this.plugin.settings.weekStart;
   }
 
   public getEnabledGranularities(): Granularity[] {
