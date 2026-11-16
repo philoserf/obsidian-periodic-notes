@@ -1,5 +1,26 @@
 # Changelog
 
+## 2.9.0
+
+Weeks can now start on Monday on every device. Weeks start on Monday by
+default, which changes the calendar for anyone who was getting Sunday-first
+weeks. That user-visible change is what makes this a minor release.
+
+### Added
+
+- A "First day of the week" setting, at the top of the plugin's settings: Monday (the default), Sunday, or Language default. The week start used to come only from language tags, which carry no First Day of Week preference, so iOS and iPadOS showed Sunday-first even when the device was set to Monday. The setting moves the calendar's headers and rows, which days a weekly note covers, `ww` week numbers and `{{monday}}`-style template tokens together. ISO week formats (`GGGG-[W]WW`) are unaffected (#365, #367)
+
+### Changed
+
+- Anyone who has not chosen a week start now gets Monday-first weeks. In a locale weekly format such as the default `gggg-[W]ww`, notes keep their numbers and each Sunday moves into the week before. A weekly note dated by a Sunday, in its filename or frontmatter, now shows in the row before. Choose Sunday or Language default to keep the old layout (#367)
+- Moment's locale is shared by the whole app, so while the plugin is enabled other plugins see the same first day of the week. The original locale is restored when the plugin unloads (#367)
+
+### Internal
+
+- `bun fmt` reads its settings from `bunfig.toml` instead of `.prettierrc.json` and `.prettierignore` (#363, #366)
+- `CLAUDE.md` no longer points at `NEXT.md` (#364)
+- Dependency updates: Biome 2.6.4, svelte-check 4.7.8 (#362), @tsconfig/svelte 5.0.9 and vite 8.3.8
+
 ## 2.8.0
 
 The plugin gains a command-line verb, so scripts can get or create a periodic

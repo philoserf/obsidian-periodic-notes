@@ -80,7 +80,8 @@ vault events ──► NoteCache ──► resolveFile ──► CacheIndex
 ```ts
 await this.loadSettings();
 // moment's locale is global to the app, so put it back on unload.
-this.register(configureLocale(getLanguage()));
+this.applyLocale();
+this.register(() => this.restoreLocale());
 
 // addChild, not a bare field: Component.registerEvent only arranges teardown
 // during the component's own unload, and nothing else would ever unload the
@@ -89,16 +90,81 @@ this.register(configureLocale(getLanguage()));
 this.cache = this.addChild(new NoteCache(this.app, this));
 ```
 
-Two details worth pausing on. `configureLocale` returns an undo function because
-`moment.locale()` is a global setter on the single moment instance Obsidian
-hands every plugin — leaving it set reconfigures date formatting app-wide. And
-the cache is registered as a **child component**, not assigned to a field, so
-that disabling the plugin actually tears down its listeners.
+Two details worth pausing on. The locale is applied with an undo function,
+because `moment.locale()` is a global setter on the single moment instance
+Obsidian hands every plugin, and leaving it set reconfigures date formatting
+app-wide. And the cache is registered as a **child component**, not assigned to
+a field, so that disabling the plugin actually tears down its listeners.
 
-The language arrives as an argument. `getLanguage()` is Obsidian's public read
-of its UI language, and calling it here rather than inside `configureLocale`
-keeps `locale.ts` free of `obsidian` values, so the locale mapping and the
-apply-and-restore behaviour are both tested directly.
+The locale comes after the settings because it depends on one of them, the
+week start. A language tag carries no first-day-of-week preference, so the
+plugin cannot read the one the OS holds; the setting supplies it instead, with
+Monday as the default (#365). The setting can change while the plugin runs, so
+the undo function is held in a field rather than handed straight to
+`register`:
+
+`src/main.ts` — `applyLocale`
+
+```ts
+  private applyLocale(): void {
+    if (this.settings.weekStart === this.localeWeekStart) return;
+    this.restoreLocale();
+    this.restoreLocale = configureLocale(
+      getLanguage(),
+      this.settings.weekStart,
+    );
+    this.localeWeekStart = this.settings.weekStart;
+  }
+```
+
+Restoring before reconfiguring means the "previous" locale `configureLocale`
+records is always the one the app had before the plugin touched it, however
+many times the setting has changed. The language arrives as an argument.
+`getLanguage()` is Obsidian's public read of its UI language, and calling it
+here rather than inside `configureLocale` keeps `locale.ts` free of `obsidian`
+values, so the locale mapping and the apply-and-restore behaviour are both
+tested directly.
+
+`configureLocale` picks the language's moment locale. Then, if the week start
+moves the first day, it switches to a child of that locale:
+
+`src/locale.ts` — `configureLocale`
+
+```ts
+  if (rule) {
+    const child = `${actual}-periodic-notes-${weekStart}`;
+    // Defined once, then updated: defineLocale on an existing name is
+    // deprecated, and updating re-asserts the rule in case anything else
+    // has rewritten the child since.
+    if (moment.locales().includes(child)) {
+      moment.updateLocale(child, { week: rule });
+    } else {
+      moment.defineLocale(child, { parentLocale: actual, week: rule });
+    }
+    actual = moment.locale(child);
+  }
+```
+
+A child rather than `updateLocale` on the parent, since rewriting the parent
+could not be undone on unload. Setting one global locale is what keeps every
+week-dependent answer consistent: the calendar's headers and rows, the cache's
+`startOf("week")` keys, `ww` numbering and the weekday template tokens all read
+it. `weekRule` computes the child's `week` config, and moves only `dow`:
+
+`src/locale.ts` — `weekRule`
+
+```ts
+  if (weekStart === "locale") return null;
+  const dow = DAY_OF_WEEK[weekStart];
+  if (dow === locale.dow) return null;
+  return { dow, doy: locale.doy + dow - locale.dow };
+```
+
+Moment's `doy` encodes which January day always falls in week 1, as
+`7 + dow - doy`. Shifting `doy` with `dow` keeps that day fixed. So under the
+`en` rule, where week 1 is the week holding January 1st, a Monday-first week 1
+still holds it. A locale-format weekly note keeps its number, and only the
+Sunday changes rows.
 
 ### 2. Settings are re-validated on every load
 
@@ -127,7 +193,20 @@ if (typeof saved.folder === "string") {
 ```
 
 Every field is checked individually and falls back to its own default, rather
-than the sub-object being trusted as a unit. Formats are deliberately **not**
+than the sub-object being trusted as a unit. The one top-level field, the week
+start, is read before the granularities, so saved data without them still
+keeps it:
+
+`src/settingsLoad.ts` — `sanitizeSettings`
+
+```ts
+  if (!isRecord(saved)) return settings;
+  if (isWeekStart(saved.weekStart)) settings.weekStart = saved.weekStart;
+  if (!isRecord(saved.granularities)) return settings;
+```
+
+`isWeekStart` checks against `weekStarts`, the one array the `WeekStart` type is
+derived from, so the type and the check cannot list different values. Formats are deliberately **not**
 round-tripped here: `loadSettings` runs before `configureLocale`, so rejecting
 on a parse failure would silently reset a working format on upgrade. Only values
 that would escape the vault, or name no folder at all, are refused.
@@ -479,6 +558,24 @@ token patterns are case-insensitive, so a month or year token reads `m` as
 months. And `.weekday()` mutates in place, so the date is cloned before use —
 the `Moment` may be the one a `CacheEntry` is indexed under.
 
+`.weekday()` has a second catch. Its index counts from the locale's first day,
+not from Sunday, so a weekday token's name has to be rotated:
+
+`src/templateRender.ts` — `applyTemplate`
+
+```ts
+      const day =
+        (WEEKDAYS.indexOf(dayOfWeek.toLowerCase()) -
+          date.localeData().firstDayOfWeek() +
+          7) %
+        7;
+```
+
+The first day comes from the date's own locale, not the global one, because
+`.weekday()` counts in the date's. A moment keeps the locale it was made with,
+so a date made before the week start changed would otherwise rotate by one rule
+and count by the other, and `{{monday}}` would land on a Sunday.
+
 ### 10. Creation and opening
 
 `src/main.ts` — `createPeriodicNote`
@@ -562,9 +659,30 @@ holds a `$state` version counter bumped on any relevant vault event; consumers
 read it inside `$derived` so the file map recomputes.
 
 `getMonth` lays out six rows of seven days, starting on the locale's first
-weekday. A row then has to stand for one week, and the obvious choice — its
-first day — is wrong under a Sunday-first locale with an ISO format, because ISO
-files that Sunday under the week before. One helper names the right day, and the
+weekday, which is the week start setting's. The month it is given was made when
+the calendar mounted, and a moment keeps the locale it was made with, so it is
+rebound first:
+
+`src/calendar/utils.ts` — `getMonth`
+
+```ts
+  const startOfMonth = displayedMonth
+    .clone()
+    .locale(window.moment.locale())
+    .date(1);
+  const startOffset = startOfMonth.weekday();
+```
+
+Without that, changing the week start with the calendar open moved the headers,
+which read the global locale, but left the rows starting on the old day. The
+weekly keys missed the re-indexed cache too. Every grid day is cloned from
+`startOfMonth`, so the one rebind covers each row's key, click and label.
+`Calendar.svelte` reads the week start as a string beside the week format, so
+a change re-derives both the grid and the headers.
+
+A row then has to stand for one week, and the obvious choice — its first day —
+is wrong under a Sunday-first locale with an ISO format, because ISO files that
+Sunday under the week before. One helper names the right day, and the
 click, the hover, the file lookup and the row's label all read it:
 
 `src/calendar/utils.ts` — `weekDate`
@@ -630,10 +748,11 @@ calendar with its listeners attached but every handler returning early.
 
 ### 12. The settings tab, and what a change costs
 
-The tab is data. `settingDefinitions` returns one page per period — Daily,
-Weekly, Monthly, Yearly — in Obsidian 1.13's declarative settings shape, and
-imports only types from `obsidian`, so it is tested directly. Each page's link
-summarises the period and flags a folder or template that does not exist yet:
+The tab is data. `settingDefinitions` returns the week start dropdown, then one
+page per period — Daily, Weekly, Monthly, Yearly — in Obsidian 1.13's
+declarative settings shape. It imports only types from `obsidian`, so it is
+tested directly. Each page's link summarises the period and flags a folder or
+template that does not exist yet:
 
 `src/settingsDefinitions.ts` — `settingDefinitions`
 
@@ -665,16 +784,24 @@ export type Validation = { error: string; blocking: boolean };
 
 The checks that need the vault — does this folder exist, is it a file — live in
 `settings.ts` and are injected as `SettingsChecks`. That file is otherwise just
-the binding between control keys such as `week.format` and the settings object,
-and its one write path is the load path:
+the binding between control keys and the settings object. A key is `weekStart`
+or a period's field such as `week.format`, and the one write path is the load
+path:
 
 `src/settings.ts` — `SettingsTab.setControlValue`
 
 ```ts
     const edited = structuredClone(this.plugin.settings);
-    Object.assign(edited.granularities[parsed.granularity], {
-      [parsed.field]: value,
-    });
+    if (key === WEEK_START_KEY) {
+      // Unchecked here; sanitizeSettings below drops anything not a WeekStart.
+      edited.weekStart = value as WeekStart;
+    } else {
+      const parsed = parseSettingKey(key);
+      if (!parsed) return;
+      Object.assign(edited.granularities[parsed.granularity], {
+        [parsed.field]: value,
+      });
+    }
     this.plugin.settings = sanitizeSettings(edited, normalizeFolder);
     await this.plugin.saveSettings();
     this.update();
@@ -690,6 +817,8 @@ which is where the rescan is decided:
 
 ```ts
 this.configureRibbonIcons();
+// Before the rescan below: the cache keys weekly notes by startOf("week").
+this.applyLocale();
 ...
 const snapshot = indexingSnapshotOf(this.settings);
 if (snapshot !== this.indexingSnapshot) {
@@ -698,8 +827,10 @@ if (snapshot !== this.indexingSnapshot) {
 }
 ```
 
-Only `enabled`, `format` and `folder` decide what gets indexed, so editing a
-template path costs nothing. `NoteCache.reset()` re-walks every configured
+Only `enabled`, `format`, `folder` and the week start decide what gets indexed,
+so editing a template path costs nothing. The week start counts because it
+moves every weekly key, and the locale is reapplied before the rescan so the
+rebuilt index uses the new keys. `NoteCache.reset()` re-walks every configured
 folder, which is why that check matters when every keystroke the control accepts
 is a save. `indexingSnapshotOf` lives in `settingsLoad.ts`, on the pure side, so
 which fields count is tested rather than read off `main.ts`.

@@ -33,7 +33,11 @@ If you want something similar, the code is MIT-licensed — fork it and adapt. D
 
 ## Settings
 
-Requires Obsidian 1.13 or later. Each granularity has its own page in the settings tab. The page's entry shows its format and folder, or "Off", and carries a warning badge when the folder or template doesn't exist yet. Format, Folder and Template appear only while the granularity is enabled. A value that would place notes outside the vault is rejected and never saved. A folder or template that doesn't exist yet is saved with a warning. Settings synced from another device take effect without restarting Obsidian.
+Requires Obsidian 1.13 or later.
+
+**First day of the week** sits at the top of the settings tab: Monday (the default), Sunday, or Language default. It sets where the calendar's rows begin, which days a weekly note covers, and how `ww` week numbers count. ISO formats (`GGGG-[W]WW`) are Monday-first whatever it says. It is a setting because the plugin cannot read your device's First Day of Week preference.
+
+Each granularity has its own page in the settings tab. The page's entry shows its format and folder, or "Off", and carries a warning badge when the folder or template doesn't exist yet. Format, Folder and Template appear only while the granularity is enabled. A value that would place notes outside the vault is rejected and never saved. A folder or template that doesn't exist yet is saved with a warning. Settings synced from another device take effect without restarting Obsidian.
 
 | Setting  | Description                                                                                                                                                                                                                |
 | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -66,9 +70,9 @@ Tokens are replaced when a new note is created from a template.
 
 ### Weekly notes
 
-| Token                   | Replaced with                                                                           |
-| ----------------------- | --------------------------------------------------------------------------------------- |
-| `{{monday:YYYY-MM-DD}}` | Monday of the active week, formatted. Same for `sunday`…`saturday`. Format is required. |
+| Token                   | Replaced with                                                                                                                                                             |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `{{monday:YYYY-MM-DD}}` | Monday of the active week, formatted. Same for `sunday`…`saturday`. Format is required. With Monday first, `sunday` is the week's last day; with Sunday first, its first. |
 
 ### Monthly notes
 
