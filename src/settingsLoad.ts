@@ -19,9 +19,11 @@ function isRecord(value: unknown): value is UnknownRecord {
  * falls back to its own default rather than the whole sub-object being trusted.
  * Folder normalization is injected so this module stays importable in tests.
  *
- * Formats are not round-tripped here: loadSettings runs before configureLocale,
- * and rejecting on parse would silently reset a working format on upgrade. Only
- * values that would escape the vault are refused.
+ * Formats are not round-tripped here: this runs before the locale is applied —
+ * at load, and on every save, ahead of applySettings reapplying it for a new
+ * week start — so a parse would check against the wrong locale, and rejecting
+ * would silently reset a working format on upgrade. Only values that would
+ * escape the vault are refused.
  */
 export function sanitizeSettings(
   saved: unknown,
