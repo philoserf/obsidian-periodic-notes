@@ -214,13 +214,14 @@ keeps it:
   if (!isRecord(saved.granularities)) return settings;
 ```
 
-`isWeekStart` checks against `weekStarts`, the one array the `WeekStart` type is
-derived from, so the type and the check cannot list different values. Formats are deliberately **not**
-round-tripped here: sanitizing runs before the locale is applied, at load and
-again on every save ahead of `applySettings`, so a parse would check against
-the wrong locale, and rejecting would silently reset a working format on
-upgrade. Only values
-that would escape the vault, or name no folder at all, are refused.
+`isWeekStart` checks against `weekStarts`, the one array the `WeekStart` type
+is derived from, so the type and the check cannot list different values.
+
+Formats are deliberately **not** round-tripped here: sanitizing runs before the
+locale is applied, at load and again on every save ahead of `applySettings`, so
+a parse would check against the wrong locale, and rejecting would silently
+reset a working format on upgrade. Only values that would escape the vault, or
+name no folder at all, are refused.
 
 `literalizeFormat` is why a traversal cannot hide inside an escape — moment
 renders `[..]` as a literal `..`, so the guard checks the rendered shape:
