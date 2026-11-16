@@ -12,6 +12,7 @@ import {
   settingDefinitions,
   settingKey,
   valid,
+  WEEK_START_KEY,
   warn,
 } from "./settingsDefinitions";
 import type { Settings } from "./types";
@@ -52,11 +53,12 @@ async function validate(r: SettingDefinition, value: string) {
 }
 
 describe("settingDefinitions", () => {
-  it("has one page per period", () => {
+  it("has the week start, then one page per period", () => {
     const names = settingDefinitions(DEFAULT_SETTINGS, allValid).map(
       (p) => (p as SettingDefinitionPage).name,
     );
     expect(names).toEqual([
+      "First day of the week",
       "Daily notes",
       "Weekly notes",
       "Monthly notes",
@@ -144,6 +146,21 @@ describe("settingDefinitions", () => {
     );
     expect(await validate(row(week, "Format"), "[..]/YYYY")).toBeTruthy();
     expect(await validate(row(week, "Format"), "GGGG-[W]WW")).toBeUndefined();
+  });
+});
+
+describe("week start", () => {
+  it("comes first, as a dropdown of every week start", () => {
+    const [first] = settingDefinitions(settingsWith(), allValid);
+    const control = (first as SettingDefinition).control;
+    expect(control).toMatchObject({ type: "dropdown", key: WEEK_START_KEY });
+    expect(
+      Object.keys((control as { options: Record<string, string> }).options),
+    ).toEqual(["locale", "monday", "sunday"]);
+  });
+
+  it("is not mistaken for a period's field", () => {
+    expect(parseSettingKey(WEEK_START_KEY)).toBeNull();
   });
 });
 

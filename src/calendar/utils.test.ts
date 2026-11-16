@@ -169,3 +169,25 @@ describe("gridAt", () => {
     expect(() => gridAt(["a"], 3)).toThrow("calendar grid has no item at 3");
   });
 });
+
+describe("getMonth after the week start changes", () => {
+  it("lays rows out in the current locale, not the displayed month's", () => {
+    // The calendar's displayed month is made once, at mount, and keeps the
+    // locale current then. A week start chosen afterwards must still move
+    // the rows, or headers and grid disagree (#365).
+    const displayed = moment("2026-11-01");
+    const previous = moment.locale();
+    moment.defineLocale("x-utils-mon", {
+      parentLocale: "en",
+      week: { dow: 1, doy: 7 },
+    });
+    try {
+      const month = getMonth(displayed, LOCALE_WEEK);
+      const first = gridAt(month, 0);
+      expect(gridAt(first.days, 0).day()).toBe(1);
+      expect(weekDate(first.days).startOf("week").day()).toBe(1);
+    } finally {
+      moment.locale(previous);
+    }
+  });
+});

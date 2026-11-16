@@ -13,9 +13,11 @@ import {
   settingDefinitions,
   type Validation,
   valid,
+  WEEK_START_KEY,
   warn,
 } from "./settingsDefinitions";
 import { sanitizeSettings } from "./settingsLoad";
+import type { WeekStart } from "./types";
 
 /** The one folder normalization, shared by loading and by the settings tab. */
 export const normalizeFolder = (folder: string): string =>
@@ -68,6 +70,7 @@ export class SettingsTab extends PluginSettingTab {
   }
 
   override getControlValue(key: string): unknown {
+    if (key === WEEK_START_KEY) return this.plugin.settings.weekStart;
     const parsed = parseSettingKey(key);
     if (!parsed) return undefined;
     return (
@@ -79,12 +82,17 @@ export class SettingsTab extends PluginSettingTab {
   // control stores exactly what the next load would produce. update()
   // refreshes the page entries' summary and warning.
   override async setControlValue(key: string, value: unknown): Promise<void> {
-    const parsed = parseSettingKey(key);
-    if (!parsed) return;
     const edited = structuredClone(this.plugin.settings);
-    Object.assign(edited.granularities[parsed.granularity], {
-      [parsed.field]: value,
-    });
+    if (key === WEEK_START_KEY) {
+      // Unchecked here; sanitizeSettings below drops anything not a WeekStart.
+      edited.weekStart = value as WeekStart;
+    } else {
+      const parsed = parseSettingKey(key);
+      if (!parsed) return;
+      Object.assign(edited.granularities[parsed.granularity], {
+        [parsed.field]: value,
+      });
+    }
     this.plugin.settings = sanitizeSettings(edited, normalizeFolder);
     await this.plugin.saveSettings();
     this.update();

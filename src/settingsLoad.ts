@@ -1,6 +1,11 @@
 import { DEFAULT_SETTINGS } from "./constants";
 import { hasDotDotSegment, hasDotOnlySegment, literalizeFormat } from "./paths";
-import { granularities, type NoteConfig, type Settings } from "./types";
+import {
+  granularities,
+  isWeekStart,
+  type NoteConfig,
+  type Settings,
+} from "./types";
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -23,7 +28,9 @@ export function sanitizeSettings(
   normalizeFolder: (folder: string) => string,
 ): Settings {
   const settings = structuredClone(DEFAULT_SETTINGS);
-  if (!isRecord(saved) || !isRecord(saved.granularities)) return settings;
+  if (!isRecord(saved)) return settings;
+  if (isWeekStart(saved.weekStart)) settings.weekStart = saved.weekStart;
+  if (!isRecord(saved.granularities)) return settings;
 
   for (const granularity of granularities) {
     const savedConfig = saved.granularities[granularity];
@@ -70,13 +77,16 @@ function sanitizeConfig(
   return config;
 }
 
-// Only `enabled`, `format` and `folder` decide what the cache indexes;
-// templatePath does not, so editing it must not trigger a rescan.
+// Only `enabled`, `format`, `folder` and the week start decide what the cache
+// indexes — the week start moves every weekly key, since keys come from
+// startOf("week"). templatePath does not, so editing it must not trigger a
+// rescan.
 export function indexingSnapshotOf(settings: Settings): string {
-  return JSON.stringify(
+  return JSON.stringify([
+    settings.weekStart,
     granularities.map((g) => {
       const { enabled, format, folder } = settings.granularities[g];
       return [enabled, format, folder];
     }),
-  );
+  ]);
 }

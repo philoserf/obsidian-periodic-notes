@@ -15,6 +15,7 @@ export const DEFAULT_CONFIG: NoteConfig = {
 };
 
 export const DEFAULT_SETTINGS: Settings = {
+  weekStart: "monday",
   granularities: {
     day: { ...DEFAULT_CONFIG },
     week: { ...DEFAULT_CONFIG },

@@ -1,7 +1,12 @@
 import type { SettingDefinitionItem, TFile } from "obsidian";
 import { DEFAULT_FORMAT } from "./constants";
 import { validateFormat } from "./format";
-import { type Granularity, granularities, type Settings } from "./types";
+import {
+  type Granularity,
+  granularities,
+  type Settings,
+  type WeekStart,
+} from "./types";
 
 /**
  * A field's verdict. A `blocking` value is rejected by the control and never
@@ -39,6 +44,15 @@ const LABELS: Record<Granularity, string> = {
   year: "Yearly notes",
 };
 
+/** The one control key that is not a period's field. */
+export const WEEK_START_KEY = "weekStart";
+
+const WEEK_START_LABELS: Record<WeekStart, string> = {
+  locale: "Language default",
+  monday: "Monday",
+  sunday: "Sunday",
+};
+
 /** A control key names one field of one period: `week.format`. */
 export function settingKey(granularity: Granularity, field: Field): string {
   return `${granularity}.${field}`;
@@ -58,15 +72,25 @@ const blockingError = (check: Validation) =>
   check.blocking ? check.error : undefined;
 
 /**
- * The settings tab as data (Obsidian 1.13 declarative settings, #335): one page
- * per period. The page entry shows the period's format and folder, and a
- * warning when its folder or template does not exist yet.
+ * The settings tab as data (Obsidian 1.13 declarative settings, #335): the
+ * week start, then one page per period. The page entry shows the period's
+ * format and folder, and a warning when its folder or template does not exist
+ * yet.
  */
 export function settingDefinitions(
   settings: Settings,
   checks: SettingsChecks,
 ): SettingDefinitionItem[] {
-  return granularities.map((granularity) => {
+  const weekStart: SettingDefinitionItem = {
+    name: "First day of the week",
+    desc: "Where the calendar's rows begin, and which days a weekly note covers.",
+    control: {
+      type: "dropdown" as const,
+      key: WEEK_START_KEY,
+      options: WEEK_START_LABELS,
+    },
+  };
+  const pages = granularities.map((granularity) => {
     const config = () => settings.granularities[granularity];
     const enabled = () => config().enabled;
     const advisory = () =>
@@ -133,4 +157,5 @@ export function settingDefinitions(
       ],
     };
   });
+  return [weekStart, ...pages];
 }

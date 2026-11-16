@@ -11,6 +11,7 @@ import type { Settings } from "./types";
 
 function settingsWithFormat(granularity: string, format: string): Settings {
   return {
+    ...DEFAULT_SETTINGS,
     granularities: {
       ...DEFAULT_SETTINGS.granularities,
       [granularity]: {
