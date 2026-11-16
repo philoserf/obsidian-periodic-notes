@@ -207,7 +207,9 @@ export default class PeriodicNotesPlugin extends Plugin {
     this.settingsTab.update();
   }
 
-  public async saveSettings(): Promise<void> {
+  // Whether the save landed. On false nothing was applied, and the caller
+  // puts back the settings that did persist (#370).
+  public async saveSettings(): Promise<boolean> {
     try {
       await this.saveData(this.settings);
     } catch (err) {
@@ -216,9 +218,10 @@ export default class PeriodicNotesPlugin extends Plugin {
       // not being kept. Returning early matters too, since applySettings acts
       // on settings that did not persist.
       reportFailure("failed to save settings", err);
-      return;
+      return false;
     }
     this.applySettings();
+    return true;
   }
 
   private applyLocale(): void {
